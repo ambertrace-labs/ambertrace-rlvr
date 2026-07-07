@@ -2,8 +2,10 @@
 
 **From:** the `ambertrace-rlvr` team (an AmberTrace **customer**, building on the public `ambertraceai` SDK)
 **To:** the AmberTrace platform / SDK team
-**Status:** v0.4 — mostly resolved in SDK `1.0.3`; tracking the remaining server-side drift + two throughput asks
-**Basis:** public SDK `ambertraceai==1.0.3` + live probe of a verified platform (API `0.1.0`), 2026-07-07.
+**Status:** v0.4 — dense-reward contract resolved in SDK `1.0.3`; tracking the remaining server-side drift + two throughput asks
+**Basis:** public SDK `ambertraceai==1.0.4` + live probe of a verified platform (API `0.1.0`), 2026-07-07.
+
+> **Re-verified on SDK 1.0.4:** the `explanation` contract typing is unchanged from 1.0.3 (`responses.py` identical), and the deployed API is the same build (`git_sha 814a92c4e59a`) — so the §1 server-side drift below and the open throughput asks (§3) are **unchanged**. 1.0.4's additions (typed `eval_config`/templates, verified-build kwargs docs, a `query(predictions=…)` Prediction→Decision fan-in) don't touch this RFC.
 
 ---
 
