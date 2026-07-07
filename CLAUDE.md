@@ -121,7 +121,7 @@ ambertrace-rlvr/
 
 ## Dependencies
 
-- **`ambertraceai`** — the public PyPI SDK; the only path to the verifier. Never bypass it or re-implement it.
+- **`ambertraceai>=1.0.3`** — the public PyPI SDK; the only path to the verifier. Never bypass it or re-implement it. 1.0.3 is the floor because it types `QueryResult.explanation` as the pinned `QueryExplanation` (the dense-reward substrate: `symbolic_trace.rules[]`, `certified_facts`, `certified_fact_summary`, `confidence`, `proof`, `schema_version`). Note the live API may lag the SDK typing — treat `schema_version`, `RuleFiring.required`, structured `rejected_facts`, and `decision.deciding_rules` as **optional** in `reports.py` and degrade to zero-weight when absent (see `docs/rfc-dense-reward-query-contract.md`).
 - **TRL** (primary), optionally veRL / OpenRLHF — wrapped by `integrations/`, never modified.
 - Model/tokenizer stack per the trainer (e.g. `transformers`).
 
