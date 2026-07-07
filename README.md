@@ -15,3 +15,9 @@ Early scaffold. The design spec lives in [`docs/`](./docs/).
 ```
 docs/    Design spec and reference material
 ```
+
+## License
+
+Copyright (c) 2026 Ambertrace Labs Ltd. All rights reserved. This repository is
+currently **proprietary and confidential** — see [`LICENSE`](./LICENSE). The
+licensing terms will be revisited before any public release.
