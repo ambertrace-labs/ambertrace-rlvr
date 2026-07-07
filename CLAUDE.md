@@ -19,6 +19,8 @@
 
 The library is a **thin, unopinionated bridge**. It does not implement RL algorithms, host models, or author domains — it wraps existing trainers (TRL/GRPO first) and consumes an existing AmberTrace platform.
 
+**Positioning — this repo is a CUSTOMER of AmberTrace.** It is built strictly against the *public* `ambertraceai` SDK (the one you `pip install`), treated as a black box. No AmberTrace/Pilot source, internal APIs, or private knowledge — if the public SDK can't do something we need, we file an RFC to the platform team (see `docs/rfc-*.md`) rather than reaching inside. If it's not in the published SDK surface, we don't rely on it.
+
 See `docs/` for the full library specification.
 
 ### Core pipeline
