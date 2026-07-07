@@ -1,36 +1,48 @@
-# RFC — Pin & version the query explanation contract for RLVR dense rewards
+# RFC — Document, pin & version the query `explanation` contract
 
-**From:** the `ambertrace-rlvr` library (an AmberTrace **customer**, using the public `ambertraceai` SDK only)
+**From:** the `ambertrace-rlvr` team (an AmberTrace **customer**, building on the public `ambertraceai` SDK)
 **To:** the AmberTrace platform / SDK team
-**Status:** draft · requirements · v0.2 (revised after a live probe)
-**Basis:** public SDK `ambertraceai==1.0.2` + a live probe against a verified platform (API `0.1.0`), 2026-07-07 — introspected purely as a consumer, no internal source assumed.
-
-> **v0.2 correction (important):** an earlier draft assumed the per-criterion firing data was *missing* and might be new work. A live probe shows it is **already returned** by `platforms.query(explain=True)` — inside the `explanation` block. So this RFC is now a **contract-hardening** request (pin + document + version shapes you already emit), **not** a build-new-functionality request. This should make it considerably cheaper.
+**Status:** request for implementation · v0.3
+**Basis:** public SDK `ambertraceai==1.0.2` + a live probe of a verified platform (API `0.1.0`), 2026-07-07. Everything below was determined as a consumer — from the published package and live API responses only.
 
 ---
 
-## 1. Why we're asking
+## TL;DR for the platform team
 
-`ambertrace-rlvr` turns an AmberTrace verified platform into the reward source for RL post-training (RLVR). The reward is the machine-checked certificate — not a learned model. Our reward shaper composes several bounded components from one `platforms.query(...)` call:
+We're building an RLVR training library that uses a verified platform's certificate as the RL reward. To make that reward **dense** (partial credit per criterion) rather than a gameable pass/fail, we need the per-rule and per-fact breakdown from a query.
 
-| Component | Signal it needs |
-|-----------|-----------------|
+Good news: **`platforms.query(explain=True)` already returns all of it** — in the `explanation` block. Two problems, both cheap to fix:
+
+1. **It's undocumented.** Neither the SDK type stubs nor the API reference describe the `explanation` sub-shapes (`symbolic_trace`, `certified_facts`, `certified_fact_summary`, `confidence`, `proof`). We only found them by probing a live platform. A customer should not have to reverse-engineer a response to use it.
+2. **It's an unpinned, unversioned contract.** The SDK types `explanation` as an open `dict[str, Any]` ("keys vary by platform"), so we can't safely depend on it for a reproducible training run — an unannounced shape change would silently corrupt the reward.
+
+So this is a **documentation + contract-hardening** request, not new functionality. Asks, in priority order: (P0) document + version these fields; (P0) pin `symbolic_trace.rules[]`; (P1) pin `certified_facts[]`; (P2) a batch query endpoint; (P3) an optional compact projection.
+
+---
+
+## 1. Context — why we need this
+
+`ambertrace-rlvr` turns a verified platform into the reward source for RL post-training. The model proposes a decision; the platform independently certifies it; the certificate becomes the reward. To train well, the reward shaper composes bounded components from a single `platforms.query(...)` call:
+
+| Reward component | Signal it needs from the response |
+|------------------|-----------------------------------|
 | `certified` | `proof_checked` |
 | `correctness` | the certified `answer` / `decision` |
-| **`graded`** | **per-criterion partial credit — which rules fired vs. which existed** |
+| **`graded`** | **per-criterion partial credit: which rules fired vs. which existed** |
 | **`rejected_penalty`** | **which asserted facts were rejected, and why (fact provenance)** |
 
-`graded` and `rejected_penalty` are what make the reward **dense and hack-resistant** rather than a gameable binary. They depend on a per-rule and per-fact breakdown — and the whole point of RLVR is that this reward must be **deterministic, stable, and reproducible** across the hundreds of thousands of calls in a single training run.
+`graded` and `rejected_penalty` are what make the reward dense and hard to game. Both depend on the per-rule / per-fact breakdown. And because RLVR issues these calls hundreds of thousands of times per run, the shape must be **documented, stable, and versioned** — a reward function cannot be built on a response we had to guess at.
 
-## 2. What the live platform actually returns (probe, 2026-07-07)
+## 2. What the live platform returns today (probe, 2026-07-07)
 
-`platforms.query(platform_id, query=..., facts=..., explain=True)` on a verified platform returns, at top level: `answer`, `decision`, `proof_checked`, `proof_summary`, `platform_id`, `query`, `vocabulary_declared`, and `explanation`.
+`platforms.query(platform_id, query=..., facts=..., explain=True)` on a verified platform returns, at top level: `answer`, `decision`, `proof_checked`, `proof_summary`, `platform_id`, `query`, `vocabulary_declared`, `explanation`.
 
-The **`explanation`** block (observed keys: `answer`, `certified_fact_summary`, `certified_facts`, `combination`, `confidence`, `graph_trace`, `neural_trace`, `proof`, `proof_checked`, `proof_summary`, `symbolic_trace`) already carries everything the dense reward needs:
+The **`explanation`** block already carries the full dense-reward substrate. Observed keys: `answer`, `certified_fact_summary`, `certified_facts`, `combination`, `confidence`, `graph_trace`, `neural_trace`, `proof`, `proof_checked`, `proof_summary`, `symbolic_trace`.
 
-**`explanation.symbolic_trace`** — the per-criterion breakdown (the `graded` signal):
+**`explanation.symbolic_trace`** — the per-criterion breakdown (drives `graded`):
 ```jsonc
-{ "description": "Rules evaluated against the query context",
+{
+  "description": "Rules evaluated against the query context",
   "rules": [
     { "rule_id": 155, "rule_name": "Calculate Credit Score Class",
       "rule_type": "derive", "action_type": "derive", "fired": true,
@@ -38,91 +50,129 @@ The **`explanation`** block (observed keys: `answer`, `certified_fact_summary`, 
     { "rule_id": 170, "rule_name": "Check Applicant Age Underage ...",
       "rule_type": "constraint", "action_type": null, "fired": false,
       "explanation": "Rule '...' did not match context" }
-    // NOTE: both fired=true AND fired=false rules are listed — exactly the
-    // "which criteria fired vs. which existed" data `graded` needs.
-  ] }
+  ]
+}
+// Both fired=true and fired=false rules are listed — exactly the
+// "which criteria fired vs. which existed" data `graded` needs.
 ```
 
-**`explanation.certified_facts` + `certified_fact_summary`** — the `rejected_penalty` / fact-provenance signal:
+**`explanation.certified_facts` + `certified_fact_summary`** — fact provenance (drives `rejected_penalty`):
 ```jsonc
 "certified_fact_summary": { "accepted": 12, "emitted": 12, "rejected": 0, "witness_invalid": 0 },
 "certified_facts": [
   { "field": "credit_score", "value": 818, "confidence": 1.0,
-    "schema_ok": true, "witness_invalid": false, "reasons": [],
-    "source": "client",
+    "schema_ok": true, "witness_invalid": false, "reasons": [], "source": "client",
     "certificate": { "schema_witness": { "declared": true, "dtype": "float",
                                           "field": "credit_score", "in_domain": true },
-                     "source": "client", "extraction": {"method": "client_supplied"} } }
+                     "source": "client", "extraction": { "method": "client_supplied" } } }
 ]
 ```
 
-**`explanation.confidence`** — fused confidence with a documented methodology:
+**`explanation.confidence`** — fused confidence with a stated methodology:
 ```jsonc
 { "overall": 0.88, "neural_confidence": 0.69, "symbolic_confidence": 1.0,
   "neural_weight": 0.4, "symbolic_weight": 0.6, "symbolic_normaliser": 3 }
 ```
 
-**`explanation.proof`** — the machine-checked derivation: `{ derived: [{by, field, stratum, value}], facts: {...}, firings: [{action, rule, stratum}] }`.
+**`explanation.proof`** — the machine-checked derivation:
+```jsonc
+{ "derived": [ { "by": "Check Credit Score Exceeds Threshold",
+                 "field": "credit_score_flag", "stratum": 1, "value": 740 } ],
+  "facts": { "...": "..." },
+  "firings": [ { "action": "derive", "rule": "...", "stratum": 1 } ] }
+```
 
-`proof_summary` corroborates: *"8 rule(s) fired, 8 fact(s) derived from 12 input fact(s)."*
+`proof_summary` corroborates: *"Decision independently certified against the trusted kernel: 8 rule(s) fired, 8 fact(s) derived from 12 input fact(s)."*
 
-## 3. The actual gap — it's a *contract*, not a *capability*
+## 3. The gaps
 
-The data is all there at runtime. The problem is that the public SDK types `QueryResult.explanation` as an **open `dict[str, Any]`** whose "keys vary by platform" — i.e. the contract explicitly declines to pin `symbolic_trace`, `certified_facts`, `certified_fact_summary`, or `confidence`. A reward function built on `explanation["symbolic_trace"]["rules"][i]["fired"]` and `explanation["certified_facts"][j]["confidence"]` is therefore depending on an **unpinned, unversioned shape the platform is free to change**. For a one-off audit that's fine; for a reproducible RL training run issuing these calls at scale, an unannounced shape change silently corrupts the reward and the run.
+### Gap 0 — the response is undocumented (documentation)
 
-So the ask is narrow and cheap:
+Neither surface a customer has tells them any of §2 exists:
 
-| # | Gap | Ask |
-|---|-----|-----|
-| **A** | `symbolic_trace.rules[]` is unpinned | Promote to a **documented, versioned, platform-independent** part of the contract. Minimum per-rule fields we depend on: `rule_name` (stable id), `fired` (bool), `rule_type`. Bonus: `required`/polarity so we can weight required-vs-informational criteria. |
-| **B** | `certified_facts[]` / `certified_fact_summary` item shapes are unpinned (SDK types them `list[Any]`) | Pin the per-fact shape: `{field, value, confidence, schema_ok, in_domain, witness_invalid, reasons}`. This is what `rejected_penalty` + our anti-hacking fact-provenance check read. |
-| **C** | No schema version; `proof_checked` is `bool \| None` on `query` | Add `explanation.schema_version` (or top-level) so consumers can pin/validate; document when `proof_checked` is guaranteed present. |
-| **D** | No batch endpoint | See §4. |
-| **E** | Full `explanation` is heavy at RL throughput | Optional compact reward projection — see §4. |
+- **SDK:** `QueryResult.explanation` is typed `dict[str, Any]` with the docstring note that keys "vary by platform." No `TypedDict` for `symbolic_trace`, `certified_facts`, `certified_fact_summary`, `confidence`, or `proof`.
+- **API reference:** the `explanation` object is not described field-by-field in the OpenAPI/redoc for the query endpoint.
 
-## 4. Two throughput asks (net-new, lower priority)
+We discovered the dense-reward substrate only by calling a live platform and dumping the JSON. That's a poor DX and a blocker to adoption: a customer can't build on fields they can't find. **Documenting these fields is part of the fix, not a follow-up.**
 
-### 4.1 A batch query endpoint (D)
-RLVR issues `group_size × batch` verifications **per training step** (thousands per step). `platforms.query` is one focal row per HTTP call, so we must fan out N calls with client-side concurrency/backpressure. A batch endpoint cuts per-call overhead, tail latency, and rate-limit pressure:
+### Gap A — `symbolic_trace.rules[]` is not a pinned contract
+
+The per-rule firing list (the `graded` signal) lives inside the open `explanation`. We depend, per rule, on: `rule_name` (a stable identifier), `fired` (bool), `rule_type`. We'd benefit from a `required`/polarity flag (see §4). Today none of this is a guaranteed shape.
+
+### Gap B — `certified_facts[]` / `certified_fact_summary` item shapes are not pinned
+
+The per-fact records (the `rejected_penalty` + fact-provenance signal) are similarly unpinned; the SDK would type them `list[Any]`. We depend on `{field, value, confidence, schema_ok, in_domain, witness_invalid, reasons}` per fact and the `{accepted, emitted, rejected, witness_invalid}` summary.
+
+### Gap C — no schema version; `proof_checked` nullable on `query`
+
+There's no version marker on the explanation payload, so a consumer can't pin or validate the shape. And `proof_checked` is nullable on the query return — we need to know when it is guaranteed present (we treat absent as "not certified"/floor, but the contract should state it).
+
+### Gap D — no batch query endpoint (throughput)
+
+RLVR issues `group_size × batch` verifications **per training step** (thousands per step). `platforms.query` is one focal row per HTTP call, forcing client-side fan-out with concurrency and backpressure.
+
+### Gap E — full `explanation` is heavy at RL throughput
+
+The block embeds a per-fact `certificate` for every input fact — large on a wide row. (You already default `predictions.predict` to compact certification for exactly this reason.)
+
+## 4. Requested contract
+
+Names are suggestions; the platform team owns the vocabulary. The shapes below match what §2 already returns — we're asking you to **document, pin, and version** them.
+
+**Documentation (Gap 0).** Describe the `explanation` object field-by-field in the OpenAPI spec + redoc, and add `TypedDict`s to the SDK (`SymbolicTrace`, `RuleFiring`, `CertifiedFact`, `CertifiedFactSummary`, `Confidence`, `Proof`) so `QueryResult.explanation` is typed rather than `dict[str, Any]`. IDE autocomplete + a rendered API reference are the deliverable.
+
+**`symbolic_trace.rules[]` (Gap A)** — pin per rule:
+```jsonc
+{ "rule_name": "string (stable id)", "fired": true, "rule_type": "derive|constraint",
+  "required": true,           // NEW (optional): was this rule necessary for the decision?
+  "polarity": "supporting|opposing|neutral",   // NEW (optional)
+  "explanation": "string" }
+```
+Minimum we depend on: `rule_name`, `fired`, `rule_type`. `required`/`polarity` would let us weight required vs. informational criteria in partial credit.
+
+**`certified_facts[]` / `certified_fact_summary` (Gap B)** — pin the item shapes shown in §2.
+
+**Versioning (Gap C)** — add `explanation.schema_version` (or a top-level equivalent) and document when `proof_checked` is guaranteed present on `query`.
+
+**`query_batch` (Gap D):**
 ```python
 api.platforms.query_batch(platform_id, items=[
     {"query": "...", "facts": {...}, "relations": {...}}, ...
 ], explain=True) -> list[QueryResult]   # order-preserving; per-item fail-closed
 ```
-Per-item failures must fail closed **independently** (one bad row must not fail the batch), each carrying its own `proof_checked=False` + diagnostics.
+Per-item failures must fail closed **independently** — one bad row must not fail the batch; each carries its own `proof_checked=False` + diagnostics.
 
-### 4.2 (Optional) a compact reward projection (E)
-The full `explanation` embeds a per-fact `certificate` for every input fact — large on a wide row (you already flip `predictions.predict` to compact certification by default for exactly this reason). An opt-in flag on `query` returning only the reward-relevant projection would be ideal for the hot RL path:
+**Compact projection (Gap E)** — an opt-in flag on `query` returning only the reward-relevant fields:
 ```jsonc
 { "proof_checked": true, "confidence": 0.88, "decision": "permit",
-  "criteria": [ {"rule_name": "Check Credit Score Exceeds Threshold", "fired": true} ],
+  "criteria": [ { "rule_name": "Check Credit Score Exceeds Threshold", "fired": true } ],
   "fact_summary": { "accepted": 12, "rejected": 0 },
-  "rejected_facts": [ {"field": "...", "reason": "..."} ],
+  "rejected_facts": [ { "field": "...", "reason": "..." } ],
   "schema_version": "1" }
 ```
-Small, stable, cache-friendly.
 
 ## 5. Priority
 
-| Item | Priority | Rationale |
-|------|----------|-----------|
-| C — `schema_version` + stability guarantee on `symbolic_trace` / `certified_facts` / `confidence` | **P0** | The crux. Turns a best-effort parse into a dependable contract; unblocks a *real* (not just prototype) training run |
-| A — pin `symbolic_trace.rules[]` (`rule_name`, `fired`, `rule_type`; ideally `required`) | **P0** | The dense `graded` signal |
-| B — pin `certified_facts[]` / `certified_fact_summary` item shape | **P1** | `rejected_penalty` + fact-provenance anti-hacking |
-| D — `query_batch` | **P2** | Largest throughput win; workaroundable with client fan-out |
-| E — compact projection | **P3** | Optimisation |
+| # | Ask | Priority | Rationale |
+|---|-----|----------|-----------|
+| 0 | Document the `explanation` fields (OpenAPI/redoc + SDK `TypedDict`s) | **P0** | A customer can't build on undocumented fields; unblocks adoption |
+| C | `schema_version` + stability guarantee on `symbolic_trace` / `certified_facts` / `confidence` | **P0** | Turns a best-effort parse into a dependable contract for a reproducible run |
+| A | Pin `symbolic_trace.rules[]` (`rule_name`, `fired`, `rule_type`; ideally `required`) | **P0** | The dense `graded` signal |
+| B | Pin `certified_facts[]` / `certified_fact_summary` item shape | **P1** | `rejected_penalty` + fact-provenance anti-hacking |
+| D | `query_batch` | **P2** | Largest throughput win; workaroundable with client fan-out |
+| E | Compact projection | **P3** | Optimisation |
 
 ## 6. Where this leaves us today
 
-Because the data is already emitted, we are **effectively unblocked for a first training run** on a best-effort basis: our verifier will read `explanation.symbolic_trace.rules[].fired` (for `graded`) and `explanation.certified_facts[]` / `certified_fact_summary` (for `rejected_penalty`) behind a **defensively-typed, feature-flagged adapter** that degrades the affected component to zero-weight if the expected keys are absent — never crashing the training loop. What we cannot do until **C/A/B** land is *depend* on that shape for a reproducible, publishable run — an unannounced change to the open `explanation` would silently corrupt the reward. Hence this RFC targets contract-hardening over new capability.
+Because the data is already emitted, we can build a **first prototype** now: our verifier reads `explanation.symbolic_trace.rules[].fired` (for `graded`) and `explanation.certified_facts[]` / `certified_fact_summary` (for `rejected_penalty`) behind a defensively-typed, feature-flagged adapter that degrades the affected component to zero-weight if the expected keys are absent — never crashing the training loop. What we **cannot** do until Gap 0 + C/A/B land is depend on that shape for a reproducible, publishable training run. Hence this request targets documentation and contract-hardening.
 
-## 7. Open questions for the platform team
+## 7. Open questions
 
-1. Can `symbolic_trace.rules[]` and `certified_facts[]` be promoted to a **pinned, versioned** part of the public `QueryResult` contract (not "keys vary by platform")? That is the single highest-value change here.
-2. Is there a notion of a rule being **required vs. informational** for a decision that could be surfaced per-rule (`required: bool` / polarity)? It would sharpen partial-credit weighting.
-3. Is `explain=True` safe to leave on at RL throughput, or does the per-fact certificate cost argue for the compact projection (§4.2) as the default RL mode?
-4. Appetite/timeline for `query_batch` (§4.1)?
+1. Can `symbolic_trace.rules[]` and `certified_facts[]` be promoted to a documented, versioned part of the public `QueryResult` contract (rather than "keys vary by platform")? This is the single highest-value change.
+2. Is there an internal notion of a rule being **required vs. informational** for a decision that could be surfaced per-rule (`required` / polarity)? It would sharpen partial-credit weighting.
+3. Is `explain=True` safe to leave on at RL throughput, or does the per-fact certificate cost argue for the compact projection (§4, Gap E) as the default RL mode?
+4. Appetite / timeline for `query_batch`?
 
 ---
 
-*Probe evidence on file with the author (verified Loan Approval platform, API `0.1.0`, 2026-07-07). Shapes above are transcribed from that live response; exact field availability may differ across platform types and should be confirmed by the platform team.*
+*Field shapes above are transcribed from a live response on a verified platform (Loan Approval, API `0.1.0`, 2026-07-07). Availability may vary by platform type; please confirm against the intended target platforms.*
