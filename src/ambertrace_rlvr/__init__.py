@@ -1,0 +1,42 @@
+"""ambertrace-rlvr — RLVR with AmberTrace verified platforms as the reward source.
+
+Proprietary and confidential. Copyright (c) 2026 Ambertrace Labs Ltd.
+"""
+
+from __future__ import annotations
+
+from .domain import VerifiableDomain
+from .parsers import (
+    CompletionParser,
+    JSONBlockParser,
+    ParsedCompletion,
+    RegexBlockParser,
+)
+from .prompts import build_system_prompt, has_decision_block
+from .reports import AmberReport, FiredRule, RejectedFact
+from .rewards import DefaultRewardShaper, RewardBreakdown, RewardShaper
+from .testing import FakeVerifier
+from .verifier import AmberVerifier, RewardFunction, build_reward_function
+
+__version__ = "0.0.1"
+
+__all__ = [
+    "VerifiableDomain",
+    "CompletionParser",
+    "ParsedCompletion",
+    "JSONBlockParser",
+    "RegexBlockParser",
+    "AmberReport",
+    "FiredRule",
+    "RejectedFact",
+    "RewardShaper",
+    "RewardBreakdown",
+    "DefaultRewardShaper",
+    "AmberVerifier",
+    "RewardFunction",
+    "build_reward_function",
+    "FakeVerifier",
+    "build_system_prompt",
+    "has_decision_block",
+    "__version__",
+]
