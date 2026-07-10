@@ -2,10 +2,10 @@
 
 **From:** the `ambertrace-rlvr` team (an AmberTrace **customer**, building on the public `ambertraceai` SDK)
 **To:** the AmberTrace platform / SDK team
-**Status:** v0.5 — dense-reward contract **fully met end-to-end** (SDK `1.0.3`+ typing, server deploy 2026-07-09); one residual fact-shape item + two throughput asks remain
-**Basis:** public SDK `ambertraceai==1.0.5` + live probe of a verified platform (API build `b02a5b74ff76`, 2026-07-09).
+**Status:** v0.6 — dense-reward contract **fully resolved end-to-end** (server deploy 2026-07-10); only the two optional throughput asks remain
+**Basis:** public SDK `ambertraceai==1.0.5` + live probe of a verified platform (API build `aa38e85da6f0`, 2026-07-10).
 
-> **Verified on SDK 1.0.5 + the 2026-07-09 server deploy:** the server now emits **`schema_version`**, **`RuleFiring.required`**, and **`decision.deciding_rules`** — three of the four §1 drift items are resolved. The dense reward is now buildable *and dependable*. The single residual is the structured `rejected_facts` shape (§1). 1.0.4/1.0.5's `query` additions (`predictions` fan-in with per-ref `fatal`/`non_fatal`, open-textured `scored_determinations`) don't touch this RFC; `responses.py` is unchanged since 1.0.3.
+> **Fully verified on the 2026-07-10 server deploy:** the last residual — structured `rejected_facts` — now lands. `AmbertraceError.rejected_facts` returns the typed `RejectedFact` shape (`[{field, value, reasons}]`), joining the already-live `schema_version: 1`, `RuleFiring.required`, and `decision.deciding_rules`. **Every correctness item in this RFC (0/A/B/C + all four drift fields) is resolved.** Only the two lower-priority throughput asks remain: `query_batch` (§3 D, P2) and a compact `query` projection (§3 E, P3) — neither is a blocker. Thank you.
 
 ---
 
@@ -19,25 +19,32 @@ The platform team shipped the core of this RFC in **`ambertraceai==1.0.3`** (typ
 | A | Pin + emit `symbolic_trace.rules[]` (`rule_name`, `fired`, `rule_type`, `required`) | ✅ **Resolved** — typed 1.0.3, `required` **now emitted live** (2026-07-09) and meaningful (flags the deny-family rule) |
 | C | `schema_version` on the explanation | ✅ **Resolved** — **now emitted live** as `schema_version: 1` |
 | — | `decision.deciding_rules` populated on a decision | ✅ **Resolved** — **populates on a deny** (`[{rule, reason}]`); correctly empty on a permit (nothing blocks) |
-| B | Emit structured `rejected_facts` (`{field, value, reasons}`) | 🟡 **Partial — P1**, see §1 |
+| B | Emit structured `rejected_facts` (`{field, value, reasons}`) | ✅ **Resolved** — `AmbertraceError.rejected_facts` now returns `[{field, value, reasons}]` (verified live 2026-07-10) |
 | D | `query_batch` endpoint | ⬜ **Open — P2**, see §3 |
 | E | Compact reward projection on `query` | ⬜ **Open — P3**, see §3 |
 
 Nice touches, confirmed live: `RuleFiring.fired` is the **kernel-certified** firing set (reconciled against `proof.firings`), not the engine self-report — hardens our anti-reward-hacking story; `SymbolicTrace` carries `rules_evaluated`/`rules_fired` counts; and `required` cleanly marks the single blocking (deny-family) rule so `graded` can weight it above informational criteria.
 
-## 1. Residual gap — structured `rejected_facts` still returns bare strings (P1)
+## 1. Correctness items — all resolved ✅
 
-The one item the 2026-07-09 deploy didn't close. Observed live on verified platform 9:
+Every field the dense reward depends on is now live and dependable (verified on API build `aa38e85da6f0`, 2026-07-10, verified platform 9):
 
-| Typed in `QueryExplanation` | Live API behaviour (2026-07-09) |
+| Field | Status |
 |---|---|
-| `explanation.rejected_facts: list[RejectedFact]` (`{field, value, reasons}`) | On an out-of-domain query the facts come back as **bare field-name strings** — `AmbertraceError.rejected_facts == ["loan_type"]` — not the typed `RejectedFact` shape. (The rejection *reasons* are present, but only baked into the error's message string.) |
+| `explanation.schema_version` | ✅ emits `1` — gate on this |
+| `symbolic_trace.rules[]` (`fired`, `rule_type`, `required`) | ✅ live; `required` flags the deny-family rule; `fired` is kernel-certified |
+| `certified_facts[]` / `certified_fact_summary` | ✅ live |
+| `decision.deciding_rules` | ✅ populates on a deny (`[{rule, reason}]`); empty on a permit (correct) |
+| `explanation.confidence` / `proof` | ✅ live |
+| `rejected_facts` | ✅ structured — `AmbertraceError.rejected_facts == [{field, value, reasons}]` as of 2026-07-10 |
 
-**Impact:** low. `rejected_penalty` can already run off `certified_fact_summary` (`{accepted, emitted, rejected, witness_invalid}` — a clean per-query reject count, confirmed live) and `proof_checked`. Structured per-fact `{field, value, reasons}` would sharpen the anti-hacking **fact-provenance** check (attribute a penalty to the specific hallucinated fact + reason) rather than just counting rejects.
+Sample (out-of-domain query → hard fail):
+```json
+[ {"field": "loan_type",    "value": "mortgage",      "reasons": ["value 'mortgage' is outside the declared domain of 'loan_type'"]},
+  {"field": "loan_purpose", "value": "home_purchase", "reasons": ["value 'home_purchase' is outside the declared domain of 'loan_purpose'"]} ]
+```
 
-**Ask:** emit `rejected_facts` as `list[RejectedFact]` (`{field, value, reasons}`) — on the response `explanation.rejected_facts` where a decision still certifies, and/or on `AmbertraceError.rejected_facts` for the hard-fail path (currently `list[str]`). This is the last mismatch between the typed contract and the wire.
-
-> **Note on `explanation.rejected_facts` vs. the error path:** on this platform, client-supplied facts are gated hard (in-domain → certified at confidence 1.0; out-of-domain → 503 with string field names in the error). A sub-τ *soft* reject that leaves a decision certifiable (where `explanation.rejected_facts` would populate on a 200) wasn't reproducible here, so we could only observe the error path. Please confirm the structured shape on whichever path a partial-reject-but-still-certified query takes.
+*(Minor, non-blocking) note for a future look:* we could only observe the hard-fail (503 / `AmbertraceError`) path here, since client facts on this platform are gated hard (in-domain → certified; out-of-domain → 503). If a sub-τ *soft* reject can leave a decision certifiable, worth confirming `explanation.rejected_facts` carries the same `[{field, value, reasons}]` shape on that 200 path too. Not required for our reward path.
 
 ## 2. Why we needed this (recap)
 
@@ -68,15 +75,15 @@ Per-item failures must fail closed **independently** — one bad row must not fa
 
 ## 4. Where this leaves us
 
-We're **cleared to build the full, dependable reward path** — not just a prototype. Confirmed live (2026-07-09): `graded` reads `explanation.symbolic_trace.rules[]` (`fired` + `required` + `rule_type`); `certified`/`correctness` read `proof_checked` + `decision` (+ `decision.deciding_rules` on a deny); `rejected_penalty` reads `certified_fact_summary`; `confidence` shapes. Our `reports.py` adapter gates on `explanation.schema_version` (now `1`) and treats only **structured `rejected_facts`** as still-optional — falling back to the `certified_fact_summary` reject count until the typed `{field, value, reasons}` shape is emitted. We target `ambertraceai>=1.0.5`.
+The reward path is **fully unblocked on the live contract** — every component reads a real, dependable field: `graded` ← `symbolic_trace.rules[]` (`fired`+`required`+`rule_type`); `certified`/`correctness` ← `proof_checked` + `decision` (+ `decision.deciding_rules` on a deny); `rejected_penalty` + fact-provenance ← structured `rejected_facts` (`{field, value, reasons}`) and `certified_fact_summary`; `confidence` shapes. `reports.py` gates on `explanation.schema_version` (`1`) and no longer needs any fallback. We target `ambertraceai>=1.0.5`. Remaining RFC items (D/E) are throughput optimisations, not blockers.
 
 ## 5. Open questions
 
-1. Timeline for emitting structured `rejected_facts` (`{field, value, reasons}`) — the one residual (§1)?
-2. `required` currently marks the deny-family / blocking rule (confirmed live). Is that the intended semantics, or will it also cover `require`-leaf obligations more broadly? Affects how we weight it in `graded`.
-3. Appetite / timeline for `query_batch` (§3, D)?
-4. Is `explain=True` cost a concern at RL throughput — i.e. worth the compact projection (§3, E) as a default RL mode?
+1. `required` currently marks the deny-family / blocking rule (confirmed live). Is that the intended semantics, or will it also cover `require`-leaf obligations more broadly? Affects how we weight it in `graded`.
+2. Appetite / timeline for `query_batch` (§3, D)?
+3. Is `explain=True` cost a concern at RL throughput — i.e. worth the compact projection (§3, E) as a default RL mode?
+4. *(minor)* Does a sub-τ soft reject surface `explanation.rejected_facts` in the same `{field, value, reasons}` shape on the 200 path? (Not needed for our reward path; §1.)
 
 ---
 
-*Field shapes and live behaviour above are transcribed from responses on a verified platform (Loan Approval, API build `b02a5b74ff76`, 2026-07-09). Availability may vary by platform type; please confirm against the intended target platforms.*
+*Field shapes and live behaviour above are transcribed from responses on a verified platform (Loan Approval, API build `aa38e85da6f0`, 2026-07-10). Availability may vary by platform type; please confirm against the intended target platforms.*

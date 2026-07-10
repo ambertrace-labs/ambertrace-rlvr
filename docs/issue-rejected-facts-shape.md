@@ -1,6 +1,10 @@
 # Issue note — `rejected_facts` returns bare strings, not the typed `RejectedFact` shape
 
-*Filed by the `ambertrace-rlvr` team (customer, public `ambertraceai` SDK). Copy/paste-ready for the issue tracker. Companion to `docs/rfc-dense-reward-query-contract.md` (§1).*
+> ✅ **RESOLVED — no need to file.** Fixed by the server deploy of 2026-07-10 (API build
+> `aa38e85da6f0`). `AmbertraceError.rejected_facts` now returns the typed
+> `[{field, value, reasons}]` shape (verified live). Kept as a record. Original note below.
+
+*Filed by the `ambertrace-rlvr` team (customer, public `ambertraceai` SDK). Companion to `docs/rfc-dense-reward-query-contract.md` (§1).*
 
 ---
 
