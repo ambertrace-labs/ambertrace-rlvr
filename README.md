@@ -1,8 +1,21 @@
 # ambertrace-rlvr
 
-A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards), using [AmbertraceAI](https://ambertrace.ai) proof certificates as the verified reward signal.
+A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards), using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
 
-## What this is
+## What is AmberTrace?
+
+[AmberTrace](https://ambertrace.ai) turns your data into **explainable, proof-carrying AI**. It's a **neurosymbolic** platform for regulated, rule-governed decisions (lending, healthcare, hiring, compliance) where "the model said so" isn't good enough.
+
+You describe your rules in plain English and upload a dataset; AmberTrace derives an ontology (entities, relationships, symbolic rules) and builds a *verified platform*. Crucially, it learns **unsupervised** — from your data and descriptions, **no labels required**. On a verified platform, every query is answered by an independent, fail-closed **kernel** that re-derives and certifies the decision, returning an **Amber Report**:
+
+- a **fused confidence** (neural + symbolic),
+- a **symbolic trace** — every rule evaluated and which fired, with reasons,
+- **rejected facts** — low-confidence inputs the fact gate refused,
+- and, on verified platforms, a **`proof_checked` certificate** — the decision independently certified against the trusted kernel.
+
+That machine-checked certificate is the missing *verifier* for rule-governed domains — and it's exactly what this library turns into an RL reward.
+
+## What is `ambertrace-rlvr`?
 
 `ambertrace-rlvr` lets customers train their own domain-specific models where the reward is not a learned preference model or a heuristic, but a **verifiable proof certificate** issued by AmbertraceAI. A model completion is rewarded only when its output produces a valid proof certificate for the domain — giving a hard, auditable ground-truth reward signal.
 
