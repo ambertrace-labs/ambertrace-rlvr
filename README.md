@@ -75,9 +75,25 @@ run = load_run_config("configs/your_run.yaml")
 reward_fn = run.reward_function()
 ```
 
-See `examples/score_completions.py` for a runnable end-to-end smoke test and
-`configs/loan_example.yaml` for a full run config. A worked **author-a-platform →
-train** example is on the roadmap (M1).
+### Author a demo platform (the "build" step)
+
+`examples/author_demo_platform.py` walks the **build** half of the journey with
+the SDK: it uploads a small **features-only** dataset (no labels — AmberTrace
+learns unsupervised) and a plain-English domain description, builds a *verified*
+platform, and confirms it certifies a query. It's an operator/setup script — not
+library code; the reward runtime stays read-only.
+
+```bash
+python examples/gen_demo_dataset.py       # writes data/grant_eligibility_dataset.csv
+python examples/author_demo_platform.py   # needs an authoring-scoped AMBERTRACE_API_KEY
+```
+
+It prints a `platform_id`; put it in `configs/grant_eligibility.yaml` (or set
+`AMBERTRACE_PLATFORM_ID`) and you're ready to train.
+
+See also `examples/score_completions.py` for a runnable end-to-end reward smoke
+test and `configs/loan_example.yaml` / `configs/grant_eligibility.yaml` for full
+run configs.
 
 ## Repository layout
 
