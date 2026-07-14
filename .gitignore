@@ -28,3 +28,8 @@ wandb/
 
 # training run artifacts
 outputs/
+
+# internal AI-orchestration working config — kept locally, not published
+CLAUDE.md
+.claude/
+.pytest_cache/

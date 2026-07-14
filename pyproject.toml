@@ -8,12 +8,28 @@ version = "0.0.1"
 description = "RLVR training with AmberTrace verified platforms as the reward source"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = "MIT"
 authors = [{ name = "Ambertrace Labs Ltd" }]
+keywords = ["rlvr", "reinforcement-learning", "llm", "verifiable-rewards", "neurosymbolic", "grpo", "ambertrace"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "ambertraceai>=1.0.5",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ambertrace-labs/ambertrace-rlvr"
+Repository = "https://github.com/ambertrace-labs/ambertrace-rlvr"
+Issues = "https://github.com/ambertrace-labs/ambertrace-rlvr/issues"
+"AmberTrace" = "https://ambertrace.ai"
 
 [project.optional-dependencies]
 trl = ["trl>=0.9", "transformers>=4.40", "torch>=2.1"]

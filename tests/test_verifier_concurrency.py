@@ -1,5 +1,5 @@
 """Throughput: bounded concurrency, cache bypass, and the query_batch capability
-gate (issue #4 / RFC §3 D). All tests are offline — ``AmberVerifier._query`` is
+gate (issue #4). All tests are offline — ``AmberVerifier._query`` is
 monkeypatched so the real SDK client is never constructed."""
 
 from __future__ import annotations

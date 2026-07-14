@@ -52,7 +52,7 @@ You **author** your platform with the SDK (step 2). `ambertrace-rlvr` then **con
 
 ## Status
 
-Early scaffold. The design spec lives in [`docs/`](./docs/).
+**M0–M1 complete:** the full reward path (parser → verifier → reward shaper), a config-driven run loader, fail-closed resilience, the TRL/GRPO adapter, and a demonstrated end-to-end training run (see [Results](docs/RESULTS.md)). veRL / OpenRLHF adapters and the dense-reward refinements are planned — see the [roadmap](ROADMAP.md). Design spec in [`docs/`](./docs/).
 
 ## Install
 
@@ -119,7 +119,7 @@ src/ambertrace_rlvr/
 examples/          runnable examples
 configs/           per-run YAML
 tests/             offline suite (FakeVerifier + recorded payloads)
-docs/              design spec + platform-contract RFC
+docs/              design spec, user guide, results
 ```
 
 ## Verification overhead
@@ -141,10 +141,8 @@ python benchmarks/verification_overhead.py --batch 32 --group-size 8 \
 It is a script, not a test (`benchmarks/` is excluded from `testpaths`).
 Further throughput gains — a `query_batch` endpoint and a compact `query`
 projection — are gated on the platform shipping them; see
-`docs/rfc-dense-reward-query-contract.md` §3 D/E and issue #27.
+[issue #27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27).
 
 ## License
 
-Copyright (c) 2026 Ambertrace Labs Ltd. All rights reserved. This repository is
-currently **proprietary and confidential** — see [`LICENSE`](./LICENSE). The
-licensing terms will be revisited before any public release.
+[MIT](./LICENSE) © 2026 Ambertrace Labs Ltd.

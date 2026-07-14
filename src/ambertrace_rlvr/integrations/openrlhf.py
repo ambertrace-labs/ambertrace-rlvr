@@ -13,6 +13,6 @@ from ..verifier import RewardFunction
 
 def build_openrlhf_reward_server(reward_fn: RewardFunction, **_: Any):  # pragma: no cover
     raise NotImplementedError(
-        "OpenRLHF adapter not implemented yet. Track: RFC §3 / milestone M3. "
+        "OpenRLHF adapter not implemented yet. Track: milestone M3. "
         "The reward function itself (AmberVerifier.as_reward_function) is ready to serve."
     )
