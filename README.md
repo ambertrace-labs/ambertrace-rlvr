@@ -6,6 +6,28 @@ A framework for building domain-specific models with **RLVR** (Reinforcement Lea
 
 `ambertrace-rlvr` lets customers train their own domain-specific models where the reward is not a learned preference model or a heuristic, but a **verifiable proof certificate** issued by AmbertraceAI. A model completion is rewarded only when its output produces a valid proof certificate for the domain — giving a hard, auditable ground-truth reward signal.
 
+## How it works — the customer journey
+
+Bring your own domain and data, and train a model against a verifiable reward in three steps:
+
+1. **Create** — sign up at [ambertrace.ai](https://ambertrace.ai) and get an API key.
+2. **Build** — BYOD: describe your domain in plain English and **author your verified platform with the [`ambertraceai`](https://pypi.org/project/ambertraceai/) Python SDK** (`platforms.create`, `create_rule`, `suggest_rules`). This is where your rulebook lives.
+3. **Train** — point `ambertrace-rlvr` at your platform; the platform's proof certificate *is* the reward. Hand the reward function to your trainer (TRL/GRPO first).
+
+This repo provides the reward machinery for step 3 **and** a runnable on-ramp for steps 1–2.
+
+## Scope: this repo vs the `ambertraceai` SDK
+
+Two projects, two jobs — keep them straight:
+
+| | [`ambertraceai`](https://pypi.org/project/ambertraceai/) (the SDK) | `ambertrace-rlvr` (this repo) |
+|---|---|---|
+| **What it is** | The client for the AmberTrace platform | An RLVR reward bridge built **on top of** the SDK |
+| **Its job** | Create account/keys; **author** a verified platform; **query** it → Amber Reports | Parse completions → queries; query via the SDK; shape the report → a scalar RL reward; adapt to trainers |
+| **Platform access** | Read **and** write — *authoring lives here* | Reward **runtime** is read-only — it queries, never authors |
+
+You **author** your platform with the SDK (step 2). `ambertrace-rlvr` then **consumes** it read-only at training time. This library never re-implements the SDK or the verification kernel.
+
 ## Status
 
 Early scaffold. The design spec lives in [`docs/`](./docs/).
@@ -19,16 +41,30 @@ pip install -e '.[trl]'          # + TRL/GRPO training stack
 
 ## Quickstart
 
+Once you've authored a platform with the `ambertraceai` SDK (step 2 above) and
+have its `platform_id`, the reward function is a few lines:
+
 ```python
 from ambertrace_rlvr import AmberVerifier, DefaultRewardShaper, JSONBlockParser, VerifiableDomain
 
-domain = VerifiableDomain.from_env(platform_id=9, parser=JSONBlockParser())
+# AMBERTRACE_API_KEY (scoped, platform-only) comes from the environment.
+domain = VerifiableDomain.from_env(platform_id=YOUR_PLATFORM_ID, parser=JSONBlockParser())
 reward_fn = AmberVerifier(domain=domain, shaper=DefaultRewardShaper()).as_reward_function()
 rewards = reward_fn(prompts, completions, [{"gold": "permit"}, ...])   # -> list[float]
 ```
 
-See `examples/score_completions.py` for a runnable end-to-end smoke test, and
-`configs/loan_example.yaml` for a full run config.
+Or describe the whole run in one YAML and load it:
+
+```python
+from ambertrace_rlvr import load_run_config
+
+run = load_run_config("configs/your_run.yaml")
+reward_fn = run.reward_function()
+```
+
+See `examples/score_completions.py` for a runnable end-to-end smoke test and
+`configs/loan_example.yaml` for a full run config. A worked **author-a-platform →
+train** example is on the roadmap (M1).
 
 ## Repository layout
 
