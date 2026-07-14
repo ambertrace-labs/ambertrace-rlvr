@@ -4,8 +4,10 @@ The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs
 
 Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
 
-## M0 — Complete the bridge
-Prerequisite plumbing for a real training loop.
+**Progress: M0 ✅ · M1 ✅ · M2–M3 planned.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). `#27` is a platform-blocked follow-up.
+
+## M0 — Complete the bridge ✅
+Prerequisite plumbing for a real training loop. **Complete** (#27 remains as a platform-blocked follow-up).
 
 | # | Item | Spec |
 |---|------|------|
@@ -14,8 +16,8 @@ Prerequisite plumbing for a real training loop.
 | [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 |
 | [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection once the platform ships them — **blocked on platform** | — |
 
-## M1 — Warm-up domain (end-to-end)
-First end-to-end GRPO loop against a platform we author via the SDK; first learning curves.
+## M1 — Warm-up domain (end-to-end) ✅
+First end-to-end GRPO loop against a platform we author via the SDK; first learning curves. **Complete** — see [Results](docs/RESULTS.md).
 
 | # | Item | Depends on |
 |---|------|-----------|
