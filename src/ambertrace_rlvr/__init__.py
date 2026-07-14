@@ -5,6 +5,13 @@ Proprietary and confidential. Copyright (c) 2026 Ambertrace Labs Ltd.
 
 from __future__ import annotations
 
+from .config import (
+    DatasetConfig,
+    EvalConfig,
+    RunConfig,
+    TrainingConfig,
+    load_run_config,
+)
 from .domain import VerifiableDomain
 from .parsers import (
     CompletionParser,
@@ -22,6 +29,11 @@ __version__ = "0.0.1"
 
 __all__ = [
     "VerifiableDomain",
+    "load_run_config",
+    "RunConfig",
+    "TrainingConfig",
+    "DatasetConfig",
+    "EvalConfig",
     "CompletionParser",
     "ParsedCompletion",
     "JSONBlockParser",

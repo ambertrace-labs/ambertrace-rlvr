@@ -1,11 +1,13 @@
 """Smoke example: score a few completions against a live verified platform.
 
 Exercises the full reward path — parser -> verifier -> shaper — WITHOUT any RL
-training, so it doubles as an end-to-end sanity check. Requires a real platform
-and a key in the environment (``AMBERTRACE_API_KEY`` / ``AMBERTRACE_PLATFORM_ID``).
+training, so it doubles as an end-to-end sanity check. The run is described
+entirely by ``configs/loan_example.yaml`` (loaded via ``load_run_config``);
+only the API key comes from the environment (``AMBERTRACE_API_KEY``).
 
-    python examples/score_completions.py           # uses AMBERTRACE_PLATFORM_ID
-    python examples/score_completions.py 9         # or pass a platform id
+    python examples/score_completions.py                       # configs/loan_example.yaml
+    python examples/score_completions.py configs/loan_example.yaml
+    python examples/score_completions.py configs/loan_example.yaml 9   # override platform id
 
 This is the only example that touches the network; the test suite does not.
 """
@@ -14,8 +16,11 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-from ambertrace_rlvr import AmberVerifier, DefaultRewardShaper, JSONBlockParser, VerifiableDomain
+from ambertrace_rlvr import load_run_config
+
+DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "loan_example.yaml"
 
 
 def _load_dotenv(path: str = ".env") -> None:
@@ -44,15 +49,12 @@ COMPLETIONS = [
 
 def main() -> None:
     _load_dotenv()
-    platform_id = int(sys.argv[1]) if len(sys.argv) > 1 else None
+    config_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG
 
-    domain = VerifiableDomain.from_env(
-        platform_id,
-        parser=JSONBlockParser(answer_key="classification", facts_key="facts",
-                               query_template="Assess this loan application: {facts}"),
-    )
-    verifier = AmberVerifier(domain=domain, shaper=DefaultRewardShaper())
-    reward_fn = verifier.as_reward_function()
+    run = load_run_config(config_path)
+    if len(sys.argv) > 2:  # optional platform-id override
+        run.domain.platform_id = int(sys.argv[2])
+    reward_fn = run.reward_function()
 
     prompts = ["Assess the loan."] * len(COMPLETIONS)
     rewards = reward_fn(prompts, COMPLETIONS, [{"gold": "permit"}, {"gold": "permit"}])
