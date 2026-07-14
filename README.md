@@ -19,6 +19,15 @@ That machine-checked certificate is the missing *verifier* for rule-governed dom
 
 `ambertrace-rlvr` lets customers train their own domain-specific models where the reward is not a learned preference model or a heuristic, but a **verifiable proof certificate** issued by AmbertraceAI. A model completion is rewarded only when its output produces a valid proof certificate for the domain — giving a hard, auditable ground-truth reward signal.
 
+## Does it work? Watch it learn
+
+A real GRPO run on the demo **Grant Eligibility** platform, trained on a laptop-class Apple Silicon machine — the policy is rewarded *only* when AmberTrace certifies its decision. Mean reward climbs from near the floor to **+0.69** (peak +1.35) as it learns to reason to conclusions the kernel will certify:
+
+![Reward per training step — a real GRPO run against a verified platform](docs/assets/learning_curve.svg)
+
+- **[Results writeup →](docs/RESULTS.md)** — method, setup, the reward-collapse-vs-KL-stability finding, and how to reproduce it.
+- **[User Guide →](docs/USER_GUIDE.md)** — the full create → build → train walkthrough.
+
 ## How it works — the customer journey
 
 Bring your own domain and data, and train a model against a verifiable reward in three steps:
@@ -28,14 +37,6 @@ Bring your own domain and data, and train a model against a verifiable reward in
 3. **Train** — point `ambertrace-rlvr` at your platform; the platform's proof certificate *is* the reward. Hand the reward function to your trainer (TRL/GRPO first).
 
 This repo provides the reward machinery for step 3 **and** a runnable on-ramp for steps 1–2.
-
-## Does it work? Watch it learn
-
-A real GRPO run on the demo **Grant Eligibility** platform — the policy is rewarded only when AmberTrace *certifies* its decision. Mean reward climbs from near the floor to **+0.69** (peak +1.35) as it learns to reason to conclusions the kernel will certify:
-
-![Reward per training step — a real GRPO run against a verified platform](docs/assets/learning_curve.svg)
-
-Full walkthrough — create an account → author your platform → train — in the **[User Guide](docs/USER_GUIDE.md)**.
 
 ## Scope: this repo vs the `ambertraceai` SDK
 
