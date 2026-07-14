@@ -1,0 +1,52 @@
+# Roadmap — ambertrace-rlvr
+
+The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs/ambertrace-rlvr/pull/1)) to a `v1.0` release, sequenced across four milestones aligned to the [library specification](docs/AmberTrace-RLVR%20%E2%80%94%20Library%20Specification.md) §16.
+
+Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
+
+## M0 — Complete the bridge
+Prerequisite plumbing for a real training loop.
+
+| # | Item | Spec |
+|---|------|------|
+| [#2](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/2)  | Config → run loader: YAML fully describes a run | §11 |
+| [#3](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/3)  | Verifier resilience: retries, backoff, circuit-breaker → floor | §10 |
+| [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: `query_batch` + true bounded-concurrency async pool | §10 · RFC §3 |
+
+## M1 — Prescribing warm-up (end-to-end)
+First end-to-end GRPO loop; first learning curves.
+
+| # | Item | Depends on |
+|---|------|-----------|
+| [#5](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/5)  | Prescribing dataset + config | #2 |
+| [#6](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/6)  | TRL/GRPO training example wired end-to-end | #2, #5 |
+| [#7](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/7)  | Opt-in network integration test: reward increases over N steps | #6 |
+| [#8](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/8)  | Run report + first learning curves | #6 |
+
+## M2 — ACMG variant + dense reward
+Dense reward solved; anti-hacking; evaluation harness; scale.
+
+| # | Item | Depends on |
+|---|------|-----------|
+| [#9](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/9)   | Graded refinement: real per-criterion partial credit | — |
+| [#10](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/10) | Fact-provenance check (anti-reward-hacking) | — |
+| [#11](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/11) | Perturbation probes + reward-hacking score | #8, #14 |
+| [#12](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/12) | Consistency component (right-answer / wrong-reasons) | — |
+| [#13](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/13) | ACMG variant dataset + config + example | #2, #9 |
+| [#14](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/14) | Evaluation harness + metrics + baselines | #8 |
+| [#15](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/15) | veRL adapter for multi-node scale | — |
+
+## M3 — Cross-domain + v1.0 release
+Generalisation, hosted reward server, docs, release.
+
+| # | Item | Depends on |
+|---|------|-----------|
+| [#16](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/16) | Cross-domain swap-the-rule-set demo (≥2 domains) | #6, #13 |
+| [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) | OpenRLHF HTTP reward-server shim | — |
+| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL PPO trainer builder | — |
+| [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
+| [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) | v1.0 release: packaging, versioning, PyPI publish prep | #19 |
+
+---
+
+Guardrails carried through every item (see `CLAUDE.md`): fail-closed rewards, bounded/monotonic scoring, offline-first tests, no secrets/PII, read-only against AmberTrace, no proprietary-internal leakage, `pyright` clean after every Python change.
