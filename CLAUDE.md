@@ -60,7 +60,9 @@ Skills live in `.claude/skills/`. Use them instead of winging it.
 | `/critical-review` | After tests pass, before pushing |
 | `/push-and-pr` | After critical-review returns GO |
 
-## Subagents
+## Subagents & orchestration
+
+**The main session's role is to oversee and orchestrate agents — not to do the bulk of the work by hand.** Decompose roadmap tasks, delegate to named subagents, integrate and verify their output, and own the quality bar. Reserve direct edits for small, fast changes where delegation would be pure overhead (a one-line fix, a config tweak, wiring a PR).
 
 Named agents live in `.claude/agents/`. Prefer them over ad-hoc spawns — the model is pinned structurally in frontmatter, so it can't drift.
 
@@ -69,6 +71,10 @@ Named agents live in `.claude/agents/`. Prefer them over ad-hoc spawns — the m
 | `analyst` | Opus | Read-only analysis, research, planning, design. The "understand and decide" half; fan-out investigations where you want the conclusion, not file dumps. |
 | `implementer` | Sonnet | Coding: features, fixes, tests, refactors — any change that edits source and must type-check and pass. The "build it" half, after an analyst has scoped it. |
 | `reviewer` | Opus | Read-only adversarial review and verification before pushing, and to independently verify another agent's work. |
+
+**Operating loop (per roadmap issue):** `analyst` scopes it → `implementer` builds on a branch → `reviewer` (and `/critical-review`) verify → orchestrator integrates. The orchestrator never ships an agent's word for it: confirm the gates were actually run (`pyright` clean, offline tests green) and hold the fail-closed / bounded-monotonic reward invariants before accepting the work.
+
+**Merge authority (Peter, standing order 2026-07-14):** the orchestrator owns the merge decision and **may merge a PR to `main` when it meets the bar** — no human gate required. The bar: `pyright` 0 errors, the offline suite green, reward invariants held, no leaked internals, and a clean `/critical-review`. Work **sequentially** by default (one task → one branch → one PR), tidying merged branches before starting the next. Escalate to Peter instead of merging when a PR needs a judgment call above the bar: a public-surface/API change, a licensing/security decision, an open spec question (`docs/` §17), or anything the review left as NEEDS DISCUSSION.
 
 **Model policy (Peter, standing order):** subagents run on **Opus or smaller** — never fork the main session's model when it is a frontier/Mythos-class tier; always pass an explicit `model` override, routed by task type (analysis/review → Opus, coding → Sonnet, mechanical bulk → Haiku). The three named agents pin this already; pass an explicit override only for off-pattern work. When orchestrating, always specify the agent's **branch/worktree** (fresh worktrees branch from `main`, not your HEAD) and **disjoint file scopes** for parallel agents.
 
