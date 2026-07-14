@@ -25,3 +25,6 @@ wandb/
 .DS_Store
 .idea/
 .vscode/
+
+# training run artifacts
+outputs/

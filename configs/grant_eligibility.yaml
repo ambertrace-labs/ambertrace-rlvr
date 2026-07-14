@@ -29,8 +29,9 @@ verifier:
 
 training:
   framework: trl_grpo
-  model: Qwen/Qwen2.5-1.5B
+  model: Qwen/Qwen2.5-1.5B-Instruct   # instruct variant follows the decision-block format
   group_size: 8
   learning_rate: 1.0e-6
+  max_steps: 20
 
 # dataset/eval (RLVR {prompt, gold?} sets) are added with the training example (#6).

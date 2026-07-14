@@ -23,8 +23,10 @@ def as_trl_reward_func(reward_fn: RewardFunction, *, name: str = "ambertrace_rew
     the per-sample ``metadata`` our reward function reads.
     """
 
-    def trl_reward(prompts: Sequence[str], completions: Sequence[str],
+    def trl_reward(prompts: Sequence[str], completions: Sequence[Any],
                    **columns: Any) -> list[float]:
+        # completions may be plain strings or TRL's conversational format
+        # (list of {role, content} messages) — _flatten handles both.
         completions = [_flatten(c) for c in completions]
         metadata = _columns_to_metadata(columns, len(completions))
         return reward_fn(prompts, completions, metadata)
@@ -50,7 +52,9 @@ def build_grpo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
 
     return GRPOTrainer(
         model=model,
-        reward_funcs=[as_trl_reward_func(reward_fn)],
+        # trl types RewardFunc as str|Model|Callable; a plain callable is valid
+        # at runtime but trips the union/list-invariance check.
+        reward_funcs=[as_trl_reward_func(reward_fn)],  # type: ignore[arg-type]
         args=config or GRPOConfig(),
         train_dataset=dataset,
         **kwargs,
