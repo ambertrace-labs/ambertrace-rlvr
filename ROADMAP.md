@@ -11,14 +11,15 @@ Prerequisite plumbing for a real training loop.
 |---|------|------|
 | [#2](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/2)  | Config → run loader: YAML fully describes a run | §11 |
 | [#3](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/3)  | Verifier resilience: retries, backoff, circuit-breaker → floor | §10 |
-| [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: `query_batch` + true bounded-concurrency async pool | §10 · RFC §3 |
+| [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 · RFC §3 |
+| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection once the platform ships them — **blocked on platform** | RFC §3 D/E |
 
-## M1 — Prescribing warm-up (end-to-end)
-First end-to-end GRPO loop; first learning curves.
+## M1 — Warm-up domain (end-to-end)
+First end-to-end GRPO loop against a platform we author via the SDK; first learning curves.
 
 | # | Item | Depends on |
 |---|------|-----------|
-| [#5](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/5)  | Prescribing dataset + config | #2 |
+| [#5](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/5)  | Author a demo platform via the SDK + dataset + config | #2 |
 | [#6](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/6)  | TRL/GRPO training example wired end-to-end | #2, #5 |
 | [#7](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/7)  | Opt-in network integration test: reward increases over N steps | #6 |
 | [#8](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/8)  | Run report + first learning curves | #6 |
