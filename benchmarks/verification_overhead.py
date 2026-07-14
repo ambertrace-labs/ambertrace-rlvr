@@ -10,8 +10,7 @@ Real wall-clock timing (not mocked), but no network I/O — this is a script, no
 a test, and is not collected by pytest (``testpaths = ["tests"]``).
 
 Throughput asks beyond the current per-item pool (``query_batch``, a compact
-``query`` projection) are gated on the platform — see
-``docs/rfc-dense-reward-query-contract.md`` §3 D/E and issue #27. This harness
+``query`` projection) are gated on the platform — see issue #27. This harness
 measures the pool as it exists today; it does not exercise a batch path.
 
 Usage:
@@ -112,8 +111,7 @@ def main() -> None:
     print()
     print("Note: this measures the existing per-item ThreadPoolExecutor pool. "
           "Batch/projection throughput (query_batch, compact query) is gated "
-          "on the platform — see docs/rfc-dense-reward-query-contract.md §3 D/E "
-          "and issue #27.")
+          "on the platform — see issue #27.")
 
 
 if __name__ == "__main__":

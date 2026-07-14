@@ -11,8 +11,8 @@ Prerequisite plumbing for a real training loop.
 |---|------|------|
 | [#2](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/2)  | Config → run loader: YAML fully describes a run | §11 |
 | [#3](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/3)  | Verifier resilience: retries, backoff, circuit-breaker → floor | §10 |
-| [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 · RFC §3 |
-| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection once the platform ships them — **blocked on platform** | RFC §3 D/E |
+| [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 |
+| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection once the platform ships them — **blocked on platform** | — |
 
 ## M1 — Warm-up domain (end-to-end)
 First end-to-end GRPO loop against a platform we author via the SDK; first learning curves.
@@ -50,4 +50,4 @@ Generalisation, hosted reward server, docs, release.
 
 ---
 
-Guardrails carried through every item (see `CLAUDE.md`): fail-closed rewards, bounded/monotonic scoring, offline-first tests, no secrets/PII, read-only against AmberTrace, no proprietary-internal leakage, `pyright` clean after every Python change.
+Guardrails carried through every item (see [CONTRIBUTING](CONTRIBUTING.md)): fail-closed rewards, bounded/monotonic scoring, offline-first tests, no secrets/PII, a read-only reward runtime against AmberTrace, and `pyright` clean after every Python change.

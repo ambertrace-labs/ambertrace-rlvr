@@ -239,10 +239,10 @@ class AmberVerifier:
 
     def _supports_batch(self) -> bool:
         """Capability gate, not a version check: does the wired SDK client expose
-        a ``platforms.query_batch``? As of ``ambertraceai==1.0.5`` it does not —
-        see RFC §3 D and issue #27. Building a batch payload path against an
-        unpublished signature would mean guessing the SDK surface, which
-        CLAUDE.md forbids; that work is deferred until the platform ships it."""
+        a ``platforms.query_batch``? As of ``ambertraceai==1.0.5`` it does not
+        (see issue #27). Building a batch payload path against an unpublished
+        signature would mean guessing at the SDK surface, so that work is
+        deferred until the platform ships it."""
         return hasattr(self._api().platforms, "query_batch")
 
     def verify_batch(
@@ -252,9 +252,9 @@ class AmberVerifier:
         maps to ``None`` out (unparseable → no verify).
 
         No batch payload path is built here: ``ambertraceai==1.0.5`` exposes
-        neither ``platforms.query_batch`` (RFC §3 D) nor a compact/projection
-        param on ``platforms.query`` (RFC §3 E), and guessing an unpublished
-        signature is out of scope (see issue #27). This gates on capability and
+        neither ``platforms.query_batch`` nor a compact/projection param on
+        ``platforms.query``, and guessing an unpublished signature is out of
+        scope (see issue #27). This gates on capability and
         falls back to the existing per-item ``ThreadPoolExecutor`` pool, which
         is already the correct bounded-concurrency mechanism for the published
         SDK surface."""
@@ -266,7 +266,7 @@ class AmberVerifier:
             self._logged_no_batch = True
             logger.debug(
                 "platform has no query_batch; verifying per-item at "
-                "max_concurrency=%d pending platform support (RFC §3 D, #27)",
+                "max_concurrency=%d pending platform support (see issue #27)",
                 self.max_concurrency,
             )
         workers = max(1, min(self.max_concurrency, len(todo)))

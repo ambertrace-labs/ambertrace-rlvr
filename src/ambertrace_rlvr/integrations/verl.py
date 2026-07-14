@@ -13,6 +13,6 @@ from ..verifier import RewardFunction
 
 def build_verl_reward_worker(reward_fn: RewardFunction, **_: Any):  # pragma: no cover
     raise NotImplementedError(
-        "veRL adapter not implemented yet. Track: RFC §3 / milestone M2. "
+        "veRL adapter not implemented yet. Track: milestone M2. "
         "The reward function itself (AmberVerifier.as_reward_function) is ready to wrap."
     )
