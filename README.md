@@ -29,6 +29,14 @@ Bring your own domain and data, and train a model against a verifiable reward in
 
 This repo provides the reward machinery for step 3 **and** a runnable on-ramp for steps 1–2.
 
+## Does it work? Watch it learn
+
+A real GRPO run on the demo **Grant Eligibility** platform — the policy is rewarded only when AmberTrace *certifies* its decision. Mean reward climbs from near the floor to **+0.69** (peak +1.35) as it learns to reason to conclusions the kernel will certify:
+
+![Reward per training step — a real GRPO run against a verified platform](docs/assets/learning_curve.svg)
+
+Full walkthrough — create an account → author your platform → train — in the **[User Guide](docs/USER_GUIDE.md)**.
+
 ## Scope: this repo vs the `ambertraceai` SDK
 
 Two projects, two jobs — keep them straight:
