@@ -1,0 +1,36 @@
+# Run config — Grant Eligibility demo (M1 warm-up).
+#
+# This binds the demo verified platform authored by
+# examples/author_demo_platform.py. platform_id 9999... is OUR demo instance;
+# run the authoring script with your own ambertrace.ai account to create your
+# own platform, then set its id here (or via AMBERTRACE_PLATFORM_ID).
+# AMBERTRACE_API_KEY (scoped, platform-only) comes from the environment.
+domain:
+  platform_id: 146
+  base_url: https://app.ambertrace.ai
+  query_template: "Assess this grant application: {facts}"
+  parser: json_block
+  parser_args:
+    answer_key: classification
+    facts_key: facts
+
+reward:
+  shaper: default
+  # Label-free by default: correctness is scored against the platform's own
+  # certified decision (no gold needed) — showcasing AmberTrace's unsupervised
+  # verification. Provide gold in the dataset to anchor correctness instead.
+  weights: { format: 0.1, certified: 0.5, correctness: 1.0, graded: 0.3, rejected_penalty: 0.2 }
+  clip: [-1.0, 2.0]
+
+verifier:
+  batch_size: 32
+  max_concurrency: 16
+  cache: true
+
+training:
+  framework: trl_grpo
+  model: Qwen/Qwen2.5-1.5B
+  group_size: 8
+  learning_rate: 1.0e-6
+
+# dataset/eval (RLVR {prompt, gold?} sets) are added with the training example (#6).

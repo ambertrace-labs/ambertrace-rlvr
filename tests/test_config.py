@@ -17,7 +17,9 @@ from ambertrace_rlvr.domain import DEFAULT_BASE_URL
 from ambertrace_rlvr.parsers import JSONBlockParser, RegexBlockParser
 from ambertrace_rlvr.rewards import DefaultRewardShaper
 
-LOAN_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "loan_example.yaml"
+CONFIGS = Path(__file__).resolve().parent.parent / "configs"
+LOAN_CONFIG = CONFIGS / "loan_example.yaml"
+GRANT_CONFIG = CONFIGS / "grant_eligibility.yaml"
 
 
 def _write(tmp_path: Path, body: str) -> Path:
@@ -77,6 +79,20 @@ def test_loan_example_round_trips(monkeypatch):
 
 
 # --- key resolution --------------------------------------------------------
+def test_grant_eligibility_demo_config_loads(monkeypatch):
+    # The shipped M1 demo config wires up against the authored platform.
+    monkeypatch.delenv(API_KEY_ENV, raising=False)
+    run = load_run_config(GRANT_CONFIG)
+    assert run.domain.platform_id == 146
+    parser = run.domain.parser
+    assert isinstance(parser, JSONBlockParser)
+    assert parser.query_template == "Assess this grant application: {facts}"
+    assert isinstance(run.shaper, DefaultRewardShaper)
+    assert run.training is not None and run.training.framework == "trl_grpo"
+    # label-free demo: no dataset/eval sections yet (added with #6).
+    assert run.dataset is None and run.eval is None
+
+
 def test_api_key_from_env(tmp_path, monkeypatch):
     monkeypatch.setenv(API_KEY_ENV, "sk-env")
     run = load_run_config(_write(tmp_path, MINIMAL))
