@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 trl = ["trl>=0.9", "transformers>=4.40", "torch>=2.1"]
+wandb = ["wandb>=0.16"]
 dev = ["pytest>=8.0", "pyright>=1.1"]
 
 [tool.hatch.build.targets.wheel]

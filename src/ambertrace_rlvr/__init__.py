@@ -20,6 +20,7 @@ from .parsers import (
     RegexBlockParser,
 )
 from .prompts import build_system_prompt, has_decision_block
+from .reporting import build_run_report, write_run_report
 from .reports import AmberReport, FiredRule, RejectedFact
 from .rewards import DefaultRewardShaper, RewardBreakdown, RewardShaper
 from .testing import FakeVerifier
@@ -50,5 +51,7 @@ __all__ = [
     "FakeVerifier",
     "build_system_prompt",
     "has_decision_block",
+    "build_run_report",
+    "write_run_report",
     "__version__",
 ]
