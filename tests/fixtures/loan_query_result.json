@@ -1,0 +1,193 @@
+{
+  "answer": "**Decision: Permit \u2014 no blocking policy condition was met**\n\nThe loan application is permitted. This decision is based o",
+  "decision": "permit",
+  "platform_id": 9,
+  "query": "Assess this loan application.",
+  "proof_checked": true,
+  "proof_summary": "Decision independently certified against the trusted kernel: 8 rule(s) fired, 8 fact(s) derived from 12 input fact(s).",
+  "vocabulary_declared": false,
+  "explanation": {
+    "certified_fact_summary": {
+      "accepted": 12,
+      "emitted": 12,
+      "rejected": 0,
+      "witness_invalid": 0
+    },
+    "certified_facts": [
+      {
+        "certificate": {
+          "embedding_score": null,
+          "extraction": {
+            "method": "client_supplied",
+            "span": null
+          },
+          "schema_witness": {
+            "declared": true,
+            "dtype": "float",
+            "field": "applicant_age",
+            "in_domain": true
+          },
+          "source": "client",
+          "source_node": null
+        },
+        "confidence": 1.0,
+        "field": "applicant_age",
+        "reasons": [],
+        "schema_ok": true,
+        "source": "client",
+        "source_node": null,
+        "value": 67,
+        "witness_invalid": false
+      },
+      {
+        "certificate": {
+          "embedding_score": null,
+          "extraction": {
+            "method": "client_supplied",
+            "span": null
+          },
+          "schema_witness": {
+            "declared": true,
+            "dtype": "float",
+            "field": "annual_income",
+            "in_domain": true
+          },
+          "source": "client",
+          "source_node": null
+        },
+        "confidence": 1.0,
+        "field": "annual_income",
+        "reasons": [],
+        "schema_ok": true,
+        "source": "client",
+        "source_node": null,
+        "value": 135403,
+        "witness_invalid": false
+      }
+    ],
+    "combination": {
+      "description": "Neural retrieval provides relevant context, symbolic rules enforce domain constraints. When rules conflict with neural output, rules win.",
+      "method": "symbolic_override"
+    },
+    "confidence": {
+      "explanation": "Neural retrieval: 69% avg relevance across 10 nodes. Symbolic reasoning: 8 rules fired.",
+      "methodology": "Confidence = (neural \u00d7 0.4) + (symbolic \u00d7 0.6). Neural score is the mean embedding-similarity of the top-10 retrieved knowledge nodes. Symbolic score = min(rules_fired / 3, 1.0) \u2014 representing the proportion of domain rules that activated. Symbolic reasoning is weighted higher because fired rules represent explicit, auditable domain-expert knowledge.",
+      "neural_confidence": 0.69,
+      "neural_weight": 0.4,
+      "overall": 0.88,
+      "symbolic_confidence": 1.0,
+      "symbolic_normaliser": 3,
+      "symbolic_weight": 0.6
+    },
+    "decision": {
+      "deciding_rules": [],
+      "decision": "permit"
+    },
+    "proof": {
+      "derived": [
+        {
+          "by": "Calculate Credit Score Class",
+          "field": "credit_score_class",
+          "stratum": 1,
+          "value": 670
+        },
+        {
+          "by": "Calculate Annual Income Class",
+          "field": "annual_income_class",
+          "stratum": 1,
+          "value": 78007
+        },
+        {
+          "by": "Calculate Applicant Age Class",
+          "field": "applicant_age_class",
+          "stratum": 1,
+          "value": 46
+        }
+      ],
+      "facts": {
+        "annual_income": 135403,
+        "annual_income_class": 78007,
+        "applicant_age": 67
+      },
+      "firings": [
+        {
+          "action": "derive",
+          "rule": "Calculate Credit Score Class",
+          "stratum": 1
+        },
+        {
+          "action": "derive",
+          "rule": "Calculate Annual Income Class",
+          "stratum": 1
+        },
+        {
+          "action": "derive",
+          "rule": "Calculate Applicant Age Class",
+          "stratum": 1
+        }
+      ],
+      "inputs": {
+        "annual_income": 135403,
+        "applicant_age": 67,
+        "collateral_value": 0,
+        "credit_history_months": 4,
+        "credit_score": 818,
+        "debt_to_income_ratio": 0.26,
+        "employment_status": "retired",
+        "employment_years": 0.4,
+        "existing_loans": 0,
+        "loan_amount": 54887,
+        "loan_purpose": "personal",
+        "loan_type": "unsecured"
+      }
+    },
+    "proof_checked": true,
+    "proof_summary": "Decision independently certified against the trusted kernel: 8 rule(s) fired, 8 fact(s) derived from 12 input fact(s).",
+    "query": "Assess this loan application.",
+    "schema_version": 1,
+    "symbolic_trace": {
+      "description": "Rules evaluated against the query context",
+      "rules": [
+        {
+          "action_type": "derive",
+          "explanation": "Rule 'Calculate Credit Score Class' fired: Classify credit score as high/low",
+          "fired": true,
+          "required": false,
+          "rule_id": 155,
+          "rule_name": "Calculate Credit Score Class",
+          "rule_type": "derive"
+        },
+        {
+          "action_type": "derive",
+          "explanation": "Rule 'Calculate Annual Income Class' fired: Classify annual income as high/low",
+          "fired": true,
+          "required": false,
+          "rule_id": 156,
+          "rule_name": "Calculate Annual Income Class",
+          "rule_type": "derive"
+        },
+        {
+          "action_type": "derive",
+          "explanation": "Rule 'Calculate Applicant Age Class' fired: Classify applicant age as high/low",
+          "fired": true,
+          "required": false,
+          "rule_id": 157,
+          "rule_name": "Calculate Applicant Age Class",
+          "rule_type": "derive"
+        },
+        {
+          "action_type": null,
+          "explanation": "Rule 'Check Applicant Age Underage Equals Value' did not match context",
+          "fired": false,
+          "required": true,
+          "rule_id": 170,
+          "rule_name": "Check Applicant Age Underage Equals Value",
+          "rule_type": "constraint"
+        }
+      ],
+      "rules_evaluated": 25,
+      "rules_fired": 8
+    },
+    "vocabulary_declared": false
+  }
+}
