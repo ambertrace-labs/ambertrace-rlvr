@@ -60,6 +60,18 @@ Skills live in `.claude/skills/`. Use them instead of winging it.
 | `/critical-review` | After tests pass, before pushing |
 | `/push-and-pr` | After critical-review returns GO |
 
+## Subagents
+
+Named agents live in `.claude/agents/`. Prefer them over ad-hoc spawns — the model is pinned structurally in frontmatter, so it can't drift.
+
+| Agent | Model | Use for |
+|-------|-------|---------|
+| `analyst` | Opus | Read-only analysis, research, planning, design. The "understand and decide" half; fan-out investigations where you want the conclusion, not file dumps. |
+| `implementer` | Sonnet | Coding: features, fixes, tests, refactors — any change that edits source and must type-check and pass. The "build it" half, after an analyst has scoped it. |
+| `reviewer` | Opus | Read-only adversarial review and verification before pushing, and to independently verify another agent's work. |
+
+**Model policy (Peter, standing order):** subagents run on **Opus or smaller** — never fork the main session's model when it is a frontier/Mythos-class tier; always pass an explicit `model` override, routed by task type (analysis/review → Opus, coding → Sonnet, mechanical bulk → Haiku). The three named agents pin this already; pass an explicit override only for off-pattern work. When orchestrating, always specify the agent's **branch/worktree** (fresh worktrees branch from `main`, not your HEAD) and **disjoint file scopes** for parallel agents.
+
 ## Critical rules
 
 ### Never leak proprietary internals
