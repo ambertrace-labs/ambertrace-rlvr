@@ -48,6 +48,27 @@ tests/             offline suite (FakeVerifier + recorded payloads)
 docs/              design spec + platform-contract RFC
 ```
 
+## Verification overhead
+
+RL post-training issues many verifications per step (`group_size × batch`), so
+the verifier must not become the bottleneck (target: < ~15% of step
+wall-clock, spec §10). `benchmarks/verification_overhead.py` is an offline
+harness — `AmberVerifier._query` is stubbed with a configurable latency, so no
+network call is made — that runs a synthetic batch through the existing
+bounded-concurrency pool and prints the measured verify time, a simulated step
+time, and the overhead percentage:
+
+```bash
+python benchmarks/verification_overhead.py
+python benchmarks/verification_overhead.py --batch 32 --group-size 8 \
+    --concurrency 16 --query-latency 0.05 --step-compute 2.0
+```
+
+It is a script, not a test (`benchmarks/` is excluded from `testpaths`).
+Further throughput gains — a `query_batch` endpoint and a compact `query`
+projection — are gated on the platform shipping them; see
+`docs/rfc-dense-reward-query-contract.md` §3 D/E and issue #27.
+
 ## License
 
 Copyright (c) 2026 Ambertrace Labs Ltd. All rights reserved. This repository is
