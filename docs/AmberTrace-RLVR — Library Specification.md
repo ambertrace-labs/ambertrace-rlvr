@@ -40,7 +40,7 @@ The library is deliberately thin and unopinionated about the RL algorithm. It pr
 - Implementing an RL algorithm. We wrap existing trainers.
 - Serving or hosting models.
 - Replacing the AmberTrace SDK — we depend on `ambertraceai`.
-- Authoring domain rule sets. That is done in AmberTrace; the library consumes an existing platform.
+- Re-implementing platform authoring or the verification kernel. Authoring a verified platform is a customer step done **with the `ambertraceai` SDK** — which this repo documents and demonstrates as part of the BYOD → author → train journey — but the reward library itself only consumes a platform at query time.
 
 ---
 
@@ -314,7 +314,7 @@ ambertrace-rlvr/
 - Uses **scoped, platform-only API keys** (`api.api_keys.create(scope="platform", platform_id=...)`); never a full-account key in a training job.
 - Key read from env / secret store only; never logged; redacted from run reports.
 - No PII in caches or logs — cache keys are hashes of canonicalised facts, and raw reports are stored only when `debug=true`.
-- The library is read-only against AmberTrace (it queries; it never builds or mutates platforms).
+- The reward runtime is read-only against AmberTrace (it queries; it never builds or mutates platforms). Authoring is a separate customer step performed via the `ambertraceai` SDK, not by the reward code path.
 
 ---
 

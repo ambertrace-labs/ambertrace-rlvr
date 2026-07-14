@@ -17,7 +17,19 @@
 
 `ambertrace-rlvr` is a Python library for **Reinforcement Learning with Verifiable Rewards (RLVR)** that uses an AmberTrace verified platform as the reward source. It turns a completion into a query, sends it to AmberTrace via the public `ambertraceai` SDK, and converts the returned Amber Report (a `proof_checked` certificate plus confidence and fired rules) into a scalar reward for RL post-training.
 
-The library is a **thin, unopinionated bridge**. It does not implement RL algorithms, host models, or author domains — it wraps existing trainers (TRL/GRPO first) and consumes an existing AmberTrace platform.
+The library is a **thin, unopinionated bridge**. It does not implement RL algorithms, host models, or re-implement the `ambertraceai` SDK / verification kernel — it wraps existing trainers (TRL/GRPO first) and turns an AmberTrace platform's proof certificate into a reward. Authoring the verified platform is a **customer step**, done with the `ambertraceai` SDK; the repo documents and demonstrates the full **BYOD → author → train** journey, but the reward *runtime* only ever queries a platform — it never authors or mutates one.
+
+### Scope: this repo vs the `ambertraceai` SDK
+
+Getting this boundary right matters — if it's fuzzy for us, it will be impossible for a customer.
+
+| | `ambertraceai` (the SDK) | `ambertrace-rlvr` (this repo) |
+|---|---|---|
+| What it is | The client for the AmberTrace platform | An RLVR reward bridge built on top of the SDK |
+| Its job | Create account/keys; **author** a verified platform (`platforms.create`, `create_rule`, `suggest_rules`); **query** platforms → Amber Reports | Parse completions → queries; query via the SDK; shape the report → a scalar RL reward; adapt to trainers |
+| Platform access | Read **and** write (authoring lives here) | Reward **runtime** is read-only — queries, never authors |
+
+The customer journey this repo enables: **(1) create** an ambertrace.ai account + key, **(2) build** — BYOD, author your platform with the SDK, **(3) train** — point `ambertrace-rlvr` at it; the proof certificate *is* the reward. We provide the reward machinery (step 3) **and** the on-ramp (docs + a runnable example) for steps 1–2. We never re-implement the SDK or kernel.
 
 **Positioning — this repo is a CUSTOMER of AmberTrace.** It is built strictly against the *public* `ambertraceai` SDK (the one you `pip install`), treated as a black box. No AmberTrace/Pilot source, internal APIs, or private knowledge — if the public SDK can't do something we need, we file an RFC to the platform team (see `docs/rfc-*.md`) rather than reaching inside. If it's not in the published SDK surface, we don't rely on it.
 
@@ -98,9 +110,9 @@ Every shaper component is bounded to `[0, 1]` before weighting; `total` is clipp
 - Use **scoped, platform-only** keys in training jobs — never a full-account key.
 - Cache keys are hashes of canonicalised facts. No PII in caches or logs. Raw reports persisted only when `debug=true`.
 
-### The library is read-only against AmberTrace
+### The reward runtime is read-only against AmberTrace
 
-It queries platforms; it never builds, mutates, or authors them. Authoring happens in AmberTrace.
+The reward code path (parse → query → shape) only **queries** a platform — it never builds, mutates, or authors one. You don't want a reward function editing the oracle it's graded against. This is a property of the *runtime*, **not** a ban on authoring: authoring a verified platform is a required customer step, done with the `ambertraceai` SDK, and the repo documents and demonstrates it (a setup script / onboarding example may call the SDK's authoring API — `platforms.create`, `create_rule`, `suggest_rules`). What we never do is re-implement the SDK or the kernel (design principle 1). Keep authoring code out of the reward library core (`src/ambertrace_rlvr/`); it belongs in `examples/` or a clearly-marked setup script.
 
 ### Type checking
 
