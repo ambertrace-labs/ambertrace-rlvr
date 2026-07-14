@@ -148,7 +148,14 @@ class AmberVerifier:
             self._consecutive_failures += 1
             self._half_open_pending = False
             if self._consecutive_failures >= self.breaker_threshold:
+                was_open = self._opened_at is not None
                 self._opened_at = self._monotonic()
+                if not was_open:  # loud, once, at the open transition
+                    logger.warning(
+                        "verifier circuit breaker OPEN for %.0fs after %d "
+                        "consecutive failures; flooring reward source",
+                        self.breaker_cooldown, self._consecutive_failures,
+                    )
 
     def verify_one(self, parsed: ParsedCompletion) -> AmberReport:
         """Verify a single parsed completion. Fail-closed — always returns a report."""
@@ -201,8 +208,9 @@ class AmberVerifier:
             except Exception as err:  # network/timeout/5xx — retryable, counts toward breaker
                 last_err = err
                 if attempt < self.max_retries:
-                    delay = min(self.backoff_base * (2 ** attempt), self.backoff_max)
-                    delay += random.uniform(0, self.backoff_base)
+                    jitter = random.uniform(0, self.backoff_base)
+                    # Clamp last so jitter can't push the delay past backoff_max.
+                    delay = min(self.backoff_max, self.backoff_base * (2 ** attempt) + jitter)
                     logger.info(
                         "transient verifier error (attempt %d/%d) for platform %s; "
                         "retrying in %.2fs: %s",
@@ -211,7 +219,13 @@ class AmberVerifier:
                     )
                     self._sleep(delay)
                     continue
-                logger.exception("verifier error; retries exhausted; flooring")
+                # Do NOT log with exc_info here: the logging formatter would
+                # render the raw exception (message + traceback), bypassing
+                # _redact and potentially leaking the API key in an auth/URL error.
+                logger.error(
+                    "verifier error; retries exhausted; flooring: %s",
+                    self._redact(repr(err)),
+                )
                 self._record_transient_failure()
                 reason = self._redact(f"verifier_error: {err!r}")
                 return AmberReport.floor(reason=reason), False

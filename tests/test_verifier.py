@@ -8,6 +8,7 @@ advance the breaker's cooldown deterministically.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -144,6 +145,27 @@ def test_threshold_consecutive_failures_opens_breaker_without_sdk_call():
     assert platforms.calls == 3  # unchanged
 
 
+def test_breaker_open_emits_single_warning_at_transition(
+    caplog: pytest.LogCaptureFixture,
+):
+    v = _verifier(max_retries=0, breaker_threshold=3)
+    v._sleep = lambda _delay: None
+    clock = _FakeClock()
+    v._monotonic = clock
+    _wire(v, [TimeoutError_("x")] * 4)
+
+    with caplog.at_level("WARNING"):
+        for _ in range(2):  # below threshold: no WARNING yet
+            v.verify_one(_parsed())
+        assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+        v.verify_one(_parsed())  # 3rd consecutive failure crosses threshold → OPEN
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "OPEN" in warnings[0].getMessage()
+
+
 def test_breaker_recovers_after_cooldown_half_open_success_closes():
     v = _verifier(max_retries=0, breaker_threshold=2, breaker_cooldown=30.0)
     v._sleep = lambda _delay: None
@@ -203,8 +225,12 @@ def test_api_key_never_appears_in_logged_message_or_floor_reason(
 
     assert report.error is not None
     assert secret not in report.error
+    # Render each record the way a real handler would — Formatter.format renders
+    # exc_info (message + traceback) too, which getMessage() omits. The secret
+    # must be absent from the FULLY formatted output, not just the bare message.
+    formatter = logging.Formatter()
     for record in caplog.records:
-        assert secret not in record.getMessage()
+        assert secret not in formatter.format(record)
 
 
 def test_transient_failure_floor_is_not_cached():
