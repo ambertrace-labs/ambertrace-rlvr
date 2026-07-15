@@ -5,22 +5,58 @@
 
 A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards), using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
 
+> **Try it without an account.** The offline test suite (`pytest tests/ -q`) and the
+> verification-overhead benchmark run with **no AmberTrace account** — they use the
+> built-in `FakeVerifier` and recorded payloads. *Authoring* a platform and training
+> against a live one need an API key from [ambertrace.ai](https://ambertrace.ai); see
+> [the customer journey](#how-it-works--the-customer-journey) below.
+
 ## What is AmberTrace?
 
-[AmberTrace](https://ambertrace.ai) turns your data into **explainable, proof-carrying AI**. It's a **neurosymbolic** platform for regulated, rule-governed decisions (lending, healthcare, hiring, compliance) where "the model said so" isn't good enough.
+In regulated, rule-governed domains — lending, healthcare, hiring, compliance — **"the model said so" is not an acceptable answer**. A decision has to arrive with a reason you can check.
 
-You describe your rules in plain English and upload a dataset; AmberTrace derives an ontology (entities, relationships, symbolic rules) and builds a *verified platform*. Crucially, it learns **unsupervised** — from your data and descriptions, **no labels required**. On a verified platform, every query is answered by an independent, fail-closed **kernel** that re-derives and certifies the decision, returning an **Amber Report**:
+[AmberTrace](https://ambertrace.ai) produces a **machine-checkable proof for every decision**. You describe your rules in plain English and upload a features-only dataset (it learns **unsupervised** — no labels required); AmberTrace derives the rules and builds a *verified platform*. Every query is then answered by an independent, fail-closed **kernel** that re-derives and certifies the decision, returning an **Amber Report** that carries, among other things:
 
-- a **fused confidence** (neural + symbolic),
+- a **`proof_checked` certificate** — the decision independently re-derived and certified against the trusted kernel,
 - a **symbolic trace** — every rule evaluated and which fired, with reasons,
 - **rejected facts** — low-confidence inputs the fact gate refused,
-- and, on verified platforms, a **`proof_checked` certificate** — the decision independently certified against the trusted kernel.
+- a **fused confidence** (neural + symbolic).
 
-That machine-checked certificate is the missing *verifier* for rule-governed domains — and it's exactly what this library turns into an RL reward.
+That machine-checked certificate is the missing *verifier* for rule-governed domains — and it's exactly what this library turns into an RL reward. Here's a real Amber Report (trimmed) for a loan decision:
+
+```jsonc
+{
+  "decision": "permit",
+  "proof_checked": true,                        // ← the certificate: the reward hinges on this
+  "proof_summary": "Decision independently certified against the trusted kernel: 8 rule(s) fired, 8 fact(s) derived from 12 input fact(s).",
+  "explanation": {
+    "confidence": { "overall": 0.88, "neural_confidence": 0.69, "symbolic_confidence": 1.0 },
+    "certified_fact_summary": { "accepted": 12, "rejected": 0 },   // fact gate: nothing hallucinated
+    "symbolic_trace": {
+      "rules_evaluated": 25,
+      "rules_fired": 8,
+      "rules": [
+        { "rule_name": "Check Applicant Age Underage", "rule_type": "constraint",
+          "required": true, "fired": false,
+          "explanation": "Rule 'Check Applicant Age Underage' did not match context" }
+        // …every rule the kernel evaluated, with reasons
+      ]
+    }
+  }
+}
+```
 
 ## What is `ambertrace-rlvr`?
 
-`ambertrace-rlvr` lets customers train their own domain-specific models where the reward is not a learned preference model or a heuristic, but a **verifiable proof certificate** issued by AmbertraceAI. A model completion is rewarded only when its output produces a valid proof certificate for the domain — giving a hard, auditable ground-truth reward signal.
+`ambertrace-rlvr` lets you train your own domain-specific models where the reward is not a learned preference model or a heuristic, but a **verifiable proof certificate** issued by AmberTrace. A completion is rewarded only when its output produces a valid proof certificate for the domain — a hard, auditable ground-truth signal.
+
+Concretely, the library turns a report like the one above into a scalar: `DefaultRewardShaper` reads `proof_checked`, the rejected-fact fraction, and the symbolic trace, and combines them into a **dense, bounded** reward — each component clamped to `[0, 1]` before weighting — so a certified, hallucination-free decision scores high, and a rejected-fact or uncertified completion **can never out-score it**. The reward function is a plain callable:
+
+```python
+reward_fn(prompts, completions, refs) -> list[float]
+```
+
+**Why not a verifier you write yourself?** RLVR practitioners already reward against math checkers and unit tests — cheap where ground truth is a string match or a passing test. AmberTrace is for domains where correctness is a *rulebook*, not a test suite: the certificate re-derives the decision against an auditable set of symbolic rules inside a fail-closed kernel, giving a reward only as trustworthy as a formal proof — not a regex you have to maintain and defend in an audit.
 
 ## Does it work? Watch it learn
 
