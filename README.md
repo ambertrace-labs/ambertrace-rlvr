@@ -3,7 +3,7 @@
 [![CI](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml/badge.svg)](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards), using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
+A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards) — training a model against an *automatic correctness check* rather than human preference scores — using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
 
 > **Try it without an account.** The offline test suite (`pytest tests/ -q`) and the
 > verification-overhead benchmark run with **no AmberTrace account** — they use the
@@ -22,23 +22,26 @@ In regulated, rule-governed domains — lending, healthcare, hiring, compliance 
 - **rejected facts** — low-confidence inputs the fact gate refused,
 - a **fused confidence** (neural + symbolic).
 
-That machine-checked certificate is the missing *verifier* for rule-governed domains — and it's exactly what this library turns into an RL reward. Here's a real Amber Report (trimmed) for a loan decision:
+That machine-checked certificate is the missing *verifier* for rule-governed domains — and it's exactly what this library turns into an RL reward. Here's a real Amber Report (trimmed) for a **Grant Eligibility** decision — the same demo domain as the training run below:
 
 ```jsonc
 {
   "decision": "permit",
   "proof_checked": true,                        // ← the certificate: the reward hinges on this
-  "proof_summary": "Decision independently certified against the trusted kernel: 8 rule(s) fired, 8 fact(s) derived from 12 input fact(s).",
+  "proof_summary": "Decision independently certified against the trusted kernel: 6 rule(s) fired, 5 fact(s) derived from 4 input fact(s).",
   "explanation": {
-    "confidence": { "overall": 0.88, "neural_confidence": 0.69, "symbolic_confidence": 1.0 },
-    "certified_fact_summary": { "accepted": 12, "rejected": 0 },   // fact gate: nothing hallucinated
+    "confidence": { "overall": 0.86, "neural_confidence": 0.65, "symbolic_confidence": 1.0 },
+    "certified_fact_summary": { "accepted": 4, "rejected": 0 },   // fact gate: nothing hallucinated
     "symbolic_trace": {
-      "rules_evaluated": 25,
-      "rules_fired": 8,
+      "rules_evaluated": 14,
+      "rules_fired": 6,
       "rules": [
-        { "rule_name": "Check Applicant Age Underage", "rule_type": "constraint",
-          "required": true, "fired": false,
-          "explanation": "Rule 'Check Applicant Age Underage' did not match context" }
+        { "rule_name": "Classify Is Resident Eligible", "rule_type": "derive",
+          "required": false, "fired": true,
+          "explanation": "Rule 'Classify Is Resident Eligible' fired: eligible for residency if the applicant is a resident." },
+        { "rule_name": "Check Annual Income Exceeds Threshold", "rule_type": "constraint",
+          "required": false, "fired": false,
+          "explanation": "Rule 'Check Annual Income Exceeds Threshold' did not match context" }
         // …every rule the kernel evaluated, with reasons
       ]
     }
