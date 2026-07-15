@@ -1,5 +1,8 @@
 # ambertrace-rlvr
 
+[![CI](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml/badge.svg)](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards), using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
 
 ## What is AmberTrace?
