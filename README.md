@@ -3,7 +3,7 @@
 [![CI](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml/badge.svg)](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards), using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
+A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards) — training a model against an *automatic correctness check* rather than human preference scores — using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
 
 > **Try it without an account.** The offline test suite (`pytest tests/ -q`) and the
 > verification-overhead benchmark run with **no AmberTrace account** — they use the
