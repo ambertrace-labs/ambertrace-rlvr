@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ambertrace-rlvr"
-version = "0.0.1"
+version = "0.1.0"
 description = "RLVR training with AmberTrace verified platforms as the reward source"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -318,7 +318,7 @@ ambertrace-rlvr/
 
 ---
 
-## 16. Milestones (aligned to the fellowship)
+## 16. Milestones
 - **M1 (≈3 mo):** end-to-end loop on the **prescribing** warm-up domain — parser, `DefaultRewardShaper`, TRL/GRPO adapter, `FakeVerifier` tests, first learning curves.
 - **M2 (≈6 mo):** **ACMG variant** domain; dense reward shaping solved; consistency measured on ClinVar (incl. conflicting cases); ablations vs learned reward model and vs frontier LLMs; veRL adapter for scale.
 - **M3 (≈12 mo):** cross-domain generalisation (swap-the-rule-set demo across ≥2 domains); hosted verifier-as-reward HTTP server; docs, examples, `v1.0` release; write-up.
