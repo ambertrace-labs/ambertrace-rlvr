@@ -1,6 +1,8 @@
 # ambertrace-rlvr
 
 [![CI](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml/badge.svg)](https://github.com/ambertrace-labs/ambertrace-rlvr/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/ambertrace-rlvr.svg)](https://pypi.org/project/ambertrace-rlvr/)
+[![Python](https://img.shields.io/pypi/pyversions/ambertrace-rlvr.svg)](https://pypi.org/project/ambertrace-rlvr/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A framework for building domain-specific models with **RLVR** (Reinforcement Learning from Verifiable Rewards) — training a model against an *automatic correctness check* rather than human preference scores — using [AmberTrace](https://ambertrace.ai) proof certificates as the verified reward signal.
@@ -99,8 +101,20 @@ You **author** your platform with the SDK (step 2). `ambertrace-rlvr` then **con
 ## Install
 
 ```bash
-pip install -e '.[dev]'          # core + test tooling
-pip install -e '.[trl]'          # + TRL/GRPO training stack
+pip install ambertrace-rlvr             # core (reward path + config loader)
+pip install 'ambertrace-rlvr[trl]'      # + TRL/GRPO training stack
+```
+
+Requires Python ≥ 3.11. The core install pulls in the `ambertraceai` SDK, which
+you use to *author* a platform; `ambertrace-rlvr` then consumes it read-only at
+training time.
+
+Working from a clone (contributing, or running the examples) — editable install
+with the dev tooling:
+
+```bash
+pip install -e '.[dev]'                 # core + pytest + pyright
+pip install -e '.[trl]'                 # + TRL/GRPO training stack
 ```
 
 ## Quickstart
