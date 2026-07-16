@@ -1,0 +1,35 @@
+# Run config — ACMG Variant Classification demo (a scientific-decision domain).
+#
+# This binds the verified platform authored by examples/author_acmg_platform.py.
+# Run that script with your own ambertrace.ai account to create your own platform,
+# then set its id here (or via AMBERTRACE_PLATFORM_ID). AMBERTRACE_API_KEY (scoped,
+# platform-only) comes from the environment.
+domain:
+  platform_id: 155                 # replace with YOUR platform id (the author script prints it)
+  base_url: https://app.ambertrace.ai
+  query_template: "Classify this sequence variant: {facts}"
+  parser: json_block
+  parser_args:
+    answer_key: classification
+    facts_key: facts
+
+reward:
+  shaper: default
+  # GOLD-anchored: correctness is scored against the curated ACMG label in the
+  # dataset. 'uncertain' is an evidence-poor residual, so a label-free reward could
+  # let the policy drift toward the easy class; the gold label forces it to get the
+  # pathogenic and benign cases right too. (Spec §8: "gold anchoring where available".)
+  weights: { format: 0.1, certified: 0.5, correctness: 1.0, graded: 0.3, rejected_penalty: 0.2 }
+  clip: [-1.0, 2.0]
+
+verifier:
+  batch_size: 16
+  max_concurrency: 8
+  cache: true
+
+training:
+  framework: trl_grpo
+  model: Qwen/Qwen2.5-1.5B-Instruct   # instruct variant follows the decision-block format
+  group_size: 6
+  learning_rate: 3.0e-6
+  max_steps: 15
