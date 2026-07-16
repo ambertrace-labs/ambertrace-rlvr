@@ -46,11 +46,26 @@ def _yn(b: bool) -> str:
     return "yes" if b else "no"
 
 
+def _functional_studies(ps3: bool, bs3: bool) -> str:
+    """Prose for the PS3/BS3 evidence. Must convey BOTH criteria independently:
+    a variant can have a damaging (PS3) *and* a benign (BS3) functional study at
+    once — a conflicting case that is precisely what makes it 'uncertain'. An
+    earlier version folded these into one clause and dropped BS3 whenever PS3 was
+    set, which made some conflicting cases read as unambiguously pathogenic."""
+    if ps3 and bs3:
+        return ("show conflicting results — one well-established study indicates a "
+                "damaging effect while another indicates no damaging effect")
+    if ps3:
+        return "show a damaging effect"
+    if bs3:
+        return "show no damaging effect"
+    return "are unavailable"
+
+
 def _scenario(pvs1, ps3, ba1, bs3, i: int) -> str:
     pvs1_s = ("a predicted loss-of-function variant in a disease gene" if pvs1
               else "not a loss-of-function variant")
-    ps3_s = ("show a damaging effect" if ps3 else
-             ("show no damaging effect" if bs3 else "are unavailable"))
+    ps3_s = _functional_studies(ps3, bs3)
     common_s = "common in the general population" if ba1 else "rare in the population"
     templates = (
         (f"A sequence variant is {pvs1_s}. Functional studies {ps3_s}. "
