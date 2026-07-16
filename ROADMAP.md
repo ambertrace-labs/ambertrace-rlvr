@@ -48,7 +48,7 @@ Generalisation, hosted reward server, docs, release.
 | [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) | OpenRLHF HTTP reward-server shim | — |
 | [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL PPO trainer builder | — |
 | [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
-| [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) | v1.0 release: packaging, versioning, PyPI publish prep | #19 |
+| [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) | v1.0 release: packaging, versioning, PyPI publish prep — **packaging + automated PyPI publish (Trusted Publishing) in place; first release published** | #19 |
 
 ---
 

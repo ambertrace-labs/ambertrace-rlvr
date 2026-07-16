@@ -26,7 +26,7 @@ from .rewards import DefaultRewardShaper, RewardBreakdown, RewardShaper
 from .testing import FakeVerifier
 from .verifier import AmberVerifier, RewardFunction, build_reward_function
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "VerifiableDomain",
