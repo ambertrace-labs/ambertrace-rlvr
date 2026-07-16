@@ -4,7 +4,7 @@ The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs
 
 Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
 
-**Progress: M0 ✅ · M1 ✅ · M2–M3 planned.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). `#27` is a platform-blocked follow-up.
+**Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, released `v0.1.1`). `#27` is a platform-blocked follow-up.
 
 ## M0 — Complete the bridge ✅
 Prerequisite plumbing for a real training loop. **Complete** (#27 remains as a platform-blocked follow-up).
@@ -48,7 +48,7 @@ Generalisation, hosted reward server, docs, release.
 | [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) | OpenRLHF HTTP reward-server shim | — |
 | [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL PPO trainer builder | — |
 | [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
-| [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) | v1.0 release: packaging, versioning, PyPI publish prep — **packaging + automated PyPI publish (Trusted Publishing) in place; first release published** | #19 |
+| [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) ✅ | v1.0 release: packaging, versioning, PyPI publish prep — **done: [`ambertrace-rlvr` on PyPI](https://pypi.org/project/ambertrace-rlvr/), `pip install ambertrace-rlvr`, automated releases via Trusted Publishing (first release `v0.1.1`)** | #19 |
 
 ---
 
