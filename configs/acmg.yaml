@@ -30,6 +30,9 @@ verifier:
 training:
   framework: trl_grpo
   model: Qwen/Qwen2.5-1.5B-Instruct   # instruct variant follows the decision-block format
-  group_size: 6
+  # group 8 + 40 steps gives a readable learning curve: per-step GRPO reward is
+  # noisy, but over 40 steps the (5-step moving-average) trend climbs clearly
+  # (quarter-mean ~0.5 -> ~1.1 on a laptop/MPS run). Shorter runs are too noisy to read.
+  group_size: 8
   learning_rate: 3.0e-6
-  max_steps: 15
+  max_steps: 40

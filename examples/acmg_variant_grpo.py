@@ -90,7 +90,7 @@ def train(*, max_steps: int | None = None, num_generations: int | None = None,
     tcfg = run.training
     assert tcfg is not None, "config is missing a [training] section"
     group = num_generations or tcfg.group_size
-    steps = max_steps if max_steps is not None else int(tcfg.extra.get("max_steps", 15))
+    steps = max_steps if max_steps is not None else int(tcfg.extra.get("max_steps", 40))
     lr = learning_rate if learning_rate is not None else tcfg.learning_rate
 
     use_wandb = bool(os.environ.get("WANDB_API_KEY"))
