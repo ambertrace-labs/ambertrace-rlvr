@@ -55,6 +55,81 @@ def test_components_are_logged():
         assert key in b.components
 
 
+# --- graded: per-criterion partial credit (#9) -----------------------------
+
+# Three required criteria; the report's certified firings are (True, True, False).
+def _report_three_required(firings: tuple[bool, bool, bool]):
+    return make_report(
+        decision="permit",
+        rules=[("PVS1", firings[0], True),
+               ("PS3", firings[1], True),
+               ("BA1", firings[2], True)],
+    )
+
+
+def test_graded_per_criterion_full_partial_zero():
+    shaper = DefaultRewardShaper()
+    report = _report_three_required((True, True, False))
+    # gold expects exactly the certified firings -> all three correct.
+    full = shaper.score(PARSED, report,
+                        criteria_gold={"PVS1": True, "PS3": True, "BA1": False})
+    # one wrong (BA1 expected True but did not fire) -> 2/3 correct.
+    partial = shaper.score(PARSED, report,
+                           criteria_gold={"PVS1": True, "PS3": True, "BA1": True})
+    # all three wrong -> 0/3.
+    zero = shaper.score(PARSED, report,
+                        criteria_gold={"PVS1": False, "PS3": False, "BA1": True})
+    assert full.components["graded"] == 1.0
+    assert partial.components["graded"] == 2 / 3
+    assert zero.components["graded"] == 0.0
+
+
+def test_graded_per_criterion_is_monotonic():
+    shaper = DefaultRewardShaper()
+    report = _report_three_required((True, True, False))
+    # progressively align gold with the certified firings: 1, 2, then 3 correct.
+    one = shaper.score(PARSED, report,
+                       criteria_gold={"PVS1": True, "PS3": False, "BA1": True})
+    two = shaper.score(PARSED, report,
+                       criteria_gold={"PVS1": True, "PS3": True, "BA1": True})
+    three = shaper.score(PARSED, report,
+                         criteria_gold={"PVS1": True, "PS3": True, "BA1": False})
+    g = [r.components["graded"] for r in (one, two, three)]
+    assert g == sorted(g) and g[0] < g[2]
+    # and per-criterion credit never lets a partial out-score the fully-correct one.
+    assert three.total >= two.total >= one.total
+
+
+def test_graded_absent_required_field_degrades_to_zero_weight():
+    shaper = DefaultRewardShaper()
+    # criteria_gold supplied, but no rule is marked required -> zero-weight, no crash.
+    report = make_report(decision="permit",
+                         rules=[("PVS1", True, False), ("PS3", True, False)])
+    b = shaper.score(PARSED, report, criteria_gold={"PVS1": True, "PS3": True})
+    assert b.components["graded"] == 0.0
+
+
+def test_graded_falls_back_to_baseline_without_criteria_gold():
+    shaper = DefaultRewardShaper()
+    # 2 of 3 rules fired; no criteria_gold -> baseline fired/evaluated = 2/3.
+    report = make_report(decision="permit",
+                         rules=[("A", True, False), ("B", True, False), ("C", False, False)])
+    b = shaper.score(PARSED, report)
+    assert b.components["graded"] == 2 / 3
+
+
+def test_graded_per_criterion_end_to_end_via_fake_verifier():
+    report = _report_three_required((True, True, False))
+    fv = FakeVerifier(parser=JSONBlockParser(), report_fn=lambda pc: report)
+    reward_fn = fv.as_reward_function()
+    # criteria_gold rides in per-sample metadata, same channel as gold.
+    right = reward_fn(["p"], [_completion("permit")],
+                      [{"criteria_gold": {"PVS1": True, "PS3": True, "BA1": False}}])
+    wrong = reward_fn(["p"], [_completion("permit")],
+                      [{"criteria_gold": {"PVS1": False, "PS3": False, "BA1": True}}])
+    assert right[0] > wrong[0]
+
+
 # --- end-to-end via the fake verifier (offline) ----------------------------
 
 def _completion(answer: str) -> str:

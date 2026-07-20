@@ -8,6 +8,7 @@ is pure and deterministic; it never touches the network.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
@@ -24,7 +25,8 @@ class RewardBreakdown:
 @runtime_checkable
 class RewardShaper(Protocol):
     def score(self, parsed: ParsedCompletion, report: AmberReport,
-              gold: Any | None = None) -> RewardBreakdown:
+              gold: Any | None = None,
+              criteria_gold: Mapping[str, Any] | None = None) -> RewardBreakdown:
         ...
 
 
@@ -48,6 +50,9 @@ class DefaultRewardShaper:
       * ``correctness``  — proposed answer vs gold (if given) else vs the certified
                            decision.
       * ``graded``       — dense partial credit from the certified rule firings.
+                           With per-criterion ``criteria_gold`` it is the fraction
+                           of *required* criteria correctly derived; otherwise it
+                           falls back to the fired/evaluated baseline heuristic.
       * ``rejected_penalty`` — fraction of asserted facts the kernel rejected
                            (subtracted; discourages hallucinated facts).
 
@@ -61,14 +66,15 @@ class DefaultRewardShaper:
     require_supported_schema: bool = False
 
     def score(self, parsed: ParsedCompletion, report: AmberReport,
-              gold: Any | None = None) -> RewardBreakdown:
+              gold: Any | None = None,
+              criteria_gold: Mapping[str, Any] | None = None) -> RewardBreakdown:
         w = self.weights
         c: dict[str, float] = {}
 
         c["format"] = 1.0  # only scored when the completion already parsed
         c["certified"] = 1.0 if report.proof_checked else 0.0
         c["correctness"] = self._correctness(parsed, report, gold)
-        c["graded"] = self._graded(report)
+        c["graded"] = self._graded(report, criteria_gold)
         c["rejected_penalty"] = self._rejected_fraction(report)
 
         # If we require a known schema and the report is on an unknown one, don't
@@ -97,13 +103,37 @@ class DefaultRewardShaper:
             return 0.0
         return 1.0 if _norm(proposed) == _norm(target) else 0.0
 
-    def _graded(self, report: AmberReport) -> float:
-        """Dense partial credit from the certified derivation. Baseline heuristic:
-        the fraction of evaluated rules that fired (how much of the domain's
-        criteria the certified reasoning activated). Domains with per-criterion gold
-        should subclass/replace this. Zero on an uncertified report."""
+    def _graded(self, report: AmberReport,
+                criteria_gold: Mapping[str, Any] | None = None) -> float:
+        """Dense partial credit from the certified derivation. Zero on an
+        uncertified report.
+
+        When the domain supplies ``criteria_gold`` (a mapping of rule name ->
+        expected ``fired`` bool), this is genuine per-criterion partial credit:
+        the fraction of the *required* criteria whose certified firing matches
+        the expectation. This is the "right answer for the right reasons" signal
+        (spec §6.3, §8) — it can only rise as more required criteria are derived
+        correctly, and a fully-correct derivation scores ``1.0`` (never more than
+        a clean certified completion overall).
+
+        ``RuleFiring.required`` is optional (RFC dense-reward contract): if the
+        certified trace exposes no required criteria to grade against, the dense
+        per-criterion signal is untrustworthy and degrades to zero-weight rather
+        than guessing. Domains without per-criterion gold keep the documented
+        baseline heuristic — the fraction of evaluated rules that fired."""
         if not report.proof_checked or not report.rules:
             return 0.0
+
+        if criteria_gold:
+            # Grade over the required criteria the domain gave an expectation for.
+            graded = [r for r in report.required_rules if r.name in criteria_gold]
+            if not graded:  # no required criterion to grade -> zero-weight
+                return 0.0
+            correct = sum(1 for r in graded if r.fired == bool(criteria_gold[r.name]))
+            return _clip01(correct / len(graded))
+
+        # Baseline heuristic: how much of the domain's criteria the certified
+        # reasoning activated.
         evaluated = len(report.rules)
         fired = len(report.rules_fired)
         return _clip01(fired / evaluated) if evaluated else 0.0
