@@ -59,7 +59,10 @@ def build_reward_function(
                 continue
             try:
                 gold = m.get("gold") if isinstance(m, dict) else None
-                rewards.append(shaper.score(pc, report, gold).total)
+                criteria_gold = m.get("criteria_gold") if isinstance(m, dict) else None
+                rewards.append(
+                    shaper.score(pc, report, gold, criteria_gold=criteria_gold).total
+                )
             except Exception:  # shaping must never crash the loop
                 logger.exception("reward shaping failed; flooring")
                 rewards.append(floor)
