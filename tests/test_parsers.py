@@ -49,3 +49,14 @@ def test_regex_parser_coerces_types():
     assert parsed.proposed_answer == "permit"
     assert parsed.facts["credit_score"] == 818
     assert parsed.facts["ok"] is True
+
+
+def test_both_parsers_populate_prompt():
+    prompt = "the applicant income is 25000"
+    json_parsed = JSONBlockParser().parse(prompt, JSON_COMPLETION)
+    assert json_parsed is not None
+    assert json_parsed.prompt == prompt
+    regex_completion = "<decision>\nanswer: permit\nfact x: 1\n</decision>"
+    regex_parsed = RegexBlockParser().parse(prompt, regex_completion)
+    assert regex_parsed is not None
+    assert regex_parsed.prompt == prompt

@@ -23,6 +23,7 @@ class ParsedCompletion:
     proposed_answer: Any | None = None
     relations: dict[str, list[dict[str, Any]]] | None = None
     raw_block: str | None = None
+    prompt: str | None = None
 
 
 @runtime_checkable
@@ -84,6 +85,7 @@ class JSONBlockParser:
             proposed_answer=data.get(self.answer_key),
             relations=relations,
             raw_block=block,
+            prompt=prompt,
         )
 
 
@@ -112,6 +114,7 @@ class RegexBlockParser:
             facts=facts,
             proposed_answer=answer_match.group(1).strip() if answer_match else None,
             raw_block=block,
+            prompt=prompt,
         )
 
 

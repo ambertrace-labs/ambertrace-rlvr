@@ -8,6 +8,7 @@ is pure and deterministic; it never touches the network.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
@@ -30,13 +31,85 @@ class RewardShaper(Protocol):
         ...
 
 
+@runtime_checkable
+class FactProvenanceChecker(Protocol):
+    """Grounds asserted facts against the prompt (anti-reward-hacking, #10).
+
+    Returns the fraction (in ``[0, 1]``) of the facts asserted in the model's
+    decision block that are *not* grounded in the prompt — i.e. invented or
+    unsupported. This is orthogonal to kernel rejection: a fact can be perfectly
+    well-formed (kernel-accepted) yet fabricated (absent from the prompt)."""
+
+    def unsupported_fraction(self, facts: Mapping[str, Any], prompt: str) -> float:
+        ...
+
+
+@dataclass
+class SubstringProvenanceChecker:
+    """Default provenance checker: a fact is grounded if its value appears in the
+    prompt text. Deliberately conservative — it only penalises facts it can
+    positively check, so it never punishes a genuine completion for a fact the
+    substring heuristic cannot express.
+
+    * ``check_booleans`` — bools are exempt by default (``true``/``false`` almost
+      always appear incidentally in a prompt); set ``True`` to require the literal
+      word ``true``/``false`` in the prompt.
+    * ``case_sensitive`` — match string/boolean values case-sensitively.
+    """
+
+    check_booleans: bool = False
+    case_sensitive: bool = False
+
+    def unsupported_fraction(self, facts: Mapping[str, Any], prompt: str) -> float:
+        text = prompt if self.case_sensitive else prompt.lower()
+        checkable = 0
+        unsupported = 0
+        for value in facts.values():
+            grounded = self._grounded(value, text)
+            if grounded is None:  # exempt / not checkable — out of the denominator
+                continue
+            checkable += 1
+            if not grounded:
+                unsupported += 1
+        return unsupported / checkable if checkable else 0.0
+
+    def _grounded(self, value: Any, text: str) -> bool | None:
+        """``True``/``False`` grounded-or-not, or ``None`` for exempt values."""
+        # bool is a subclass of int — must be tested first.
+        if isinstance(value, bool):
+            if not self.check_booleans:
+                return None
+            word = "true" if value else "false"
+            return re.search(rf"\b{word}\b", text) is not None
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and value.is_integer():
+                token = str(int(value))
+            else:
+                token = str(value)
+            escaped = re.escape(token)
+            # Match the number only on non-digit boundaries so a fabricated
+            # ``5000`` does not spuriously match inside a genuine ``25000``.
+            return re.search(rf"(?<![\d.]){escaped}(?![\d.])", text) is not None
+        if isinstance(value, str):
+            needle = value.strip()
+            if not needle:
+                return None
+            if not self.case_sensitive:
+                needle = needle.lower()
+            return needle in text
+        # None / list / dict: not checkable by substring.
+        return None
+
+
 # Baseline component weights (spec §8). ``rejected_penalty`` is subtracted.
+# ``unsupported_penalty`` (opt-in, #10) is also subtracted — see the shaper docs.
 DEFAULT_WEIGHTS: dict[str, float] = {
     "format": 0.1,
     "certified": 0.5,
     "correctness": 1.0,
     "graded": 0.3,
     "rejected_penalty": 0.2,
+    "unsupported_penalty": 0.3,
 }
 
 
@@ -55,15 +128,29 @@ class DefaultRewardShaper:
                            falls back to the fired/evaluated baseline heuristic.
       * ``rejected_penalty`` — fraction of asserted facts the kernel rejected
                            (subtracted; discourages hallucinated facts).
+      * ``unsupported_penalty`` — fraction of asserted facts not grounded in the
+                           prompt (subtracted; anti-reward-hacking, #10).
 
-    ``total = format·w + certified·w + correctness·w + graded·w − rejected·w``,
-    clipped to ``clip``. ``clip[0]`` is also the floor returned for an unparseable
-    completion (see :func:`ambertrace_rlvr.verifier.build_reward_function`).
+    ``rejected_penalty`` vs ``unsupported_penalty`` are orthogonal and *both*
+    subtract: the former penalises facts the AmberTrace kernel rejected (malformed
+    / out-of-schema), the latter penalises facts that are well-formed but
+    fabricated — asserted in the decision block yet absent from the prompt. Between
+    them a model can neither smuggle junk past the kernel nor invent prompt-free
+    facts that trivially satisfy the rules. Provenance is *opt-in*: it is scored
+    only when a :class:`FactProvenanceChecker` is supplied via the ``provenance``
+    field, and defaults OFF (``unsupported_penalty`` is a no-op 0.0), so existing
+    behaviour is unchanged.
+
+    ``total = format·w + certified·w + correctness·w + graded·w − rejected·w
+    − unsupported·w``, clipped to ``clip``. ``clip[0]`` is also the floor returned
+    for an unparseable completion (see
+    :func:`ambertrace_rlvr.verifier.build_reward_function`).
     """
 
     weights: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_WEIGHTS))
     clip: tuple[float, float] = (-1.0, 2.0)
     require_supported_schema: bool = False
+    provenance: FactProvenanceChecker | None = None
 
     def score(self, parsed: ParsedCompletion, report: AmberReport,
               gold: Any | None = None,
@@ -76,6 +163,7 @@ class DefaultRewardShaper:
         c["correctness"] = self._correctness(parsed, report, gold)
         c["graded"] = self._graded(report, criteria_gold)
         c["rejected_penalty"] = self._rejected_fraction(report)
+        c["unsupported_penalty"] = self._unsupported_fraction(parsed)
 
         # If we require a known schema and the report is on an unknown one, don't
         # trust the dense components — fall back to the certified core only.
@@ -88,6 +176,7 @@ class DefaultRewardShaper:
             + w.get("correctness", 0.0) * c["correctness"]
             + w.get("graded", 0.0) * c["graded"]
             - w.get("rejected_penalty", 0.0) * c["rejected_penalty"]
+            - w.get("unsupported_penalty", 0.0) * c["unsupported_penalty"]
         )
         total = _clip(total, self.clip)
         return RewardBreakdown(total=total, components={**c, "total": total})
@@ -137,6 +226,16 @@ class DefaultRewardShaper:
         evaluated = len(report.rules)
         fired = len(report.rules_fired)
         return _clip01(fired / evaluated) if evaluated else 0.0
+
+    def _unsupported_fraction(self, parsed: ParsedCompletion) -> float:
+        """Fraction of asserted facts not grounded in the prompt (opt-in, #10).
+
+        A no-op (0.0) when no provenance checker is configured, the parser did
+        not capture the prompt, or there are no facts to check — so the default
+        shaper is unchanged."""
+        if self.provenance is None or parsed.prompt is None or not parsed.facts:
+            return 0.0
+        return _clip01(self.provenance.unsupported_fraction(parsed.facts, parsed.prompt))
 
     def _rejected_fraction(self, report: AmberReport) -> float:
         summary = report.fact_summary
