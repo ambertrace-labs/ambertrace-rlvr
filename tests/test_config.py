@@ -58,7 +58,7 @@ def test_loan_example_round_trips(monkeypatch):
     assert isinstance(shaper, DefaultRewardShaper)
     assert shaper.weights == {
         "format": 0.1, "certified": 0.5, "correctness": 1.0,
-        "graded": 0.3, "rejected_penalty": 0.2,
+        "graded": 0.3, "rejected_penalty": 0.2, "unsupported_penalty": 0.3,
     }
     assert shaper.clip == (-1.0, 2.0)
 

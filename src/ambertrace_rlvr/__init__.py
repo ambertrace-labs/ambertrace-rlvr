@@ -22,7 +22,13 @@ from .parsers import (
 from .prompts import build_system_prompt, has_decision_block
 from .reporting import build_run_report, write_run_report
 from .reports import AmberReport, FiredRule, RejectedFact
-from .rewards import DefaultRewardShaper, RewardBreakdown, RewardShaper
+from .rewards import (
+    DefaultRewardShaper,
+    FactProvenanceChecker,
+    RewardBreakdown,
+    RewardShaper,
+    SubstringProvenanceChecker,
+)
 from .testing import FakeVerifier
 from .verifier import AmberVerifier, RewardFunction, build_reward_function
 
@@ -45,6 +51,8 @@ __all__ = [
     "RewardShaper",
     "RewardBreakdown",
     "DefaultRewardShaper",
+    "FactProvenanceChecker",
+    "SubstringProvenanceChecker",
     "AmberVerifier",
     "RewardFunction",
     "build_reward_function",

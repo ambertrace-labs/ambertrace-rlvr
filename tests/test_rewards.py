@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ambertrace_rlvr.parsers import JSONBlockParser, ParsedCompletion
-from ambertrace_rlvr.rewards import DefaultRewardShaper
+from ambertrace_rlvr.rewards import DefaultRewardShaper, SubstringProvenanceChecker
 from ambertrace_rlvr.testing import FakeVerifier, make_report
 
 PARSED = ParsedCompletion(query="q", facts={"a": 1}, proposed_answer="permit")
@@ -128,6 +128,78 @@ def test_graded_per_criterion_end_to_end_via_fake_verifier():
     wrong = reward_fn(["p"], [_completion("permit")],
                       [{"criteria_gold": {"PVS1": False, "PS3": False, "BA1": True}}])
     assert right[0] > wrong[0]
+
+
+# --- fact-provenance / anti-reward-hacking (#10) ---------------------------
+
+def test_unsupported_facts_score_below_grounded():
+    shaper = DefaultRewardShaper(provenance=SubstringProvenanceChecker())
+    report = make_report(decision="permit")
+    grounded = ParsedCompletion(query="q", facts={"income": 25000},
+                                proposed_answer="permit",
+                                prompt="applicant income is 25000 per year")
+    invented = ParsedCompletion(query="q", facts={"income": 99999},
+                                proposed_answer="permit",
+                                prompt="applicant income is 25000 per year")
+    hi = shaper.score(grounded, report).total
+    lo = shaper.score(invented, report).total
+    assert lo < hi
+    assert shaper.score(grounded, report).components["unsupported_penalty"] == 0.0
+    assert shaper.score(invented, report).components["unsupported_penalty"] == 1.0
+
+
+def test_hallucinated_fact_never_outscores_clean_certified():
+    shaper = DefaultRewardShaper(provenance=SubstringProvenanceChecker())
+    clean = ParsedCompletion(query="q", facts={"income": 25000},
+                             proposed_answer="permit",
+                             prompt="applicant income is 25000 per year")
+    hallucinated = ParsedCompletion(query="q", facts={"income": 99999},
+                                    proposed_answer="permit",
+                                    prompt="applicant income is 25000 per year")
+    clean_score = shaper.score(clean, make_report(decision="permit"), gold="permit").total
+    hall_score = shaper.score(hallucinated,
+                              make_report(decision="permit"), gold="permit").total
+    assert hall_score <= clean_score
+
+
+def test_substring_checker_numeric_boundary():
+    checker = SubstringProvenanceChecker()
+    # fabricated 5000 must not be grounded by a genuine 25000 in the prompt.
+    assert checker.unsupported_fraction({"x": 5000}, "income is 25000") == 1.0
+    assert checker.unsupported_fraction({"x": 25000}, "income is 25000") == 0.0
+
+
+def test_substring_checker_string_match():
+    checker = SubstringProvenanceChecker()
+    prompt = "The loan type is unsecured."
+    assert checker.unsupported_fraction({"loan": "unsecured"}, prompt) == 0.0
+    assert checker.unsupported_fraction({"loan": "secured mortgage"}, prompt) == 1.0
+
+
+def test_substring_checker_booleans_exempt_by_default():
+    checker = SubstringProvenanceChecker()
+    # booleans are not checkable by default -> nothing in the denominator -> 0.0
+    assert checker.unsupported_fraction({"flag": True}, "no keywords here") == 0.0
+    strict = SubstringProvenanceChecker(check_booleans=True)
+    assert strict.unsupported_fraction({"flag": True}, "the answer is true") == 0.0
+    assert strict.unsupported_fraction({"flag": True}, "no keywords here") == 1.0
+
+
+def test_substring_checker_no_checkable_facts_is_zero():
+    checker = SubstringProvenanceChecker()
+    # None / empty-string / bool: none checkable -> 0.0, not a false penalty.
+    assert checker.unsupported_fraction({"a": None, "b": "", "c": True}, "prompt") == 0.0
+
+
+def test_unsupported_penalty_is_zero_when_provenance_none():
+    # Regression guard: default shaper logs the key but never penalises.
+    shaper = DefaultRewardShaper()
+    parsed = ParsedCompletion(query="q", facts={"income": 99999},
+                              proposed_answer="permit",
+                              prompt="income is 25000")
+    b = shaper.score(parsed, make_report(decision="permit"))
+    assert "unsupported_penalty" in b.components
+    assert b.components["unsupported_penalty"] == 0.0
 
 
 # --- end-to-end via the fake verifier (offline) ----------------------------
