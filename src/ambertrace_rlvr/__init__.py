@@ -13,6 +13,19 @@ from .config import (
     load_run_config,
 )
 from .domain import VerifiableDomain
+from .evaluation import (
+    EvalMetrics,
+    EvalSample,
+    Policy,
+    VerifierLike,
+    compare_to_baseline,
+    constant_policy,
+    consistency,
+    evaluate,
+    evaluate_policy,
+    malformed_policy,
+    run_policy,
+)
 from .parsers import (
     CompletionParser,
     JSONBlockParser,
@@ -53,5 +66,16 @@ __all__ = [
     "has_decision_block",
     "build_run_report",
     "write_run_report",
+    "EvalSample",
+    "EvalMetrics",
+    "Policy",
+    "VerifierLike",
+    "evaluate",
+    "evaluate_policy",
+    "run_policy",
+    "constant_policy",
+    "malformed_policy",
+    "compare_to_baseline",
+    "consistency",
     "__version__",
 ]
