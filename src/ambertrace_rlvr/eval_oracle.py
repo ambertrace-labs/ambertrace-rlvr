@@ -17,6 +17,7 @@ RLVR/training lane.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -136,6 +137,23 @@ class OracleJudgment:
                        reason="certified_undecidable", credited_rules=credited)
         return cls(certified=False, certified_undecidable=False, value=None,
                    reason=str(report.error or "unverifiable"), credited_rules=credited)
+
+    @classmethod
+    def from_label(
+        cls, verb: str | None, *, undecidable: bool = False,
+        credited_rules: Sequence[str] = (),
+    ) -> OracleJudgment:
+        """Build a judgment from a **frozen, pre-derived** oracle label — for a
+        labelled fixture where the certified verdict was captured up front and no
+        live oracle access is available at scoring time. ``undecidable=True`` (or a
+        ``None`` verb) marks the certified-undecidable bucket. The label is trusted
+        as given; the fail-closed derivation in :meth:`from_report` is the path when
+        a live certificate is present."""
+        if undecidable or verb is None:
+            return cls(certified=False, certified_undecidable=True, value=ABSTAIN,
+                       reason="certified_undecidable", credited_rules=tuple(credited_rules))
+        return cls(certified=True, certified_undecidable=False, value=str(verb),
+                   reason=None, credited_rules=tuple(credited_rules))
 
 
 def _credited_rules(report: AmberReport) -> tuple[str, ...]:

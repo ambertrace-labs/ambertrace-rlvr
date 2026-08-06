@@ -33,3 +33,7 @@ outputs/
 CLAUDE.md
 .claude/
 .pytest_cache/
+
+# private eval corpus — never commit (domaingen IP)
+eval_corpus_private/
+*_corpus.jsonl

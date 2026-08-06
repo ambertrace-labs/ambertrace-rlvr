@@ -12,6 +12,18 @@ from .config import (
     TrainingConfig,
     load_run_config,
 )
+from .corpus import (
+    DecisionItem,
+    corpus_stats,
+    judgments_for,
+    load_decision_corpus,
+    write_decision_corpus,
+)
+from .eval_generator import (
+    EvalCase,
+    build_eval_items,
+    vocabulary_from_verbs,
+)
 from .deviation import (
     DeviationReport,
     ModelAnswer,
@@ -157,5 +169,13 @@ __all__ = [
     "ModelProvider",
     "LMStudioProvider",
     "ModelBackendError",
+    "DecisionItem",
+    "load_decision_corpus",
+    "write_decision_corpus",
+    "judgments_for",
+    "corpus_stats",
+    "EvalCase",
+    "build_eval_items",
+    "vocabulary_from_verbs",
     "__version__",
 ]
