@@ -96,7 +96,7 @@ You **author** your platform with the SDK (step 2). `ambertrace-rlvr` then **con
 
 ## Status
 
-**M0–M1 complete:** the full reward path (parser → verifier → reward shaper), a config-driven run loader, fail-closed resilience, the TRL/GRPO adapter, and a demonstrated end-to-end training run (see [Results](docs/RESULTS.md)). veRL / OpenRLHF adapters and the dense-reward refinements are planned — see the [roadmap](ROADMAP.md). Design spec in [`docs/`](./docs/).
+**M0–M1 complete, M2 core + the eval/alignment lane in.** The full reward path (parser → verifier → shaper) with dense per-criterion partial credit and fact-provenance anti-reward-hacking, a config-driven run loader, fail-closed resilience, the TRL/GRPO **and veRL** adapters, and a demonstrated end-to-end training run (see [Results](docs/RESULTS.md)). Plus a certificate-grounded **[evaluation & alignment](#evaluation--alignment)** lane. The OpenRLHF adapter, the cross-domain demo, and an open-weight-model alignment matrix are next — see the [roadmap](ROADMAP.md). Design spec in [`docs/`](./docs/).
 
 ## Install
 
@@ -160,6 +160,36 @@ See also `examples/score_completions.py` for a runnable end-to-end reward smoke
 test and `configs/loan_example.yaml` / `configs/grant_eligibility.yaml` for full
 run configs.
 
+## Evaluation & alignment
+
+The same certificate that drives the reward is also a ground-truth **oracle-as-judge**, so this repo ships an evaluation lane that scores *model behaviour* against the proof. It's **independent of training** — it needs only the certificate, never a trainer or the reward shaper — and consumes **only the normalised certificate**, so the verifier's internals stay opaque.
+
+- **Eval harness** — `evaluate` / `evaluate_policy` / `compare_to_baseline` / `consistency`: parse-rate, certified-rate, accuracy-vs-gold, mean reward + per-component traces, with trivial baselines.
+- **Oracle-as-judge seam** — `OracleJudgment` + a per-domain `JudgmentSpec`: turns a certificate into **certified-decidable / certified-undecidable / unverifiable**, with a direction (fail-open vs fail-closed) and severity vocabulary.
+- **Epistemic honesty** — `score_deviation`: a hard three-bucket partition plus an **overconfidence rate** — how often the model answers a case the oracle *proved* has no determinate answer (never scored as "wrong").
+- **Sycophancy-into-error** — `run_sweep`: re-poses the *same* certified items under social-pressure framings and reports the **signed fail-open Δ** (movement toward under-restriction), split by severity band.
+- **Monitorability** — `faithfulness_curve` / `compare_monitorability`: does stated-reasoning faithfulness erode as reward rises (train-against-verifier vs train-against-a-model-judge)?
+
+```python
+from ambertrace_rlvr import (
+    OracleJudgment, JudgmentSpec, LabelSpec, parse_model_answer, score_deviation,
+)
+
+spec = JudgmentSpec(labels=[
+    LabelSpec("deny", rank=0, restrictive=True),   # fail-closed / safety-critical
+    LabelSpec("permit", rank=1),                   # fail-open
+    LabelSpec("abstain", is_abstain=True),         # the certified-undecidable outcome
+])
+# reports: AmberReport per item (oracle queried on each item's fixed inputs)
+judgments = [OracleJudgment.from_report(r, spec) for r in reports]
+answers = [parse_model_answer(text, ["permit", "deny"]) for text in model_outputs]
+
+report = score_deviation(judgments, answers, spec)
+print(report.overconfidence_rate, report.over_permit_rate)   # alignment scores
+```
+
+Everything here is offline/network-free to test. Coming next: a local **LM Studio** model backend to run this suite over the latest open-weight models and publish a model × alignment-score matrix.
+
 ## Repository layout
 
 ```
@@ -170,8 +200,13 @@ src/ambertrace_rlvr/
   reports.py       AmberReport normalisation over the QueryExplanation contract
   rewards.py       RewardShaper + DefaultRewardShaper (dense, hack-resistant)
   prompts.py       system-prompt template / format contract
+  evaluation.py    eval harness — metrics, baselines, consistency
+  eval_oracle.py   oracle-as-judge seam — OracleJudgment + JudgmentSpec
+  deviation.py     three-bucket scorer + overconfidence rate
+  sycophancy.py    social-pressure sweep — signed fail-open Δ
+  faithfulness.py  faithfulness-vs-reward monitorability curve
   testing.py       FakeVerifier + offline payload builders
-  integrations/    trl.py (primary), verl.py / openrlhf.py (planned)
+  integrations/    trl.py (primary), verl.py; openrlhf.py (planned)
 examples/          runnable examples
 configs/           per-run YAML
 tests/             offline suite (FakeVerifier + recorded payloads)
