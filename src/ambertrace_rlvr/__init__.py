@@ -51,6 +51,11 @@ from .evaluation import (
     malformed_policy,
     run_policy,
 )
+from .model_backend import (
+    LMStudioProvider,
+    ModelBackendError,
+    ModelProvider,
+)
 from .parsers import (
     CompletionParser,
     JSONBlockParser,
@@ -149,5 +154,8 @@ __all__ = [
     "curve_trend",
     "compare_monitorability",
     "load_trajectory",
+    "ModelProvider",
+    "LMStudioProvider",
+    "ModelBackendError",
     "__version__",
 ]
