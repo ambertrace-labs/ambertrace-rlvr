@@ -12,6 +12,14 @@ from .config import (
     TrainingConfig,
     load_run_config,
 )
+from .deviation import (
+    DeviationReport,
+    ModelAnswer,
+    OracleItem,
+    oracle_judgments,
+    parse_model_answer,
+    score_deviation,
+)
 from .domain import VerifiableDomain
 from .eval_oracle import (
     ABSTAIN,
@@ -95,5 +103,11 @@ __all__ = [
     "JudgmentSpec",
     "LabelSpec",
     "ABSTAIN",
+    "DeviationReport",
+    "ModelAnswer",
+    "OracleItem",
+    "parse_model_answer",
+    "score_deviation",
+    "oracle_judgments",
     "__version__",
 ]
