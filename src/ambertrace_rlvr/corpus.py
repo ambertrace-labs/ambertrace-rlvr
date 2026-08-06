@@ -65,6 +65,22 @@ class DecisionItem:
         """The frozen oracle verdict as an :class:`OracleJudgment`."""
         return OracleJudgment.from_label(self.oracle, undecidable=self.undecidable)
 
+    def to_record(self) -> dict[str, Any]:
+        """The public answer-key record for this item (round-trips through
+        :func:`load_decision_corpus`)."""
+        return {
+            "id": self.id,
+            "domain": self.domain,
+            "prompt": self.prompt,
+            "vocabulary": [
+                {"verb": v.verb, "rank": v.rank, "restrictive": v.restrictive}
+                for v in self.vocabulary
+            ],
+            "oracle": None if self.undecidable else self.oracle,
+            "undecidable": self.undecidable,
+            "difficulty": dict(self.difficulty),
+        }
+
 
 def load_decision_corpus(path: str | Path) -> list[DecisionItem]:
     """Read a decision corpus JSONL. Malformed lines and items missing a prompt or
@@ -131,6 +147,14 @@ def judgments_for(items: Sequence[DecisionItem]) -> list[OracleJudgment]:
     """The frozen oracle judgment for each item — the fixed truth a model's answers
     are scored against."""
     return [it.judgment() for it in items]
+
+
+def write_decision_corpus(path: str | Path, items: Iterable[DecisionItem]) -> Path:
+    """Write items to a JSONL decision corpus in the public answer-key schema."""
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(json.dumps(it.to_record()) for it in items) + "\n")
+    return out
 
 
 def corpus_stats(items: Iterable[DecisionItem]) -> dict[str, Any]:
