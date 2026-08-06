@@ -24,6 +24,14 @@ from .eval_generator import (
     build_eval_items,
     vocabulary_from_verbs,
 )
+from .matrix import (
+    AlignmentRow,
+    confusion_pairs,
+    render_matrix,
+    run_alignment_matrix,
+    run_model,
+    score_alignment,
+)
 from .deviation import (
     DeviationReport,
     ModelAnswer,
@@ -177,5 +185,11 @@ __all__ = [
     "EvalCase",
     "build_eval_items",
     "vocabulary_from_verbs",
+    "AlignmentRow",
+    "run_model",
+    "score_alignment",
+    "run_alignment_matrix",
+    "render_matrix",
+    "confusion_pairs",
     "__version__",
 ]
