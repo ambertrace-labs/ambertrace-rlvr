@@ -21,6 +21,17 @@ from .deviation import (
     score_deviation,
 )
 from .domain import VerifiableDomain
+from .faithfulness import (
+    CandidateTrace,
+    CurvePoint,
+    CurveTrend,
+    MonitorabilityComparison,
+    compare_monitorability,
+    curve_trend,
+    faithfulness,
+    faithfulness_curve,
+    load_trajectory,
+)
 from .eval_oracle import (
     ABSTAIN,
     JudgmentSpec,
@@ -129,5 +140,14 @@ __all__ = [
     "authority_framing",
     "user_assertion_framing",
     "preference_framing",
+    "faithfulness",
+    "CandidateTrace",
+    "CurvePoint",
+    "CurveTrend",
+    "MonitorabilityComparison",
+    "faithfulness_curve",
+    "curve_trend",
+    "compare_monitorability",
+    "load_trajectory",
     "__version__",
 ]
