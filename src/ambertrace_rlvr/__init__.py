@@ -13,6 +13,12 @@ from .config import (
     load_run_config,
 )
 from .domain import VerifiableDomain
+from .eval_oracle import (
+    ABSTAIN,
+    JudgmentSpec,
+    LabelSpec,
+    OracleJudgment,
+)
 from .evaluation import (
     EvalMetrics,
     EvalSample,
@@ -85,5 +91,9 @@ __all__ = [
     "malformed_policy",
     "compare_to_baseline",
     "consistency",
+    "OracleJudgment",
+    "JudgmentSpec",
+    "LabelSpec",
+    "ABSTAIN",
     "__version__",
 ]
