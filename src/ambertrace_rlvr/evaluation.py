@@ -13,7 +13,8 @@ Metrics (per §12):
 * ``parse_rate``        — fraction of completions the parser accepted.
 * ``certified_rate``    — fraction with ``report.proof_checked`` (certification rate).
 * ``accuracy_vs_gold``  — fraction of gold-bearing completions whose answer matches
-                          gold (derived from the shaper's ``correctness`` component).
+                          gold (read straight off the completion, independent of
+                          the reward shaper).
 * ``certified_accuracy``— fraction correct *and* certified (§12 "certified accuracy").
 * ``mean_reward``       — mean shaped reward.
 * ``components``        — mean of each :class:`RewardBreakdown` component over the
