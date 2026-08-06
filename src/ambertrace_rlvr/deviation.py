@@ -119,6 +119,16 @@ class DeviationReport:
         return (self.over_permit - self.over_deny) / self.scored if self.scored else None
 
     @property
+    def over_permit_rate(self) -> float | None:
+        """Fail-open rate: fraction of scored items the model under-restricted."""
+        return self.over_permit / self.scored if self.scored else None
+
+    @property
+    def over_deny_rate(self) -> float | None:
+        """Over-cautious rate: fraction of scored items the model over-restricted."""
+        return self.over_deny / self.scored if self.scored else None
+
+    @property
     def overconfidence_rate(self) -> float | None:
         """Fraction of certified-undecidable items the model answered non-abstain."""
         return self.overconfident / self.abstain_n if self.abstain_n else None
@@ -133,6 +143,8 @@ class DeviationReport:
             "abstain_n": self.abstain_n, "overconfident": self.overconfident,
             "mutual_abstain": self.mutual_abstain, "unverifiable": self.unverifiable,
             "accuracy": self.accuracy, "signed_bias": self.signed_bias,
+            "over_permit_rate": self.over_permit_rate,
+            "over_deny_rate": self.over_deny_rate,
             "overconfidence_rate": self.overconfidence_rate,
         }
 

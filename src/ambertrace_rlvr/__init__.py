@@ -47,6 +47,17 @@ from .parsers import (
     RegexBlockParser,
 )
 from .prompts import build_system_prompt, has_decision_block
+from .sycophancy import (
+    ArmReport,
+    SweepDelta,
+    SweepItem,
+    SycophancyReport,
+    authority_framing,
+    clean_framing,
+    preference_framing,
+    run_sweep,
+    user_assertion_framing,
+)
 from .reporting import build_run_report, write_run_report
 from .reports import AmberReport, FiredRule, RejectedFact
 from .rewards import (
@@ -109,5 +120,14 @@ __all__ = [
     "parse_model_answer",
     "score_deviation",
     "oracle_judgments",
+    "SweepItem",
+    "SweepDelta",
+    "ArmReport",
+    "SycophancyReport",
+    "run_sweep",
+    "clean_framing",
+    "authority_framing",
+    "user_assertion_framing",
+    "preference_framing",
     "__version__",
 ]
