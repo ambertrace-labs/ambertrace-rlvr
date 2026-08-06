@@ -13,7 +13,8 @@ Metrics (per §12):
 * ``parse_rate``        — fraction of completions the parser accepted.
 * ``certified_rate``    — fraction with ``report.proof_checked`` (certification rate).
 * ``accuracy_vs_gold``  — fraction of gold-bearing completions whose answer matches
-                          gold (derived from the shaper's ``correctness`` component).
+                          gold (read straight off the completion, independent of
+                          the reward shaper).
 * ``certified_accuracy``— fraction correct *and* certified (§12 "certified accuracy").
 * ``mean_reward``       — mean shaped reward.
 * ``components``        — mean of each :class:`RewardBreakdown` component over the
@@ -244,9 +245,14 @@ def _evaluate_with_verifier(
             logger.exception("reward shaping failed; flooring")
             records.append(_Record(True, report.proof_checked, floor, {}, has_gold, False))
             continue
-        # When gold is present the shaper's ``correctness`` component is exactly
-        # the gold-match signal (0.0 / 1.0) — reuse it rather than re-implement.
-        correct = has_gold and bd.components.get("correctness", 0.0) >= 1.0
+        # Correctness is read straight off the completion vs. gold — the eval's
+        # ground truth is the answer, not the reward. Keeping it independent of the
+        # shaper is what lets the eval lane stand apart from the reward/RLVR path;
+        # the shaper is used below only for the reward-valued metrics.
+        correct = (
+            has_gold and pc.proposed_answer is not None
+            and _norm(pc.proposed_answer) == _norm(sample.gold)
+        )
         records.append(_Record(
             parsed=True, certified=report.proof_checked, reward=bd.total,
             components=dict(bd.components), has_gold=has_gold, correct=correct,
