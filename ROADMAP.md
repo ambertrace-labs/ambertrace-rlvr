@@ -6,7 +6,34 @@ Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/i
 
 **Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, released `v0.1.1`). `#27` is a platform-blocked follow-up.
 
-## M0 — Complete the bridge ✅
+## Two lanes
+
+From here the work runs as **two lanes that share only the AmberTrace certificate** (the normalised `AmberReport`), so they progress in parallel without colliding:
+
+- **RLVR / training lane** — the reward path and trainer adapters (`rewards.py`, `integrations/*`, examples). *Oracle-as-reward.*
+- **Eval / alignment lane** — scores model behaviour against the certificate (`evaluation.py`, `eval_oracle.py`, `deviation.py`, `sycophancy.py`, `faithfulness.py`). *Oracle-as-judge*, depends only on the certificate — never on the reward shaper or a trainer — so it needs no training run to develop.
+
+The milestones below (spec §16) still hold; the lane tag says which track an item sits in.
+
+### Eval / alignment lane
+
+Independent of training. The certificate is a ground-truth oracle: it can certify a decidable answer, prove a case *undecidable*, and name the rules it credited — enabling failure-mode measurements most methods can only approximate.
+
+| # | Item | State |
+|---|------|-------|
+| [#53](https://github.com/ambertrace-labs/ambertrace-rlvr/pull/53) | Oracle-as-judge seam (`eval_oracle`): `OracleJudgment` + per-domain `JudgmentSpec` (direction/severity) | ✅ |
+| [#14](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/14) | Evaluation harness + metrics + baselines | ✅ |
+| [#51](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/51) | Epistemic honesty: three-bucket partition + overconfidence rate on the certified-undecidable | ✅ |
+| [#52](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/52) | Sycophancy-into-error: signed fail-open Δ under social-pressure framings | ✅ |
+| [#50](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/50) | Monitorability: faithfulness-vs-reward over training (generalises #12) | ✅ |
+| _planned_ | **Open-weight alignment matrix** — run the eval suite over the latest open-weight models via a local LM Studio backend; publish a model × alignment-score matrix | 🔜 |
+| _planned_ | **Quantization-impact study** — same eval suite across quant levels (Q4→fp16) of the same model; does quantization erode alignment? | 🔜 |
+
+## RLVR / training lane — milestones (spec §16)
+
+The reward path + trainer adapters. Foundational reward components (#9, #10) are shared with the eval lane through the certificate. Done items marked ✅.
+
+### M0 — Complete the bridge ✅
 Prerequisite plumbing for a real training loop. **Complete** (#27 remains as a platform-blocked follow-up).
 
 | # | Item | Spec |
@@ -16,7 +43,7 @@ Prerequisite plumbing for a real training loop. **Complete** (#27 remains as a p
 | [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 |
 | [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection once the platform ships them — **blocked on platform** | — |
 
-## M1 — Warm-up domain (end-to-end) ✅
+### M1 — Warm-up domain (end-to-end) ✅
 First end-to-end GRPO loop against a platform we author via the SDK; first learning curves. **Complete** — see [Results](docs/RESULTS.md).
 
 | # | Item | Depends on |
@@ -26,20 +53,20 @@ First end-to-end GRPO loop against a platform we author via the SDK; first learn
 | [#7](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/7)  | Opt-in network integration test: reward increases over N steps | #6 |
 | [#8](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/8)  | Run report + first learning curves | #6 |
 
-## M2 — ACMG variant + dense reward
+### M2 — ACMG variant + dense reward
 Dense reward solved; anti-hacking; evaluation harness; scale.
 
-| # | Item | Depends on |
-|---|------|-----------|
-| [#9](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/9)   | Graded refinement: real per-criterion partial credit | — |
-| [#10](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/10) | Fact-provenance check (anti-reward-hacking) | — |
-| [#11](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/11) | Perturbation probes + reward-hacking score | #8, #14 |
-| [#12](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/12) | Consistency component (right-answer / wrong-reasons) | — |
-| [#13](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/13) | ACMG variant dataset + config + example | #2, #9 |
-| [#14](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/14) | Evaluation harness + metrics + baselines | #8 |
-| [#15](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/15) | veRL adapter for multi-node scale | — |
+| # | Item | State |
+|---|------|-------|
+| [#9](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/9)   | Graded refinement: real per-criterion partial credit | ✅ |
+| [#10](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/10) | Fact-provenance check (anti-reward-hacking) | ✅ |
+| [#13](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/13) | ACMG variant dataset + config + example | ✅ shipped |
+| [#15](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/15) | veRL adapter for multi-node scale | ✅ |
+| [#14](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/14) | Evaluation harness + metrics + baselines | ✅ _(eval lane)_ |
+| [#11](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/11) | Perturbation probes + reward-hacking score | ⏳ |
+| [#12](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/12) | Consistency component (right-answer / wrong-reasons) | ⏳ |
 
-## M3 — Cross-domain + v1.0 release
+### M3 — Cross-domain + v1.0 release
 Generalisation, hosted reward server, docs, release.
 
 | # | Item | Depends on |
