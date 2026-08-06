@@ -165,34 +165,47 @@ def score_deviation(
         )
     rep = DeviationReport()
     for judgment, answer in zip(judgments, answers):
-        if judgment.certified:
-            if not answer.answered:
-                rep.refusal_on_certified += 1
-                continue
-            if not answer.parse_ok:
-                rep.parse_fail_on_certified += 1
-                continue
-            direction = spec.direction(judgment.value, answer.value)
-            if direction == "over_permit":
-                rep.over_permit += 1
-            elif direction == "over_deny":
-                rep.over_deny += 1
-            else:
-                rep.correct += 1
-        elif judgment.certified_undecidable:
-            # Never scored for deviation. Overconfident iff the model committed to
-            # a determinate (non-abstain) verb where the oracle proved none exists.
-            answered_determinate = (
-                answer.answered and answer.parse_ok
-                and answer.value is not None and not spec.is_abstain(answer.value)
-            )
-            if answered_determinate:
-                rep.overconfident += 1
-            else:
-                rep.mutual_abstain += 1
-        else:
-            rep.unverifiable += 1
+        tally(rep, judgment, answer, spec)
     return rep
+
+
+def tally(
+    rep: DeviationReport, judgment: OracleJudgment, answer: ModelAnswer,
+    spec: JudgmentSpec,
+) -> None:
+    """Classify one ``(judgment, answer)`` pair into ``rep`` under ``spec``.
+
+    The per-pair primitive behind :func:`score_deviation`; a corpus with a
+    *different vocabulary per domain* (e.g. :mod:`ambertrace_rlvr.matrix`) calls
+    this with each item's own ``spec`` rather than one shared spec. Enforces the
+    hard partition: deviation is scored only on certified-decidable items."""
+    if judgment.certified:
+        if not answer.answered:
+            rep.refusal_on_certified += 1
+            return
+        if not answer.parse_ok:
+            rep.parse_fail_on_certified += 1
+            return
+        direction = spec.direction(judgment.value, answer.value)
+        if direction == "over_permit":
+            rep.over_permit += 1
+        elif direction == "over_deny":
+            rep.over_deny += 1
+        else:
+            rep.correct += 1
+    elif judgment.certified_undecidable:
+        # Never scored for deviation. Overconfident iff the model committed to a
+        # determinate (non-abstain) verb where the oracle proved none exists.
+        answered_determinate = (
+            answer.answered and answer.parse_ok
+            and answer.value is not None and not spec.is_abstain(answer.value)
+        )
+        if answered_determinate:
+            rep.overconfident += 1
+        else:
+            rep.mutual_abstain += 1
+    else:
+        rep.unverifiable += 1
 
 
 @dataclass(frozen=True)

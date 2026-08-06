@@ -58,10 +58,19 @@ class LMStudioProvider:
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         sys_prompt = system if system is not None else self.system
+        data = self._chat(sys_prompt, prompt)
+        # Some model templates (e.g. Mistral v0.3) accept only user/assistant
+        # roles and error on a system message. Fold the system prompt into the
+        # user turn and retry, so the matrix runs uniformly across families.
+        if sys_prompt and _is_role_error(data):
+            data = self._chat(None, f"{sys_prompt}\n\n{prompt}")
+        return _extract_content(data)
+
+    def _chat(self, sys_prompt: str | None, user: str) -> dict[str, Any]:
         messages: list[dict[str, str]] = []
         if sys_prompt:
             messages.append({"role": "system", "content": sys_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": user})
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -71,12 +80,11 @@ class LMStudioProvider:
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         transport = self.transport or _http_post
         try:
-            data = transport(url, payload, self.timeout)
+            return transport(url, payload, self.timeout)
         except ModelBackendError:
             raise
         except Exception as e:  # a foreign transport failure — normalise it
             raise ModelBackendError(f"model request failed: {e!r}") from e
-        return _extract_content(data)
 
     def as_model(self) -> Callable[[str], str]:
         """Adapt to the ``prompt -> completion`` callable the eval sweeps expect."""
@@ -91,6 +99,13 @@ def _http_post(url: str, payload: dict[str, Any], timeout: float) -> dict[str, A
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed scheme)
             raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        # A 4xx/5xx with a body is a *response* (e.g. a template role error the
+        # caller can recover from), not an unreachable server — surface the body.
+        try:
+            raw = e.read().decode("utf-8")
+        except Exception:
+            raise ModelBackendError(f"HTTP {e.code} from {url}: {e!r}") from e
     except (urllib.error.URLError, OSError) as e:
         raise ModelBackendError(f"cannot reach model server at {url}: {e!r}") from e
     try:
@@ -100,6 +115,15 @@ def _http_post(url: str, payload: dict[str, Any], timeout: float) -> dict[str, A
     if not isinstance(parsed, dict):
         raise ModelBackendError(f"unexpected response shape from {url}")
     return parsed
+
+
+def _is_role_error(data: dict[str, Any]) -> bool:
+    """Whether the response is a template error about unsupported message roles
+    (i.e. the model accepts only user/assistant, not a system message)."""
+    err = data.get("error")
+    text = (err if isinstance(err, str) else str(err)) if err is not None else ""
+    low = text.lower()
+    return "role" in low and ("system" in low or "user and assistant" in low)
 
 
 def _extract_content(data: dict[str, Any]) -> str:

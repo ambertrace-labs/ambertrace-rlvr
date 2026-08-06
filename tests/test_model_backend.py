@@ -52,6 +52,25 @@ def test_empty_or_malformed_response_is_a_refusal_not_error():
     assert odd.complete("q") == ""
 
 
+def test_system_role_error_folds_into_user_and_retries():
+    # A template that rejects a system message on the first call, succeeds on the
+    # folded retry — the matrix must run uniformly across such models.
+    calls: list[list[dict]] = []
+
+    def transport(url, payload, timeout):
+        calls.append(payload["messages"])
+        roles = [m["role"] for m in payload["messages"]]
+        if "system" in roles:
+            return {"error": "Only user and assistant roles are supported!"}
+        return {"choices": [{"message": {"content": "deny"}}]}
+
+    p = LMStudioProvider(model="m", system="Decide.", transport=transport)
+    assert p.complete("case X") == "deny"
+    assert len(calls) == 2                       # first (system) failed, retry folded
+    assert [m["role"] for m in calls[1]] == ["user"]
+    assert "Decide." in calls[1][0]["content"] and "case X" in calls[1][0]["content"]
+
+
 def test_connection_failure_raises_model_backend_error():
     def boom(url, payload, timeout):
         raise OSError("connection refused")
