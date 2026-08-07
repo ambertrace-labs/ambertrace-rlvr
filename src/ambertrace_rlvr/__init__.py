@@ -32,6 +32,13 @@ from .matrix import (
     run_model,
     score_alignment,
 )
+from .quant_sweep import (
+    QuantPoint,
+    QuantSweep,
+    precision_bits,
+    render_quant_sweep,
+    run_quant_sweep,
+)
 from .deviation import (
     DeviationReport,
     ModelAnswer,
@@ -195,5 +202,10 @@ __all__ = [
     "run_alignment_matrix",
     "render_matrix",
     "confusion_pairs",
+    "QuantSweep",
+    "QuantPoint",
+    "run_quant_sweep",
+    "render_quant_sweep",
+    "precision_bits",
     "__version__",
 ]
