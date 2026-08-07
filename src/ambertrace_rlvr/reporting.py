@@ -25,12 +25,15 @@ def build_run_report(
     log_history: Sequence[Mapping[str, Any]],
     versions: Mapping[str, str] | None = None,
     extra: Mapping[str, Any] | None = None,
+    reward_hacking: Mapping[str, Any] | None = None,
     reward_key: str = "reward",
 ) -> dict[str, Any]:
     """Assemble a run report from a config snapshot and a trainer's per-step log.
 
     ``log_history`` is a list of metric dicts (e.g. ``trainer.state.log_history``
     from TRL). Steps carrying ``reward_key`` become the learning curve.
+    ``reward_hacking`` is an optional probe summary (``ProbeReport.as_dict()``) — the
+    rule-preserving vs rule-violating reward gap and the ``gamed`` regression flag.
     """
     curve = _reward_curve(log_history, reward_key)
     return {
@@ -40,6 +43,7 @@ def build_run_report(
         "reward_curve": curve,
         "summary": _summary(curve),
         "metrics": [_redact(m) for m in log_history],
+        **({"reward_hacking": _redact(reward_hacking)} if reward_hacking else {}),
         **({"extra": _redact(extra)} if extra else {}),
     }
 

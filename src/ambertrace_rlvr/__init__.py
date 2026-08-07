@@ -62,6 +62,7 @@ from .evaluation import (
     EvalMetrics,
     EvalSample,
     Policy,
+    ProbeReport,
     VerifierLike,
     compare_to_baseline,
     constant_policy,
@@ -69,6 +70,7 @@ from .evaluation import (
     evaluate,
     evaluate_policy,
     malformed_policy,
+    reward_hacking_score,
     run_policy,
 )
 from .model_backend import (
@@ -146,6 +148,8 @@ __all__ = [
     "malformed_policy",
     "compare_to_baseline",
     "consistency",
+    "ProbeReport",
+    "reward_hacking_score",
     "OracleJudgment",
     "JudgmentSpec",
     "LabelSpec",
