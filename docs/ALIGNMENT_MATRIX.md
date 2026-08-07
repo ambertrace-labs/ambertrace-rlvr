@@ -9,10 +9,9 @@ alignment-relevant failure a plain accuracy number hides.
 
 **Preliminary.** A 120-item stratified slice (40 domains each of 2-, 3-, and
 4-verb vocabularies, so the hard graded verbs are represented), single sample,
-temperature 0. Directional, not final — a text-only Llama-4-Scout run and
-the full 1,350-item run follow.
+temperature 0. Directional, not final — the full 1,350-item run follows.
 
-## Results — 16 models, 10 labs
+## Results — 17 models, 10 labs
 
 Sorted by fail-open on the safety-critical band (the alignment metric), best first.
 
@@ -22,6 +21,7 @@ Sorted by fail-open on the safety-critical band (the alignment metric), best fir
 | olmo-3-32b-think ‡ | Allen AI | 32B | 88.7% | **0.0%** | 0.0% | 11.3% | −0.11 | 4.2% |
 | qwen3.5-9b † | Alibaba | 9B | 80.8% | 2.3% | 0.0% | 17.5% | −0.16 | 0.0% |
 | qwen3.6-27b † | Alibaba | 27B | 87.7% | 2.5% | 0.0% | 10.5% | −0.09 | 5.0% |
+| llama-4-scout-17b-16e § | Meta | 17B-16E | 76.5% | 3.5% | 0.0% | 21.0% | −0.18 | 0.0% |
 | phi-4 | Microsoft | 14B | 80.0% | 10.5% | 0.0% | 12.5% | −0.05 | 0.0% |
 | gemma-4-e4b-it | Google | ~4B | 80.0% | 11.6% | 0.0% | 11.7% | −0.03 | 0.0% |
 | glm-4.7-flash | Zhipu/Z.ai | MoE | 75.8% | 11.6% | 0.0% | 15.8% | −0.07 | 0.0% |
@@ -49,10 +49,13 @@ Sorted by fail-open on the safety-critical band (the alignment metric), best fir
   FO-restrictive: Mistral-7B fails open on 33% of safety-critical items yet is
   net-safe overall (−0.10) because it over-restricts elsewhere too, whereas
   Llama-3.2-3B (+0.26) and Yi-1.5 (+0.25) err lopsidedly toward danger.
-- Every model reports 0% parsed-but-unusable; refusals (reasoning models only) are
-  their own bucket. Rows shown are on 120 items (114–115 for the three with residual refusals).
+- Parsed-but-unusable is 0% for every model except Llama-4-Scout (one item, 0.8%);
+  refusals (reasoning models only) are their own bucket. Rows are on 120 items
+  (114–115 for the three with residual refusals; 119 for Scout).
 - **†** reasoning model, evaluated with reasoning disabled (see *Reasoning models*).
 - **‡** dedicated reasoning model (no disable switch); evaluated thinking-enabled.
+- **§** Llama-4-Scout run text-only (GGUF, llama.cpp); the MLX 4-bit build failed to
+  load (missing vision-tower parameters), so the text weights were served instead.
 
 Ten labs, Western and Chinese frontier, 3B–48B, all local open weights.
 
@@ -106,9 +109,8 @@ python examples/run_alignment_matrix.py --models <model-id> --limit 120
   models get `reasoning_effort: none`. The *decision intent* is identical across
   models; delivery is whatever each model's template accepts.
 - **Now included.** Moonshot AI (Kimi-Linear-48B), Zhipu/Z.ai (GLM-4.7-Flash),
-  Alibaba (Qwen 3.6-27B), Mistral (Small-3.2), DeepSeek (Coder-V2-Lite), Allen AI
-  (OLMo-3-32B). **Landing next:** Meta Llama-4-Scout (text-only GGUF, to sidestep the
-  MLX vision-loader). **Still to come:** the full 1,350-item run and a
-  reasoning-enabled arm.
+  Alibaba (Qwen 3.6-27B), Mistral (Small-3.2), Meta (Llama-4-Scout, text-only GGUF),
+  DeepSeek (Coder-V2-Lite), Allen AI (OLMo-3-32B). **Still to come:** the full
+  1,350-item run and a reasoning-enabled arm.
 - Decidable-only (`decision_eval_v1` v1), so overconfidence-on-the-undecidable is
   not exercised here; single-sample; 120-item slice; served locally via LM Studio.

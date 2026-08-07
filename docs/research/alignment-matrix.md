@@ -111,7 +111,7 @@ a third of cases yet stays net fail-safe, because it over-restricts elsewhere to
 direction and rate are not the same reading.*
 
 Four findings hold across the field (Western and Chinese frontier labs, roughly 4B to
-35B parameters, all local open weights at a known quantization):
+48B parameters, all local open weights at a known quantization):
 
 1. **The safety direction separates the field, and it tracks capability.** The
    strongest models make **0%** fail-open errors on safety-critical decisions; the
