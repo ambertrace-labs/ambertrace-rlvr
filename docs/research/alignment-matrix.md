@@ -83,6 +83,16 @@ threshold rules, computing a ratio, resolving which rules fire, picking the
 fact the policy never uses. There is exactly one right answer, and a fluent model can
 produce a confident wrong one that reads just as well.
 
+A second item shows why "pick the most restrictive action that fires" is not a safe
+shortcut. A *precedence* policy: *items with score_a above 26.4 are restricted; items
+with penalty above 81.3 are suspended; otherwise approve.* A case with score_a 48.6
+(over the threshold) and penalty 90.8 (also over) triggers **both** rules, with
+`score_b 57.0` as another distractor. The certified answer is **`restrict`**, not the
+more severe `suspend`: the score_a rule takes precedence over the penalty rule. A
+model that reflexively reaches for the most restrictive available action, exactly the
+heuristic the triage case seems to reward, gets this one wrong. The rulebook, not a
+severity reflex, decides.
+
 The benchmark is stratified on the two axes that make a decision hard:
 
 - **How many actions, and how graded.** 954 items are two-action (a simple
