@@ -16,24 +16,35 @@ the full 1,350-item run follow.
 
 Sorted by fail-open on the safety-critical band (the alignment metric), best first.
 
-| model | lab | params | parsed | accuracy | fail-open | **fail-open (restrictive)** | over-cautious | refusal |
+| model | lab | params | acc | **FO (restrictive)** | FO (permissive) | over-cautious | signed bias | refusal |
 |---|---|---|---|---|---|---|---|---|
-| qwen3.6-35b-a3b | Alibaba | 35B-A3B | 114/120 | 89.5% | 0.0% | **0.0%** | 10.5% | 5.0% |
-| olmo-3-32b-think ‡ | Allen AI | 32B | 115/120 | 88.7% | 0.0% | **0.0%** | 11.3% | 4.2% |
-| qwen3.5-9b † | Alibaba | 9B | 120/120 | 80.8% | 1.7% | 2.3% | 17.5% | 0.0% |
-| phi-4 | Microsoft | 14B | 120/120 | 80.0% | 7.5% | 10.5% | 12.5% | 0.0% |
-| gemma-4-e4b-it | Google | ~4B | 120/120 | 80.0% | 8.3% | 11.6% | 11.7% | 0.0% |
-| gemma-2-9b-it | Google | 9B | 120/120 | 66.7% | 12.5% | 17.4% | 20.8% | 0.0% |
-| deepseek-coder-v2-lite | DeepSeek | 16B-MoE | 120/120 | 69.2% | 21.7% | 30.2% | 9.2% | 0.0% |
-| mistral-7b-instruct-v0.3 | Mistral | 7B | 120/120 | 43.3% | 23.3% | 32.6% | 33.3% | 0.0% |
-| glm-4-9b-0414 | Zhipu/Z.ai | 9B | 120/120 | 55.0% | 26.7% | 37.2% | 18.3% | 0.0% |
-| meta-llama-3.1-8b-instruct | Meta | 8B | 120/120 | 53.3% | 28.3% | 39.5% | 18.3% | 0.0% |
-| yi-1.5-9b-chat | 01.AI | 9B | 120/120 | 56.7% | 34.2% | 47.7% | 9.2% | 0.0% |
-| llama-3.2-3b-instruct | Meta | 3B | 120/120 | 55.8% | 35.0% | 48.8% | 9.2% | 0.0% |
+| qwen3.6-35b-a3b | Alibaba | 35B-A3B | 89.5% | **0.0%** | 0.0% | 10.5% | −0.11 | 5.0% |
+| olmo-3-32b-think ‡ | Allen AI | 32B | 88.7% | **0.0%** | 0.0% | 11.3% | −0.11 | 4.2% |
+| qwen3.5-9b † | Alibaba | 9B | 80.8% | 2.3% | 0.0% | 17.5% | −0.16 | 0.0% |
+| phi-4 | Microsoft | 14B | 80.0% | 10.5% | 0.0% | 12.5% | −0.05 | 0.0% |
+| gemma-4-e4b-it | Google | ~4B | 80.0% | 11.6% | 0.0% | 11.7% | −0.03 | 0.0% |
+| gemma-2-9b-it | Google | 9B | 66.7% | 17.4% | 0.0% | 20.8% | −0.08 | 0.0% |
+| deepseek-coder-v2-lite | DeepSeek | 16B-MoE | 69.2% | 30.2% | 0.0% | 9.2% | +0.12 | 0.0% |
+| mistral-7b-instruct-v0.3 | Mistral | 7B | 43.3% | 32.6% | 0.0% | 33.3% | −0.10 | 0.0% |
+| glm-4-9b-0414 | Zhipu/Z.ai | 9B | 55.0% | 37.2% | 0.0% | 18.3% | +0.08 | 0.0% |
+| meta-llama-3.1-8b-instruct | Meta | 8B | 53.3% | 39.5% | 0.0% | 18.3% | +0.10 | 0.0% |
+| yi-1.5-9b-chat | 01.AI | 9B | 56.7% | 47.7% | 0.0% | 9.2% | +0.25 | 0.0% |
+| llama-3.2-3b-instruct | Meta | 3B | 55.8% | 48.8% | 0.0% | 9.2% | +0.26 | 0.0% |
 
-- **fail-open (restrictive)** = when the certified action was a safety-critical
-  (restrictive) verb, how often the model chose a *less* restrictive one — the
-  dangerous direction.
+- **FO (restrictive)** — when the certified action was a safety-critical
+  (restrictive) verb, how often the model chose a *less* restrictive one. The
+  dangerous direction, and the headline metric.
+- **FO (permissive)** — the same, on low-severity verbs. **Uniformly 0%**: every
+  model's under-restriction lands *only* on safety-critical decisions, never where
+  it would be harmless — the errors concentrate exactly where they matter.
+- **signed bias** — `(over-permit − over-deny) / n`, one number for net error
+  direction: **negative = net over-cautious (fail-safe), positive = net fail-open
+  (unsafe)**. It cleanly splits the field, and it is *not* redundant with
+  FO-restrictive: Mistral-7B fails open on 33% of safety-critical items yet is
+  net-safe overall (−0.10) because it over-restricts elsewhere too, whereas
+  Llama-3.2-3B (+0.26) and Yi-1.5 (+0.25) err lopsidedly toward danger.
+- Every model reports 0% parsed-but-unusable; refusals (reasoning models only) are
+  their own bucket. Rows shown are on 120 items (114–115 for the two with refusals).
 - **†** reasoning model, evaluated with reasoning disabled (see *Reasoning models*).
 - **‡** dedicated reasoning model (no disable switch); evaluated thinking-enabled.
 
@@ -54,6 +65,11 @@ Nine labs, Western and Chinese frontier, 3B–35B, all local open weights.
    Llama-3.2-3B (43% vs 56%) yet fails open *less* (33% vs 49%), erring toward
    over-caution instead. A single accuracy number ranks these backwards on the
    metric a deployer cares about.
+4. **Errors concentrate where they're dangerous.** Fail-open on the *permissive*
+   band is **0% for every model** — under-restriction happens only on the
+   safety-critical verbs, never on the low-severity ones. The failure mode isn't
+   uniform noise; it's specifically a reluctance to take the restrictive action
+   when the situation demands it.
 
 ## Reasoning models
 
