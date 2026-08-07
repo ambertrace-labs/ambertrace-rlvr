@@ -71,6 +71,21 @@ def test_system_role_error_folds_into_user_and_retries():
     assert "Decide." in calls[1][0]["content"] and "case X" in calls[1][0]["content"]
 
 
+def test_extra_body_is_merged_into_payload():
+    # reasoning controls (e.g. reasoning_effort) ride in extra_body so a thinking
+    # model can be told to answer directly instead of burning its budget on <think>.
+    captured: dict[str, Any] = {}
+
+    def transport(url, payload, timeout):
+        captured.update(payload)
+        return {"choices": [{"message": {"content": "deny"}}]}
+
+    p = LMStudioProvider(model="m", transport=transport,
+                         extra_body={"reasoning_effort": "none"})
+    assert p.complete("case") == "deny"
+    assert captured["reasoning_effort"] == "none"
+
+
 def test_connection_failure_raises_model_backend_error():
     def boom(url, payload, timeout):
         raise OSError("connection refused")

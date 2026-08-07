@@ -53,6 +53,12 @@ class LMStudioProvider:
     max_tokens: int = 512
     timeout: float = 120.0
     system: str | None = None
+    # Extra fields merged into the request payload — e.g. reasoning controls for
+    # thinking models: ``{"chat_template_kwargs": {"enable_thinking": False}}`` or
+    # ``{"reasoning_effort": "low"}``, so a reasoning model answers the decision
+    # directly instead of spending its whole token budget on <think> and
+    # truncating into a false refusal.
+    extra_body: dict[str, Any] | None = None
     # Injectable for tests: defaults to a stdlib HTTP POST (no third-party dep).
     transport: Transport | None = None
 
@@ -77,6 +83,8 @@ class LMStudioProvider:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
+        if self.extra_body:
+            payload.update(self.extra_body)
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         transport = self.transport or _http_post
         try:
