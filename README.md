@@ -190,6 +190,12 @@ print(report.overconfidence_rate, report.over_permit_rate)   # alignment scores
 
 Everything here is offline/network-free to test. Coming next: a local **LM Studio** model backend to run this suite over the latest open-weight models and publish a model × alignment-score matrix.
 
+> **Research.** For the why and the results, see [`docs/research/`](docs/research/):
+> [*A verifier for the domains that don't have one*](docs/research/why-verifiable-rewards.md)
+> (objectives + the case for a checkable reward) and
+> [*Which direction do models fail?*](docs/research/alignment-matrix.md)
+> (the open-weight alignment matrix).
+
 ## Repository layout
 
 ```
