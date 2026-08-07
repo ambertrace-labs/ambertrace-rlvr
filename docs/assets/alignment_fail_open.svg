@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 656" width="760" height="656" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { fill: #1B1A17; font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+    .sub { fill: #7A776E; font-size: 12px; }
+    .eyebrow { fill: #E0982E; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
+    .model { fill: #1B1A17; font-size: 12.5px; font-weight: 600; }
+    .lab { fill: #7A776E; font-size: 10.5px; }
+    .val { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .tick { fill: #7A776E; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .leg { fill: #7A776E; font-size: 11px; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="655" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="52" class="title">Fail-open on safety-critical decisions</text>
+  <text x="40" y="72" class="sub">How often each model took a less-restrictive action than the oracle certified. 120-item slice; lower is safer.</text>
+
+<line x1="210.0" y1="102" x2="210.0" y2="588.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="210.0" y="604.0" text-anchor="middle" class="tick">0%</text>
+<line x1="310.4" y1="102" x2="310.4" y2="588.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="310.4" y="604.0" text-anchor="middle" class="tick">10%</text>
+<line x1="410.8" y1="102" x2="410.8" y2="588.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="410.8" y="604.0" text-anchor="middle" class="tick">20%</text>
+<line x1="511.2" y1="102" x2="511.2" y2="588.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="511.2" y="604.0" text-anchor="middle" class="tick">30%</text>
+<line x1="611.6" y1="102" x2="611.6" y2="588.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="611.6" y="604.0" text-anchor="middle" class="tick">40%</text>
+<line x1="712.0" y1="102" x2="712.0" y2="588.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="712.0" y="604.0" text-anchor="middle" class="tick">50%</text>
+<text x="198" y="120.0" text-anchor="end" class="model">qwen3.6-35b-a3b</text>
+<text x="198" y="132.0" text-anchor="end" class="lab">Alibaba</text>
+<rect x="210" y="108.0" width="1.2" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="218.2" y="121.0" class="val" fill="#2F7D6B">0.0%</text>
+<text x="198" y="150.5" text-anchor="end" class="model">olmo-3-32b-think</text>
+<text x="198" y="162.5" text-anchor="end" class="lab">Allen AI</text>
+<rect x="210" y="138.5" width="1.2" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="218.2" y="151.5" class="val" fill="#2F7D6B">0.0%</text>
+<text x="198" y="181.0" text-anchor="end" class="model">qwen3.5-9b</text>
+<text x="198" y="193.0" text-anchor="end" class="lab">Alibaba</text>
+<rect x="210" y="169.0" width="23.1" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="240.1" y="182.0" class="val" fill="#2F7D6B">2.3%</text>
+<text x="198" y="211.5" text-anchor="end" class="model">qwen3.6-27b</text>
+<text x="198" y="223.5" text-anchor="end" class="lab">Alibaba</text>
+<rect x="210" y="199.5" width="25.1" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="242.1" y="212.5" class="val" fill="#2F7D6B">2.5%</text>
+<text x="198" y="242.0" text-anchor="end" class="model">phi-4</text>
+<text x="198" y="254.0" text-anchor="end" class="lab">Microsoft</text>
+<rect x="210" y="230.0" width="105.4" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="322.4" y="243.0" class="val" fill="#2F7D6B">10.5%</text>
+<text x="198" y="272.5" text-anchor="end" class="model">gemma-4-e4b-it</text>
+<text x="198" y="284.5" text-anchor="end" class="lab">Google</text>
+<rect x="210" y="260.5" width="116.5" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="333.5" y="273.5" class="val" fill="#2F7D6B">11.6%</text>
+<text x="198" y="303.0" text-anchor="end" class="model">glm-4.7-flash</text>
+<text x="198" y="315.0" text-anchor="end" class="lab">Zhipu/Z.ai</text>
+<rect x="210" y="291.0" width="116.5" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="333.5" y="304.0" class="val" fill="#2F7D6B">11.6%</text>
+<text x="198" y="333.5" text-anchor="end" class="model">kimi-linear-48b-a3b</text>
+<text x="198" y="345.5" text-anchor="end" class="lab">Moonshot AI</text>
+<rect x="210" y="321.5" width="128.5" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="345.5" y="334.5" class="val" fill="#2F7D6B">12.8%</text>
+<text x="198" y="364.0" text-anchor="end" class="model">mistral-small-3.2</text>
+<text x="198" y="376.0" text-anchor="end" class="lab">Mistral</text>
+<rect x="210" y="352.0" width="140.6" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="357.6" y="365.0" class="val" fill="#2F7D6B">14.0%</text>
+<text x="198" y="394.5" text-anchor="end" class="model">gemma-2-9b-it</text>
+<text x="198" y="406.5" text-anchor="end" class="lab">Google</text>
+<rect x="210" y="382.5" width="174.7" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="391.7" y="395.5" class="val" fill="#2F7D6B">17.4%</text>
+<text x="198" y="425.0" text-anchor="end" class="model">deepseek-coder-v2-lite</text>
+<text x="198" y="437.0" text-anchor="end" class="lab">DeepSeek</text>
+<rect x="210" y="413.0" width="303.2" height="15" rx="2.5" fill="#C4472E"/>
+<text x="520.2" y="426.0" class="val" fill="#C4472E">30.2%</text>
+<text x="198" y="455.5" text-anchor="end" class="model">mistral-7b-v0.3</text>
+<text x="198" y="467.5" text-anchor="end" class="lab">Mistral</text>
+<rect x="210" y="443.5" width="327.3" height="15" rx="2.5" fill="#2F7D6B"/>
+<text x="544.3" y="456.5" class="val" fill="#2F7D6B">32.6%</text>
+<text x="198" y="486.0" text-anchor="end" class="model">glm-4-9b-0414</text>
+<text x="198" y="498.0" text-anchor="end" class="lab">Zhipu/Z.ai</text>
+<rect x="210" y="474.0" width="373.5" height="15" rx="2.5" fill="#C4472E"/>
+<text x="590.5" y="487.0" class="val" fill="#C4472E">37.2%</text>
+<text x="198" y="516.5" text-anchor="end" class="model">llama-3.1-8b</text>
+<text x="198" y="528.5" text-anchor="end" class="lab">Meta</text>
+<rect x="210" y="504.5" width="396.6" height="15" rx="2.5" fill="#C4472E"/>
+<text x="613.6" y="517.5" class="val" fill="#C4472E">39.5%</text>
+<text x="198" y="547.0" text-anchor="end" class="model">yi-1.5-9b-chat</text>
+<text x="198" y="559.0" text-anchor="end" class="lab">01.AI</text>
+<rect x="210" y="535.0" width="478.9" height="15" rx="2.5" fill="#C4472E"/>
+<text x="695.9" y="548.0" class="val" fill="#C4472E">47.7%</text>
+<text x="198" y="577.5" text-anchor="end" class="model">llama-3.2-3b</text>
+<text x="198" y="589.5" text-anchor="end" class="lab">Meta</text>
+<rect x="210" y="565.5" width="490.0" height="15" rx="2.5" fill="#C4472E"/>
+<text x="707.0" y="578.5" class="val" fill="#C4472E">48.8%</text>
+<rect x="210" y="617.0" width="11" height="11" rx="2.5" fill="#2F7D6B"/>
+<text x="228" y="626.0" class="leg">net fail-safe (signed bias &lt; 0)</text>
+<rect x="425" y="617.0" width="11" height="11" rx="2.5" fill="#C4472E"/>
+<text x="443" y="626.0" class="leg">net fail-open (signed bias &gt; 0)</text>
+</svg>
