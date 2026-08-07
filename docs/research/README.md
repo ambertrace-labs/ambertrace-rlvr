@@ -4,12 +4,12 @@ Open, reproducible research on verifiable rewards and model alignment. These pie
 are written to be published (ambertracelabs.com/research) and to stand on numbers
 you can regenerate from this repo.
 
-- **[A Reward You Can Check](why-verifiable-rewards.md).**
+- **[Verifiable Rewards Beyond Maths and Code](why-verifiable-rewards.md).**
   What this project is for: why trustworthy models need a *checkable* reward, how
   AmberTrace supplies the missing verifier for rule-governed domains, and why the
   bridge is open source.
 
-- **[Which Direction Does It Fail?](alignment-matrix.md).**
+- **[Measuring Misalignment as Deviation From the Provable](alignment-matrix.md).**
   An open-weight alignment matrix scoring current frontier open models against a
   proof-certified oracle, reporting the *safety direction* of their errors rather
   than raw accuracy. The live results table is

@@ -11,7 +11,7 @@
   </style>
   <rect x="0.5" y="0.5" width="759" height="655" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
   <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
-  <text x="40" y="52" class="title">Which direction does it fail?</text>
+  <text x="40" y="52" class="title">Net direction of misalignment</text>
   <text x="40" y="72" class="sub">Signed bias = (over-permit − over-deny) / n. Left of zero errs toward caution; right errs toward danger.</text>
 
 <line x1="470" y1="102" x2="470" y2="588.0" stroke="#B9B5AA" stroke-width="1.5"/>
