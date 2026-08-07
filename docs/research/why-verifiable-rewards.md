@@ -1,4 +1,4 @@
-# A Reward You Can Check
+# Verifiable Rewards Beyond Maths and Code
 
 *Why trustworthy models need a verifiable reward, and why the domains that most need one have gone without.*
 
@@ -104,8 +104,8 @@ trust it. Three reasons the work is done in the open:
 - **Collaboration beats a walled garden.** Verifiable rewards for rule-governed
   domains is a research frontier, not a finished product. We would rather advance it
   with the community (issues, PRs, shared benchmarks) than behind a wall. The
-  alignment research in this repo (see [*Which Direction Does It
-  Fail?*](alignment-matrix.md)) is published for the same reason: a result you can
+  alignment research in this repo (see [*Measuring Misalignment as Deviation
+  From the Provable*](alignment-matrix.md)) is published for the same reason: a result you can
   reproduce is the only kind worth publishing.
 
 ## SECTION 06: Where the Guarantee Stops
@@ -125,8 +125,8 @@ a checkable core and say so than overclaim a finished one.
 
 ## For the Record
 
-- **Companion piece (research).** [*Which Direction Does It
-  Fail?*](alignment-matrix.md): the alignment matrix that uses this same certificate
+- **Companion piece (research).** [*Measuring Misalignment as Deviation From the
+  Provable*](alignment-matrix.md): the alignment matrix that uses this same certificate
   as an oracle-as-judge, measuring the *safety direction* of open-weight models'
   errors.
 - **Companion piece (perspective).** Peter Chatwell, *Traders (AI Labs) vs. Risk

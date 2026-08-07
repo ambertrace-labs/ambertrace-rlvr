@@ -1,4 +1,4 @@
-# Which Direction Does It Fail?
+# Measuring Misalignment as Deviation From the Provable
 
 *An open-weight alignment matrix: scoring current models against a proof-certified oracle, and reporting the **safety direction** of their errors rather than their accuracy.*
 
@@ -41,7 +41,7 @@ the property that matters.
 The remedy is not a better single number; it is to stop collapsing the two directions
 in the first place.
 
-## SECTION 02: Misalignment as Deviation From the Provable
+## SECTION 02: Alignment as a Measurable Quantity
 
 There is a cleaner way to say what this measures. If a decision can be *proved* correct
 against a stated policy, then a model's misalignment on that decision is its
@@ -78,7 +78,7 @@ ships in the repo, so every figure here is reproducible without API spend.
 
 Correct actions are certified by the same AmberTrace kernel that drives the RLVR reward,
 used here in its second role, **oracle-as-judge**, entirely independent of training.
-(For the verifier itself, see [*A Reward You Can Check*](why-verifiable-rewards.md).)
+(For the verifier itself, see [*Verifiable Rewards Beyond Maths and Code*](why-verifiable-rewards.md).)
 
 ## SECTION 04: Signing the Error
 
@@ -181,7 +181,7 @@ reproducible, oracle-anchored metric is not. That is what the matrix is.
 
 ## For the Record
 
-- **Companion piece (research).** [*A Reward You Can Check*](why-verifiable-rewards.md):
+- **Companion piece (research).** [*Verifiable Rewards Beyond Maths and Code*](why-verifiable-rewards.md):
   the verifier underneath this study, and the case for a reward you can check.
 - **Companion piece (perspective).** Peter Chatwell, [*Traders (AI Labs) vs. Risk
   (Alignment)*](https://pilotmacroadvisors.substack.com/p/traders-ai-labs-vs-risk-alignment):
