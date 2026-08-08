@@ -8,19 +8,19 @@
 > under the editorial oversight of Peter Chatwell, Founder/CEO, who is accountable
 > for its accuracy and conclusions.
 >
-> **Status: preliminary.** One model (Qwen3.6-27B), a 120-item stratified slice,
-> single sample, temperature 0. A directional result, not a calibrated effect size.
+> **Status: preliminary.** One model (Qwen3.6-27B), single sample, temperature 0.
 > The driver and data are in the open-source repo; see *Reproduce*.
 
-![Qwen3.6-27B under quantisation: over-caution falls and fail-open on safety-critical decisions rises as precision drops, crossing at 2-bit, while accuracy stays flat.](../assets/quant_safety_curve.svg)
+![Qwen3.6-27B across a single-publisher quantisation ladder: fail-open on safety-critical decisions and accuracy both stay roughly flat from 8-bit to 2-bit.](../assets/quant_safety_curve.svg)
 
 Quantisation is how large models are usually deployed: the weights are compressed from
 16 bits towards 4 or 2 so the model fits on a laptop or a smaller GPU. A quantised
 model is normally checked with perplexity or accuracy. This note looks at a property
-those numbers do not capture: the *direction* of the model's errors. Scored against a
-proof-certified oracle, Qwen3.6-27B holds its accuracy down to 2-bit, but at 2-bit its
-errors shift from over-caution towards under-restriction on the safety-critical
-decisions.
+those numbers do not capture, the *direction* of the model's errors, and reports a
+mostly negative result: scored against a proof-certified oracle, Qwen3.6-27B's safety
+direction is largely **robust** to quantisation down to 2-bit. It also documents how a
+smaller run initially suggested the opposite, and why the fuller run is the one to
+trust.
 
 ## SECTION 01: Accuracy and the Direction of Errors
 
@@ -28,16 +28,20 @@ A quantised model is judged on whether it still gets answers right. But a decisi
 be wrong in two directions, and they are not equivalent: choosing a *less* restrictive
 action than the rules require is a **fail-open** error, the unsafe one; choosing a
 *more* restrictive action is over-caution, costly but safe. Accuracy averages the two.
-A compression step can therefore leave the *count* of correct answers unchanged while
-moving the *wrong* answers from the safe side to the unsafe side. An accuracy number
-does not show that move; a signed one does.
+A compression step could in principle leave the *count* of correct answers unchanged
+while moving the *wrong* answers from the safe side to the unsafe side, and an accuracy
+number would not show that move. The question this note asks is whether quantisation
+actually does that. A signed, oracle-anchored metric can answer it; accuracy alone
+cannot.
 
 ## SECTION 02: Method
 
 The measurement reuses the scorer from the alignment work. We take one base model,
-serve it at several GGUF quantisation levels (Q8_0 down to Q2_K), and score each level
-on the same items with the same certified answers, so the only variable is precision.
-Each item is a plain-English policy plus a case, drawn from
+serve it at every GGUF quantisation level from **one publisher's imatrix ladder** (Q8_0
+down to Q2_K, six levels), and score each level on the same items with the same
+certified answers, so the only variable is precision. Using a single publisher matters:
+mixing quant *methods* across levels would confound calibration with bit-width (more on
+this in *Limits*). Each item is a plain-English policy plus a case, drawn from
 [`decision_eval_v1`](../../data/decision_eval_v1.md); every correct action is fixed by
 the AmberTrace oracle, independent of the model. (For the oracle and the signed-error
 scoring, see the companion pieces [*Measuring Misalignment as Deviation From the
@@ -45,85 +49,85 @@ Provable*](alignment-matrix.md) and [*Verifiable Rewards Beyond Maths and
 Code*](why-verifiable-rewards.md).)
 
 Reasoning is disabled identically on every level, so a lower level's scores read as a
-signed change against the highest-precision reference (Q8_0). We report two: the
-**accuracy** lost, and the **fail-open on the safety-critical band** gained. When
-fail-open rises by more than accuracy falls, the level is flagged: precision loss has
-moved decisions towards the unsafe direction faster than it has cost accuracy, which is
-the change an accuracy number does not surface.
+signed change against the highest-precision reference (Q8_0). We report the **accuracy**
+and the **fail-open rate on the safety-critical band** at each level. If fail-open rose
+as precision fell, and rose faster than accuracy, that would be a safety-specific cost
+of compression that an accuracy check would miss. The full run is 1,350 items per level
+(858 on the safety-critical band).
 
-## SECTION 03: Near-Lossless to 3-Bit, a Shift at 2-Bit
+## SECTION 03: The Safety Direction Is Robust to 2-Bit
 
-| quant | ~bits | accuracy | fail-open (restr) | over-caution | flagged |
-|---|---|---|---|---|---|
-| Q8_0 (ref) | 8 | 80.8% | 2.3% (2/86) | 17.5% | no |
-| Q6_K | 6 | 80.8% | 2.3% (2/86) | 17.5% | no |
-| Q4_K_M | 4 | 80.8% | 2.3% (2/86) | 17.5% | no |
-| Q3_K_M | 3 | 81.7% | 1.2% (1/86) | 17.5% | no |
-| **Q2_K** | 2 | **82.5%** | **8.1% (7/86)** | **11.7%** | **yes** |
+| quant | ~bits | accuracy | fail-open (restr) |
+|---|---|---|---|
+| Q8_0 (ref) | 8 | 90.9% | 5.2% (45/858) |
+| Q6_K | 6 | 90.9% | 5.2% (45/858) |
+| Q5_K_M | 5 | 91.3% | 4.5% (39/858) |
+| Q4_K_M | 4 | 90.2% | 6.3% (54/858) |
+| Q3_K_M | 3 | 90.2% | 5.2% (45/858) |
+| Q2_K | 2 | 89.6% | 6.3% (54/858) |
 
-From 8-bit down to 4-bit the model's 120 decisions are identical: not one changes.
-3-bit is within a single decision. Accuracy is flat, if anything drifting slightly up.
-At 2-bit the signed errors move: fail-open on safety-critical items rises from 2 to 7,
-while over-caution falls from 21 to 14. The 2-bit decisions did not get less correct
-(accuracy rises slightly, 80.8% to 82.5%); they got less cautious. About five decisions
-moved out of over-restriction and into under-restriction, the unsafe direction. A
-perplexity or accuracy check passes 2-bit; the oracle-signed metric does not.
+There is no precision trend in the dangerous direction. Fail-open on the safety-critical
+band wobbles between 4.5% and 6.3% with no ordering: the 5-bit level is the *safest* of
+all, and the 4-bit level ties the 2-bit level as the worst. From 8-bit to 2-bit
+fail-open rises by 1.1 percentage points (45 to 54 items) while accuracy falls by 1.3
+points (90.9% to 89.6%), so the small extra fail-open at 2-bit is no larger than the
+general accuracy loss, not a redirection of errors towards danger. Compressing this
+model to 2-bit costs a little accuracy and leaves its safety direction essentially
+where it started.
 
-## SECTION 04: The Effect Concentrates on Graded Decisions
+## SECTION 04: A Smaller Slice Told a More Dramatic Story
 
-The next question is whether the effect is spread evenly or concentrated. It is
-concentrated, on the decisions that were hardest to begin with.
+The first version of this run used a 120-item stratified slice, and it looked
+strikingly different: fail-open on the safety-critical band appeared flat at ~2% from
+8-bit to 3-bit and then jumped to 8.1% at 2-bit, concentrated entirely on four-action
+decisions, with accuracy flat throughout. Read alone, that is a clean "safety tax at
+2-bit" result.
 
-![Fail-open count on safety-critical items, 8-bit versus 2-bit, split by the number of allowed actions. The 4-action severity-ladder decisions carry the entire increase.](../assets/quant_tax_by_vocab.svg)
+![Fail-open on safety-critical decisions by precision: the 120-item slice spikes at 2-bit, the full 1,350-item set stays flat.](../assets/quant_slice_vs_full.svg)
 
-Split the safety-critical items by how many actions the policy allows, and the whole
-increase sits in one bucket. Two-action decisions (a simple permit or deny) are
-unchanged by quantisation, and so are three-action decisions. Every one of the new
-fail-open errors is a **four-action** decision, where the verbs form a severity ladder
-(`discharge → monitor → escalate → critical_escalate`). Splitting by rule shape gives
-the same result from another angle: the increase is entirely in plain threshold rules,
-while **precedence** reasoning (which rule wins when several apply) is unaffected.
+It did not survive the full run. On the slice the safety-critical band was only 86
+items, so the 2-bit "spike" was a movement of about five items, well inside the noise
+of a sample that size. At 858 items the same 2-bit level sits at 6.3%, in line with the
+rest of the ladder. The apparent concentration on four-action decisions dissolved too:
+across the full set the small shifts spread over several rule types and are offset by
+*improvements* elsewhere (three-action and precedence decisions get slightly better at
+low precision), leaving no coherent pattern.
 
-The individual failures are uniform. Six items across six domains share one shape: the
-certified action is the *middle* of a four-rung ladder (`escalate`). At 8-bit the model
-over-shoots to the top rung (`critical_escalate`), an over-cautious error; at 2-bit the
-same six items fall to the *bottom* rung (`discharge`), the least restrictive action.
-Quantisation to 2-bit does not nudge these decisions, it moves them off the ladder, and
-the move is towards release rather than restriction. The capability that degrades first
-under compression is the model's handling of graded severity, and it degrades in the
-unsafe direction.
+This is the more useful finding of the two. A 120-item slice and an accuracy-only check
+would each have passed this model as fine (accuracy even drifts up at low bits) or
+failed it for the wrong reason (the slice's phantom spike). Only the full,
+oracle-anchored, signed-error run gives the boring and correct answer: no robust effect.
+An alignment claim that turns on a handful of items is a claim about the sample, not the
+model.
 
-## SECTION 05: What This Does Not Measure
+## SECTION 05: Companion Dimensions
 
-Two dimensions a fuller picture would include, and this benchmark does not test:
+Two related questions sit alongside this one, both single-domain-present-tense being the
+limit of the benchmark used here:
 
-**Cross-domain cueing.** Every item here is a single domain: one policy, one case,
-facts observed in the present. It does not test a decision that must be conditioned on
-a proven correlation in another domain (for example, an air track becoming urgent once
-a maritime breach is confirmed in the same place), the subject of the companion
-research note *Deciding Beyond the Observed Present*. Whether quantisation degrades
-cross-domain conditioning, and in which direction, is not answered here.
+**Prediction-conditioned decisions** are now measured in a companion result: decisions
+that consume a certified forecast as an accountable input. That dimension found a
+genuine, non-noise effect (a model can handle a *predicted* input less safely than an
+*observed* one), and would be a natural axis to cross with quantisation in future, does
+compression degrade a model's use of a forecast more than its use of an observed fact?
 
-**Prediction-conditioned decisions.** These items are decidable from present facts. We
-do not yet score decisions that consume a certified prediction, a forecast admitted as
-an accountable input. The AmberTrace platform supports forecast-into-decision; a
-natural test is whether a compressed model handles a predicted input less well than an
-observed one, since a prediction carries its own uncertainty.
-
-Both are planned dimensions rather than caveats to this result. They are noted here
-because the same principle, measure the direction and not only the accuracy, applies to
-them, and neither is exercised in this benchmark.
+**Cross-domain cueing**, a decision conditioned on a *proven* correlation in another
+domain, is not yet expressible as a certified benchmark: the platform can declare the
+cross-domain relation but does not yet bring it inside the proof, so an item whose label
+genuinely depends on the cross-domain cue cannot be produced today. It is a planned
+dimension once that capability ships.
 
 ## SECTION 06: Limits
 
-The effect is small in absolute terms: a shift of about five items on an 86-item
-safety-critical band, from a single 120-item slice at temperature 0, on one model. The
-2-bit weights also come from a different GGUF publisher than the 8/6/4-bit levels, so
-part of the 2-bit change may reflect that build's calibration rather than precision
-alone. What holds across those caveats is the shape of the result: accuracy is steady
-while the errors change direction, and the change concentrates on graded decisions.
-The magnitude should be read as indicative and the direction as the finding. A
-multi-sample, multi-model run with a single-publisher quant ladder is the next step.
+One model, one benchmark, single sample at temperature 0. The result is a robustness
+finding on Qwen3.6-27B's decision *disposition*; it does not license a general claim
+that quantisation never affects safety direction, and a model with less low-bit headroom
+could behave differently. The single-publisher imatrix ladder removes the quant-method
+confound that muddied an earlier mixed-publisher run, but it also means the numbers
+reflect one calibration method; a different method (or a model trained with
+quantisation-aware training) could move the curve. The natural next steps are
+multi-sample runs to put error bars on the wobble, and a second and third model to see
+whether "robust to 2-bit" generalises.
 
 ## For the Record
 
@@ -132,8 +136,6 @@ multi-sample, multi-model run with a single-publisher quant ladder is the next s
   extends.
 - **Companion piece (research).** [*Verifiable Rewards Beyond Maths and
   Code*](why-verifiable-rewards.md): the verifier the oracle is built on.
-- **Companion research.** *Deciding Beyond the Observed Present* (Ambertrace Labs): the
-  cross-domain-cue and certified-prediction directions noted in Section 05.
 - **Reproduce.** The sweep driver ([`quant_sweep.py`](../../src/ambertrace_rlvr/quant_sweep.py)),
   the runnable example ([`examples/run_quant_sweep.py`](../../examples/run_quant_sweep.py)),
   the method notes ([`QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md)), and the dataset all

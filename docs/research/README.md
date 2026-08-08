@@ -16,7 +16,7 @@ you can regenerate from this repo.
   [`../ALIGNMENT_MATRIX.md`](../ALIGNMENT_MATRIX.md).
 
 - **[Quantisation and the Safety Direction of Decisions](quantisation-safety-direction.md).**
-  Scoring Qwen3.6-27B across quantisation levels: accuracy holds down to 2-bit, but at
-  2-bit the errors shift towards under-restriction, concentrated on graded
-  severity-ladder decisions. Method notes in
+  Scoring Qwen3.6-27B across a single-publisher quantisation ladder: the safety
+  direction is robust down to 2-bit (fail-open stays flat), and a smaller 120-item
+  slice that suggested otherwise did not replicate. Method notes in
   [`../QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md).
