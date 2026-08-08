@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
-
 import pytest
 
 from ambertrace_rlvr.integrations.trl import as_trl_reward_func, build_rloo_trainer
 from ambertrace_rlvr.testing import FakeVerifier
-
-_TRL = importlib.util.find_spec("trl") is not None
 
 PERMIT = (
     '<decision>{"classification": "permit", "facts": {"age": 40}}</decision>'
@@ -44,15 +40,16 @@ def test_gold_column_is_forwarded_as_metadata():
     assert seen[0] == [{"gold": "permit"}, {"gold": "deny"}]
 
 
-@pytest.mark.skipif(not _TRL, reason="needs the [trl] extra")
 def test_build_rloo_trainer_wires_reward_fn(monkeypatch):
     """RLOO builder constructs a trainer from the shared reward_fn, wiring the
     adapted callable as ``reward_funcs`` and defaulting ``args`` to RLOOConfig.
 
     Offline: the real RLOOTrainer is stubbed so no model/GPU/network is needed —
     we only assert build_rloo_trainer forwards the right constructor args.
+    ``importorskip`` skips when the [trl] extra is absent and is a runtime call,
+    so pyright has no static ``import trl`` to flag when trl isn't installed.
     """
-    import trl
+    trl = pytest.importorskip("trl")
 
     captured: dict = {}
 
