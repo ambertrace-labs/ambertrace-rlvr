@@ -14,3 +14,8 @@ you can regenerate from this repo.
   proof-certified oracle, reporting the *safety direction* of their errors rather
   than raw accuracy. The live results table is
   [`../ALIGNMENT_MATRIX.md`](../ALIGNMENT_MATRIX.md).
+
+- **[The Safety Tax of Quantization](quantization-safety-tax.md).**
+  Compressing Qwen3.6-27B holds its accuracy down to 2-bit but flips its errors
+  toward danger, concentrated on graded severity-ladder decisions. Method notes in
+  [`../QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md).
