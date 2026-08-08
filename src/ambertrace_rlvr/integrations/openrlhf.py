@@ -69,15 +69,18 @@ def score_batch(
     forwarded as ``metadata[gold_key]`` — the optional correctness signal the
     shaper reads. Any exception floors the whole batch and is logged.
     """
-    completions = [_flatten(q) for q in queries]
-    n = len(completions)
-    prompt_seq = _align(prompts, n)
-    metadata: list[dict[str, Any]] = [{} for _ in range(n)]
-    if isinstance(labels, Sequence) and not isinstance(labels, (str, bytes)):
-        for i, label in enumerate(labels):
-            if i < n and label is not None:
-                metadata[i][gold_key] = label
+    n = len(queries)
     try:
+        # All prep is inside the guard: a malformed item (e.g. a partly-broken
+        # conversational query) must floor like any other scoring error, never
+        # escape as a 500.
+        completions = [_flatten(q) for q in queries]
+        prompt_seq = _align(prompts, n)
+        metadata: list[dict[str, Any]] = [{} for _ in range(n)]
+        if isinstance(labels, Sequence) and not isinstance(labels, (str, bytes)):
+            for i, label in enumerate(labels):
+                if i < n and label is not None:
+                    metadata[i][gold_key] = label
         rewards = reward_fn(prompt_seq, completions, metadata)
         return [float(r) for r in rewards]
     except Exception:  # fail-closed: never raise into the training loop

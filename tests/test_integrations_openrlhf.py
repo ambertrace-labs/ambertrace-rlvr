@@ -84,6 +84,18 @@ def test_scoring_error_floors_whole_batch_and_logs(caplog):
     assert any("flooring" in r.message for r in caplog.records)
 
 
+def test_malformed_conversational_item_floors_not_500(caplog):
+    # A partly-broken conversational query ([dict, str, ...]) must floor like any
+    # other scoring error and return a 200 — not escape prep as a 500.
+    app = build_openrlhf_reward_app(FakeVerifier().as_reward_function(), floor=-1.0)
+    bad_item = [{"role": "user", "content": "hi"}, "notadict"]
+    with caplog.at_level(logging.ERROR):
+        status, payload = _call(app, {"query": [bad_item]})
+    assert status == 200
+    assert payload["rewards"] == [-1.0]
+    assert any("flooring" in r.message for r in caplog.records)
+
+
 def test_score_batch_is_fail_closed_directly():
     def boom(*_a, **_k):
         raise RuntimeError("boom")
