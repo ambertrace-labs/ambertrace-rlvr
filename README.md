@@ -71,6 +71,7 @@ A real GRPO run on the demo **Grant Eligibility** platform, trained on a laptop-
 
 - **[Results writeup →](docs/RESULTS.md)** — method, setup, the reward-collapse-vs-KL-stability finding, and how to reproduce it.
 - **[User Guide →](docs/USER_GUIDE.md)** — the full create → build → train walkthrough.
+- **[API Reference →](docs/API_REFERENCE.md)** — every public symbol (`ambertrace_rlvr.__all__`) with its signature and purpose.
 
 ## How it works — the customer journey
 
