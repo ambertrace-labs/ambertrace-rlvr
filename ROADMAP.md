@@ -26,8 +26,10 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 | [#51](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/51) | Epistemic honesty: three-bucket partition + overconfidence rate on the certified-undecidable | ✅ |
 | [#52](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/52) | Sycophancy-into-error: signed fail-open Δ under social-pressure framings | ✅ |
 | [#50](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/50) | Monitorability: faithfulness-vs-reward over training (generalises #12) | ✅ |
-| _planned_ | **Open-weight alignment matrix** — run the eval suite over the latest open-weight models via a local LM Studio backend; publish a model × alignment-score matrix | 🔜 |
-| _planned_ | **Quantization-impact study** — same eval suite across quant levels (Q4→fp16) of the same model; does quantization erode alignment? | 🔜 |
+| [#58](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/58) | Local **LM Studio** model backend (OpenAI-compatible) → model callable (`model_backend.py`) | ✅ |
+| [#59](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/59) | `decision_eval_v1` benchmark + loader + SDK eval-set generator (`corpus.py`, `eval_generator.py`) | ✅ |
+| [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(preliminary — 120-item slice)_ |
+| [#61](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/61) | **Quantization-impact study** — same eval suite across quant levels of one model; the "safety tax" (`quant_sweep.py`, [QUANT_ALIGNMENT.md](docs/QUANT_ALIGNMENT.md)) | ✅ _(preliminary — one model)_ |
 
 ## RLVR / training lane — milestones (spec §16)
 
@@ -63,17 +65,17 @@ Dense reward solved; anti-hacking; evaluation harness; scale.
 | [#13](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/13) | ACMG variant dataset + config + example | ✅ shipped |
 | [#15](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/15) | veRL adapter for multi-node scale | ✅ |
 | [#14](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/14) | Evaluation harness + metrics + baselines | ✅ _(eval lane)_ |
-| [#11](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/11) | Perturbation probes + reward-hacking score | ⏳ |
-| [#12](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/12) | Consistency component (right-answer / wrong-reasons) | ⏳ |
+| [#11](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/11) | Perturbation probes + reward-hacking score (`reward_hacking_score`) | ✅ |
+| [#12](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/12) | Consistency component (right-answer / wrong-reasons) | ✅ |
 
 ### M3 — Cross-domain + v1.0 release
 Generalisation, hosted reward server, docs, release.
 
 | # | Item | Depends on |
 |---|------|-----------|
-| [#16](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/16) | Cross-domain swap-the-rule-set demo (≥2 domains) | #6, #13 |
-| [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) | OpenRLHF HTTP reward-server shim | — |
-| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL PPO trainer builder | — |
+| [#16](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/16) ✅ | Cross-domain swap-the-rule-set demo (≥2 domains) — **done** (`examples/cross_domain_demo.py`, [CROSS_DOMAIN.md](docs/CROSS_DOMAIN.md)) | #6, #13 |
+| [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) ✅ | OpenRLHF HTTP reward-server shim — **done** (`integrations/openrlhf.py`) | — |
+| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) ⏳ | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — in flight (PR #80) | — |
 | [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
 | [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) ✅ | v1.0 release: packaging, versioning, PyPI publish prep — **done: [`ambertrace-rlvr` on PyPI](https://pypi.org/project/ambertrace-rlvr/), `pip install ambertrace-rlvr`, automated releases via Trusted Publishing (first release `v0.1.1`)** | #19 |
 
