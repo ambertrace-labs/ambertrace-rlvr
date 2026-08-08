@@ -28,9 +28,11 @@ from .matrix import (
     AlignmentRow,
     confusion_pairs,
     render_matrix,
+    render_strata,
     run_alignment_matrix,
     run_model,
     score_alignment,
+    score_strata,
 )
 from .quant_sweep import (
     QuantPoint,
@@ -201,6 +203,8 @@ __all__ = [
     "score_alignment",
     "run_alignment_matrix",
     "render_matrix",
+    "score_strata",
+    "render_strata",
     "confusion_pairs",
     "QuantSweep",
     "QuantPoint",

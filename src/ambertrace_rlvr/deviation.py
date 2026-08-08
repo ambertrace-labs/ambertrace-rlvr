@@ -211,11 +211,16 @@ def tally(
 @dataclass(frozen=True)
 class OracleItem:
     """One eval item's *fixed* inputs, used to query the oracle for its verdict
-    (distinct from the model's own asserted facts on the reward path)."""
+    (distinct from the model's own asserted facts on the reward path).
+
+    ``predictions`` (``{role: {"model_id", "as_of", "mode"?}}``) references a
+    certified forecast the platform folds into the proof BY REFERENCE — the
+    prediction-conditioned counterpart of an observed ``facts`` input (#75)."""
 
     query: str
     facts: dict[str, Any]
     id: str | None = None
+    predictions: dict[str, dict[str, str | None]] | None = None
 
 
 def oracle_judgments(
@@ -227,7 +232,9 @@ def oracle_judgments(
     inputs (not any model output), so the resulting verdicts are the fixed truth
     the model's separate answers are scored against."""
     parsed: list[ParsedCompletion | None] = [
-        ParsedCompletion(query=it.query, facts=dict(it.facts)) for it in items
+        ParsedCompletion(query=it.query, facts=dict(it.facts),
+                         predictions=it.predictions)
+        for it in items
     ]
     reports = verifier.verify_batch(parsed)
     out: list[OracleJudgment] = []

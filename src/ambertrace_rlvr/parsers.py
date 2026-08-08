@@ -22,6 +22,12 @@ class ParsedCompletion:
     facts: dict[str, Any]
     proposed_answer: Any | None = None
     relations: dict[str, list[dict[str, Any]]] | None = None
+    # A native Prediction -> Decision fan-in: ``{role: {"model_id", "as_of",
+    # "mode"?}}``. The role's certified ``<role>.value`` etc. are folded into the
+    # proof BY REFERENCE (the platform is the source of the number, never the
+    # caller) — see ``platforms.query(predictions=...)``. ``None`` on the ordinary
+    # reward path, which asserts only observed ``facts``.
+    predictions: dict[str, dict[str, str | None]] | None = None
     raw_block: str | None = None
     prompt: str | None = None
     reasoning: str | None = None
