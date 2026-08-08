@@ -175,8 +175,8 @@ DOMAINS = [GRANT, ACMG]
 
 def main() -> None:
     print("swap-the-rule-set demo — two domains, one code path (score_domain)\n")
-    for domain in DOMAINS:
-        rewards = score_domain(domain)
+    scored = [(domain, score_domain(domain)) for domain in DOMAINS]
+    for domain, rewards in scored:
         print(f"=== {domain.name}  (config: {domain.config.name}) ===")
         for sample, reward in zip(domain.samples, rewards):
             preview = sample.completion[:52].replace("\n", " ")
@@ -184,16 +184,23 @@ def main() -> None:
                   f"{sample.note}\n           | {preview}...")
         print()
 
-    # The invariant the demo asserts: same shaper + report shape ⇒ the reward
-    # *spread* is identical across domains (correct > wrong > floored), even
-    # though the completions, facts, queries, and rule sets are all different.
-    grant_rewards = score_domain(GRANT)
-    acmg_rewards = score_domain(ACMG)
-    assert grant_rewards == acmg_rewards, "same code path should give the same spread"
-    assert grant_rewards[0] > grant_rewards[1] > grant_rewards[2], "correct > wrong > floor"
-    print("OK — both domains scored through one code path; only config + payloads "
-          "changed.\n     Reward spread (correct > wrong > floor) is identical:",
-          [f"{r:+.3f}" for r in grant_rewards])
+    # What proves "one code path" is that score_domain is branch-free — it has
+    # zero per-domain logic. The reward contract it must uphold, asserted PER
+    # domain: a well-formed correct completion out-scores a certified-but-wrong
+    # one, which out-scores a malformed completion floored to clip[0].
+    for domain, rewards in scored:
+        correct, wrong, floored = rewards
+        assert correct > wrong > floored, (
+            f"{domain.name}: expected correct > wrong > floor, got {rewards}"
+        )
+
+    # The two domains happen to land on the same numbers here — an illustrative
+    # coincidence of the matched payloads (both give graded 1.0 / 0.5), NOT the
+    # proof of a shared code path. Different payloads would shift the numbers
+    # while the (unchanged) code path still upholds the ordering above.
+    print("OK — both domains scored through the one branch-free code path.")
+    for domain, rewards in scored:
+        print(f"     {domain.name:<18} spread:", [f"{r:+.3f}" for r in rewards])
 
 
 if __name__ == "__main__":

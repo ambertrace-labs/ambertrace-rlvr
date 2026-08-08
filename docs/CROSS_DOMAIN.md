@@ -16,8 +16,10 @@ Only two things, and neither is code:
 
 1. **The config** — `configs/grant_eligibility.yaml` vs `configs/acmg.yaml`.
    The config selects the platform, the reward weights, and the parser together
-   with its `query_template`. Add a domain = write a new YAML (and a parser only
-   if its completions are shaped differently).
+   with its `query_template`. Here both domains emit the same `<decision>{…}</decision>`
+   JSON shape, so both configs name the same `json_block` parser and only the
+   config differs; a domain whose completions are shaped differently would also
+   swap the parser (write a new YAML, add a parser only if needed).
 2. **The recorded platform payloads** — the domain's certified "rule set",
    replayed offline by `FakeVerifier` so the demo needs no API key or network.
    On a live run these come from the platform; you swap `FakeVerifier` for
@@ -34,8 +36,14 @@ Only two things, and neither is code:
 - The reward contract: parse → verify → shape → clip; an unparseable completion
   fails closed to the floor and never out-scores a certified one.
 
-Because the shaper and report shape are shared, the two domains produce the same
-reward **spread** — correct (`+1.900`) > certified-but-wrong (`+0.750`) >
-malformed floor (`-1.000`) — even though their completions, facts, queries, and
-rule sets are all different. That identical spread from independent inputs is
-the evidence that it is genuinely one code path.
+The proof that it is genuinely one code path is that `score_domain` is
+**branch-free**: it contains zero per-domain logic. What each domain must uphold,
+asserted per domain, is the reward contract — a well-formed correct completion
+out-scores a certified-but-wrong one, which out-scores a malformed completion
+floored to `clip[0]`.
+
+The two domains happen to land on the same numbers here — correct (`+1.900`) >
+certified-but-wrong (`+0.750`) > malformed floor (`-1.000`) — but that is an
+illustrative coincidence of the matched payloads (both give the same `graded`
+component), **not** the proof. Different recorded payloads would shift the
+numbers while the unchanged code path still upholds the ordering.
