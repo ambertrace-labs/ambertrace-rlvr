@@ -73,9 +73,9 @@ RESTRICTIVE = ["de_risk"]
 
 POLICY_TEXT = (
     "This is a credit-exposure domain. The action is 'de_risk' only if BOTH hold: "
-    "credit conditions are stressed (the forecast credit spread is at least 1.90 "
-    "percent) AND the book is not resilient (book_quality is below 740). Otherwise "
-    "the action is 'hold'."
+    "credit conditions are stressed (the credit spread is at least 1.90 percent) "
+    "AND the book is not resilient (book_quality is below 740). Otherwise the "
+    "action is 'hold'."
 )
 
 

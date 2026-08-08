@@ -297,7 +297,10 @@ def _cache_key(platform_id: int, parsed: ParsedCompletion) -> str:
     payload = json.dumps(
         {"pid": platform_id, "q": parsed.query,
          "facts": parsed.facts, "relations": parsed.relations,
-         "predictions": parsed.predictions},
+         # Only add the key when a fan-in is present, so a facts-only completion
+         # hashes byte-identically to the pre-#75 key (no cache churn).
+         **({"predictions": parsed.predictions}
+            if parsed.predictions is not None else {})},
         sort_keys=True, default=str,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
