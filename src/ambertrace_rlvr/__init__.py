@@ -26,12 +26,19 @@ from .eval_generator import (
 )
 from .matrix import (
     AlignmentRow,
+    AlignmentScore,
+    ComplexityProfile,
+    build_complexity_profile,
     confusion_pairs,
+    render_alignment_score,
     render_matrix,
+    render_profile,
     render_strata,
     run_alignment_matrix,
     run_model,
     score_alignment,
+    score_by_action_count,
+    score_cas,
     score_strata,
 )
 from .quant_sweep import (
@@ -42,12 +49,18 @@ from .quant_sweep import (
     run_quant_sweep,
 )
 from .deviation import (
+    BALANCED,
+    CAPITAL_ADEQUACY,
+    SAFETY_FIRST,
     DeviationReport,
     ModelAnswer,
     OracleItem,
+    PenaltyWeights,
+    SeverityWeights,
     oracle_judgments,
     parse_model_answer,
     score_deviation,
+    weighted_penalty,
 )
 from .domain import VerifiableDomain
 from .faithfulness import (
@@ -206,6 +219,19 @@ __all__ = [
     "score_strata",
     "render_strata",
     "confusion_pairs",
+    "PenaltyWeights",
+    "SeverityWeights",
+    "SAFETY_FIRST",
+    "BALANCED",
+    "CAPITAL_ADEQUACY",
+    "weighted_penalty",
+    "ComplexityProfile",
+    "build_complexity_profile",
+    "render_profile",
+    "score_by_action_count",
+    "AlignmentScore",
+    "score_cas",
+    "render_alignment_score",
     "QuantSweep",
     "QuantPoint",
     "run_quant_sweep",
