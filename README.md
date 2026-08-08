@@ -197,7 +197,7 @@ print(report.overconfidence_rate, report.over_permit_rate)   # alignment scores
 Everything here is offline/network-free to test. To run it over real open-weight models, `model_backend.py` ships a local **LM Studio** backend (OpenAI-compatible endpoint) that turns a served model into a plain `prompt -> completion` callable; `corpus.py` + `eval_generator.py` build and load the `decision_eval_v1` oracle-anchored benchmark. On top of these:
 
 - **[Alignment matrix](docs/ALIGNMENT_MATRIX.md)** (`matrix.py`) — the eval suite across **17 models / 10 labs**, ranked by fail-open on the safety-critical band. Preliminary: a 120-item stratified slice, single sample, temperature 0; the full run follows.
-- **[Quantization sweep](docs/QUANT_ALIGNMENT.md)** (`quant_sweep.py`) — one base model across quant levels (fp16 → Q2) over the same items, reporting a **safety tax** (fail-open gained vs accuracy lost). Preliminary and directional — one model, small absolute counts.
+- **[Quantization sweep](docs/QUANT_ALIGNMENT.md)** (`quant_sweep.py`) — one base model across quant levels (Q8 → Q2) over the same items, reporting a **safety tax** (fail-open gained vs accuracy lost). Preliminary and directional — one model, small absolute counts.
 
 > **Research.** For the why and the results, see [`docs/research/`](docs/research/):
 > [*Verifiable Rewards Beyond Maths and Code*](docs/research/why-verifiable-rewards.md)
