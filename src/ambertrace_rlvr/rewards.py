@@ -110,6 +110,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "graded": 0.3,
     "rejected_penalty": 0.2,
     "unsupported_penalty": 0.3,
+    "consistency": 0.0,
 }
 
 
@@ -130,6 +131,16 @@ class DefaultRewardShaper:
                            (subtracted; discourages hallucinated facts).
       * ``unsupported_penalty`` — fraction of asserted facts not grounded in the
                            prompt (subtracted; anti-reward-hacking, #10).
+      * ``consistency``  — rule-checked agreement between the completion's stated
+                           reasoning and the certified derivation: the fired-hit
+                           fraction (rules the kernel certified as fired that the
+                           reasoning names) minus a penalty for false claims
+                           (naming rules the kernel says did *not* fire), over the
+                           fired set. Absence of a mention earns nothing, so a
+                           no-reasons trace scores ``0.0``. Discourages
+                           right-answer/wrong-reasons (spec §8, #12). Opt-in:
+                           default weight ``0.0`` so the baseline shaper is
+                           unchanged.
 
     ``rejected_penalty`` vs ``unsupported_penalty`` are orthogonal and *both*
     subtract: the former penalises facts the AmberTrace kernel rejected (malformed
@@ -164,17 +175,20 @@ class DefaultRewardShaper:
         c["graded"] = self._graded(report, criteria_gold)
         c["rejected_penalty"] = self._rejected_fraction(report)
         c["unsupported_penalty"] = self._unsupported_fraction(parsed)
+        c["consistency"] = self._consistency(parsed, report)
 
         # If we require a known schema and the report is on an unknown one, don't
         # trust the dense components — fall back to the certified core only.
         if self.require_supported_schema and not report.schema_supported:
             c["graded"] = 0.0
+            c["consistency"] = 0.0
 
         total = (
             w.get("format", 0.0) * c["format"]
             + w.get("certified", 0.0) * c["certified"]
             + w.get("correctness", 0.0) * c["correctness"]
             + w.get("graded", 0.0) * c["graded"]
+            + w.get("consistency", 0.0) * c["consistency"]
             - w.get("rejected_penalty", 0.0) * c["rejected_penalty"]
             - w.get("unsupported_penalty", 0.0) * c["unsupported_penalty"]
         )
@@ -237,6 +251,49 @@ class DefaultRewardShaper:
             return 0.0
         return _clip01(self.provenance.unsupported_fraction(parsed.facts, parsed.prompt))
 
+    def _consistency(self, parsed: ParsedCompletion, report: AmberReport) -> float:
+        """Rule-checked reasoning consistency (opt-in, #12).
+
+        Compares the completion's stated reasoning against the *certified*
+        symbolic trace. Credit is granted only for naming the rules the kernel
+        certified as *fired* (the actual derivation): a fired-hit fraction over
+        the fired set. Naming a rule the kernel certified as *not* fired is a
+        false claim and is subtracted. The absence of a mention earns nothing —
+        so a right-answer / no-reasons completion that names nothing scores 0.0,
+        and only a trace that reflects the certified derivation (and does not
+        invent unfired rules) approaches 1.0.
+
+            score = clip01( (fired_named − unfired_named) / n_fired )
+
+        Real Amber traces evaluate many rules and fire few; crediting the mere
+        absence of unfired-rule mentions would reward silence on those sparse
+        sets, which is exactly the failure this component exists to catch.
+
+        Rule names are matched on word boundaries (as in
+        :class:`SubstringProvenanceChecker`) so a short/prefix name (``R1`` vs
+        ``R12``, ``PS3`` vs ``PS35``) does not spuriously collide.
+
+        Rule-checked (not model-graded) so it is offline-verifiable and adds no
+        network dependency to the reward path (see docs/spec §8 for the decision).
+
+        Fail-closed: zero on an uncertified report, a report with no rules, no
+        *fired* rules (no certified derivation to reflect), or a completion with
+        no captured reasoning — never an exception. Defaults to zero weight, so
+        the baseline shaper is unchanged."""
+        if not report.proof_checked or not report.rules:
+            return 0.0
+        reasoning = parsed.reasoning
+        if not reasoning:
+            return 0.0
+        fired = report.rules_fired
+        if not fired:  # no certified derivation to reflect
+            return 0.0
+        text = reasoning.lower()
+        fired_named = sum(1 for r in fired if _names_rule(r.name, text))
+        unfired_named = sum(1 for r in report.rules
+                            if not r.fired and _names_rule(r.name, text))
+        return _clip01((fired_named - unfired_named) / len(fired))
+
     def _rejected_fraction(self, report: AmberReport) -> float:
         summary = report.fact_summary
         emitted = summary.get("emitted") or summary.get("accepted")
@@ -245,6 +302,16 @@ class DefaultRewardShaper:
             return _clip01(rejected / (emitted + rejected)) if (emitted + rejected) else 0.0
         # No summary counts (e.g. fail-closed error report): any rejected fact -> full penalty.
         return 1.0 if rejected else 0.0
+
+
+def _names_rule(name: str, text: str) -> bool:
+    """Whether ``text`` (already lower-cased) names the rule, matched on word
+    boundaries so a short/prefix name does not collide with a longer one
+    (``R1`` must not match inside ``R12``)."""
+    needle = name.strip().lower()
+    if not needle:
+        return False
+    return re.search(rf"\b{re.escape(needle)}\b", text) is not None
 
 
 def _clip(x: float, bounds: tuple[float, float]) -> float:
