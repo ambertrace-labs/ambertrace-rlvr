@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { fill: #1B1A17; font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+    .sub { fill: #7A776E; font-size: 12px; }
+    .eyebrow { fill: #E0982E; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
+    .ax { fill: #7A776E; font-size: 11px; }
+    .tick { fill: #7A776E; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .val { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .leg { fill: #7A776E; font-size: 11px; }
+    .xl { fill: #1B1A17; font-size: 12px; font-weight: 600; }
+    .note { fill: #7A776E; font-size: 11px; font-style: italic; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="419" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="52" class="title">The tax lands on graded decisions</text>
+  <text x="40" y="72" class="sub">Fail-open count on safety-critical items, 8-bit vs 2-bit, by number of allowed actions.</text>
+
+<line x1="62" y1="330.0" x2="700" y2="330.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="333.0" text-anchor="end" class="tick">0</text>
+<line x1="62" y1="300.0" x2="700" y2="300.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="303.0" text-anchor="end" class="tick">1</text>
+<line x1="62" y1="270.0" x2="700" y2="270.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="273.0" text-anchor="end" class="tick">2</text>
+<line x1="62" y1="240.0" x2="700" y2="240.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="243.0" text-anchor="end" class="tick">3</text>
+<line x1="62" y1="210.0" x2="700" y2="210.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="213.0" text-anchor="end" class="tick">4</text>
+<line x1="62" y1="180.0" x2="700" y2="180.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="183.0" text-anchor="end" class="tick">5</text>
+<line x1="62" y1="150.0" x2="700" y2="150.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="153.0" text-anchor="end" class="tick">6</text>
+<line x1="62" y1="120.0" x2="700" y2="120.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="123.0" text-anchor="end" class="tick">7</text>
+<rect x="109.3" y="300.0" width="54" height="30.0" rx="2.5" fill="#B9B5AA"/>
+<text x="136.3" y="294.0" text-anchor="middle" class="val" fill="#B9B5AA">1</text>
+<rect x="173.3" y="300.0" width="54" height="30.0" rx="2.5" fill="#C4472E"/>
+<text x="200.3" y="294.0" text-anchor="middle" class="val" fill="#C4472E">1</text>
+<text x="168.3" y="350.0" text-anchor="middle" class="xl">2-action</text>
+<text x="168.3" y="364.0" text-anchor="middle" class="tick">(permit/deny)</text>
+<text x="168.3" y="378.0" text-anchor="middle" class="tick">n=26</text>
+<rect x="322.0" y="300.0" width="54" height="30.0" rx="2.5" fill="#B9B5AA"/>
+<text x="349.0" y="294.0" text-anchor="middle" class="val" fill="#B9B5AA">1</text>
+<rect x="386.0" y="330.0" width="54" height="1.0" rx="2.5" fill="#C4472E"/>
+<text x="413.0" y="324.0" text-anchor="middle" class="val" fill="#C4472E">0</text>
+<text x="381.0" y="350.0" text-anchor="middle" class="xl">3-action</text>
+<text x="381.0" y="364.0" text-anchor="middle" class="tick">n=27</text>
+<rect x="534.7" y="330.0" width="54" height="1.0" rx="2.5" fill="#B9B5AA"/>
+<text x="561.7" y="324.0" text-anchor="middle" class="val" fill="#B9B5AA">0</text>
+<rect x="598.7" y="150.0" width="54" height="180.0" rx="2.5" fill="#C4472E"/>
+<text x="625.7" y="144.0" text-anchor="middle" class="val" fill="#C4472E">6</text>
+<text x="593.7" y="350.0" text-anchor="middle" class="xl">4-action</text>
+<text x="593.7" y="364.0" text-anchor="middle" class="tick">(severity ladder)</text>
+<text x="593.7" y="378.0" text-anchor="middle" class="tick">n=33</text>
+<rect x="62" y="399" width="11" height="11" rx="2.5" fill="#B9B5AA"/>
+<text x="80" y="408" class="leg">8-bit (Q8_0, reference)</text>
+<rect x="242" y="399" width="11" height="11" rx="2.5" fill="#C4472E"/>
+<text x="260" y="408" class="leg">2-bit (Q2_K)</text>
+</svg>

@@ -40,15 +40,36 @@ The dry-run prints an illustrative sweep in which the lowest level holds a middl
 accuracy but jumps to 100% fail-open on the safety-critical band — a maximal safety
 tax — to show the table and the flag.
 
-## Status
+## First result — Qwen3.6-27B, Q8 → Q2
 
-**Driver and methodology in; live results pending.** The sweep reuses the same
-oracle-anchored scorer as the [alignment matrix](ALIGNMENT_MATRIX.md) (#60) and the
-[LM Studio backend](../src/ambertrace_rlvr/model_backend.py) (#58). The headline
-result — a per-model precision-vs-safety curve across several GGUF quant levels —
-follows once the quant ladders are served locally. Decidable-only for now
-(`decision_eval_v1` v1), so overconfidence-on-the-undecidable is not yet part of the
-sweep; it joins when the certified-undecidable items land.
+GGUF quant ladder, 120-item stratified slice, reasoning disabled identically on every
+level, temperature 0. Q8_0 is the reference.
+
+| quant | ~bits | accuracy | Δacc vs ref | fail-open (restr) | Δfail-open vs ref | over-caution | safety tax |
+|---|---|---|---|---|---|---|---|
+| Q8_0 (ref) | 8 | 80.8% | — | 2.3% (2/86) | — | 17.5% | no |
+| Q6_K | 6 | 80.8% | +0.0% | 2.3% (2/86) | +0.0% | 17.5% | no |
+| Q4_K_M | 4 | 80.8% | +0.0% | 2.3% (2/86) | +0.0% | 17.5% | no |
+| Q3_K_M | 3 | 81.7% | +0.8% | 1.2% (1/86) | −1.2% | 17.5% | no |
+| **Q2_K** | 2 | **82.5%** | **+1.7%** | **8.1% (7/86)** | **+5.8%** | 11.7% | **⚠︎ yes** |
+
+**Near-lossless to Q3, then a safety tax at Q2 — that accuracy hides.** From Q8_0 down
+to Q4_K_M the model's 120 decisions are byte-identical (zero change), and Q3_K_M is
+within one decision. Accuracy is flat-to-slightly-up the whole way down. But at Q2_K
+the signed errors move: fail-open on the safety-critical band rises from 2 items to 7
+(2.3% → 8.1%) while over-caution falls from 21 to 14. The Q2 decisions did not get
+*less correct* — accuracy actually ticks up (80.8% → 82.5%) — they got less *cautious*:
+roughly five decisions migrated from over-restriction into under-restriction, the
+dangerous direction. A perplexity or accuracy check passes Q2; the oracle-signed
+metric flags it. That is the whole point of measuring the direction.
+
+**Caveats, plainly.** Small absolute counts (a ~5-item shift on an 86-item band); a
+single 120-item slice at temperature 0; and Q2_K here comes from a different GGUF
+repo than the Q8/Q6/Q4 levels, so some of the Q2 move may be cross-calibration rather
+than precision alone. Treat the Q2 effect as a directional signal, not a calibrated
+effect size. What is robust is the *shape*: quantization degrades the safety direction
+at the low-bit end before, and independently of, accuracy. Decidable-only for now
+(`decision_eval_v1` v1), so overconfidence-on-the-undecidable is not yet exercised.
 
 ## Reproduce / limits
 

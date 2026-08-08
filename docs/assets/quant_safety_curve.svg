@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" width="760" height="460" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { fill: #1B1A17; font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+    .sub { fill: #7A776E; font-size: 12px; }
+    .eyebrow { fill: #E0982E; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
+    .ax { fill: #7A776E; font-size: 11px; }
+    .tick { fill: #7A776E; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .val { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .leg { fill: #7A776E; font-size: 11px; }
+    .xl { fill: #1B1A17; font-size: 12px; font-weight: 600; }
+    .note { fill: #7A776E; font-size: 11px; font-style: italic; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="459" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="52" class="title">Accuracy holds. The errors turn dangerous.</text>
+  <text x="40" y="72" class="sub">Qwen3.6-27B, safety-critical band. Accuracy holds ~81%; at 2-bit the errors change direction.</text>
+
+<line x1="62" y1="372.0" x2="700" y2="372.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="375.0" text-anchor="end" class="tick">0%</text>
+<line x1="62" y1="306.5" x2="700" y2="306.5" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="309.5" text-anchor="end" class="tick">5%</text>
+<line x1="62" y1="241.0" x2="700" y2="241.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="244.0" text-anchor="end" class="tick">10%</text>
+<line x1="62" y1="175.5" x2="700" y2="175.5" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="178.5" text-anchor="end" class="tick">15%</text>
+<line x1="62" y1="110.0" x2="700" y2="110.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="113.0" text-anchor="end" class="tick">20%</text>
+<text x="62.0" y="392.0" text-anchor="middle" class="xl">Q8_0</text>
+<text x="62.0" y="407.0" text-anchor="middle" class="tick">8-bit</text>
+<text x="221.5" y="392.0" text-anchor="middle" class="xl">Q6_K</text>
+<text x="221.5" y="407.0" text-anchor="middle" class="tick">6-bit</text>
+<text x="381.0" y="392.0" text-anchor="middle" class="xl">Q4_K_M</text>
+<text x="381.0" y="407.0" text-anchor="middle" class="tick">4-bit</text>
+<text x="540.5" y="392.0" text-anchor="middle" class="xl">Q3_K_M</text>
+<text x="540.5" y="407.0" text-anchor="middle" class="tick">3-bit</text>
+<text x="700.0" y="392.0" text-anchor="middle" class="xl">Q2_K</text>
+<text x="700.0" y="407.0" text-anchor="middle" class="tick">2-bit</text>
+<polyline points="62.0,142.8 221.5,142.8 381.0,142.8 540.5,142.8 700.0,218.7" fill="none" stroke="#2F7D6B" stroke-width="2.5"/>
+<circle cx="62.0" cy="142.8" r="3.5" fill="#2F7D6B"/>
+<circle cx="221.5" cy="142.8" r="3.5" fill="#2F7D6B"/>
+<circle cx="381.0" cy="142.8" r="3.5" fill="#2F7D6B"/>
+<circle cx="540.5" cy="142.8" r="3.5" fill="#2F7D6B"/>
+<circle cx="700.0" cy="218.7" r="3.5" fill="#2F7D6B"/>
+<polyline points="62.0,341.9 221.5,341.9 381.0,341.9 540.5,356.3 700.0,265.9" fill="none" stroke="#C4472E" stroke-width="2.5"/>
+<circle cx="62.0" cy="341.9" r="3.5" fill="#C4472E"/>
+<circle cx="221.5" cy="341.9" r="3.5" fill="#C4472E"/>
+<circle cx="381.0" cy="341.9" r="3.5" fill="#C4472E"/>
+<circle cx="540.5" cy="356.3" r="3.5" fill="#C4472E"/>
+<circle cx="700.0" cy="265.9" r="3.5" fill="#C4472E"/>
+<text x="708.0" y="259.9" class="val" fill="#C4472E">8.1%</text>
+<text x="54.0" y="333.9" text-anchor="end" class="val" fill="#C4472E">2.3%</text>
+<text x="708.0" y="222.7" class="val" fill="#2F7D6B">11.7%</text>
+<text x="54.0" y="134.8" text-anchor="end" class="val" fill="#2F7D6B">17.5%</text>
+<text x="62" y="96.0" class="note">accuracy across the ladder: 80.8 → 80.8 → 80.8 → 81.7 → 82.5%  (flat, if anything rising)</text>
+<rect x="62" y="419" width="11" height="11" rx="2.5" fill="#C4472E"/>
+<text x="80" y="428" class="leg">fail-open on safety-critical decisions (the dangerous direction)</text>
+<rect x="492" y="419" width="11" height="11" rx="2.5" fill="#2F7D6B"/>
+<text x="510" y="428" class="leg">over-caution</text>
+</svg>
