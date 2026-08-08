@@ -1,11 +1,11 @@
-# Does quantization degrade alignment? — method
+# Does quantisation degrade alignment? — method
 
-Quantization is almost always judged on perplexity or accuracy. This study asks a
+Quantisation is almost always judged on perplexity or accuracy. This study asks a
 different question against a ground-truth oracle: as you drop a model's precision,
 does its **safety direction** degrade, and does it degrade *faster than its accuracy*?
 
 The [quant-sweep driver](../src/ambertrace_rlvr/quant_sweep.py) runs **one base
-model** at several quantization levels (e.g. `fp16 → Q8 → Q5 → Q4 → Q3`) over
+model** at several quantisation levels (e.g. `fp16 → Q8 → Q5 → Q4 → Q3`) over
 [`decision_eval_v1`](../data/decision_eval_v1.md). Same items, same oracle labels
 across every level — only precision varies — so each lower level's scores can be read
 as a *signed change* against the highest-precision reference.
@@ -67,7 +67,7 @@ metric flags it. That is the whole point of measuring the direction.
 single 120-item slice at temperature 0; and Q2_K here comes from a different GGUF
 repo than the Q8/Q6/Q4 levels, so some of the Q2 move may be cross-calibration rather
 than precision alone. Treat the Q2 effect as a directional signal, not a calibrated
-effect size. What is robust is the *shape*: quantization degrades the safety direction
+effect size. What is robust is the *shape*: quantisation degrades the safety direction
 at the low-bit end before, and independently of, accuracy. Decidable-only for now
 (`decision_eval_v1` v1), so overconfidence-on-the-undecidable is not yet exercised.
 

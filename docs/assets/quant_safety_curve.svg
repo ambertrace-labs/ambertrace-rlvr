@@ -12,7 +12,7 @@
   </style>
   <rect x="0.5" y="0.5" width="759" height="459" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
   <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
-  <text x="40" y="52" class="title">Accuracy holds. The errors turn dangerous.</text>
+  <text x="40" y="52" class="title">Error direction across quantisation levels</text>
   <text x="40" y="72" class="sub">Qwen3.6-27B, safety-critical band. Accuracy holds ~81%; at 2-bit the errors change direction.</text>
 
 <line x1="62" y1="372.0" x2="700" y2="372.0" stroke="#E7E4DC" stroke-width="1"/>

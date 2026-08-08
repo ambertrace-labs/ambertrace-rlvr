@@ -12,7 +12,7 @@
   </style>
   <rect x="0.5" y="0.5" width="759" height="419" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
   <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
-  <text x="40" y="52" class="title">The tax lands on graded decisions</text>
+  <text x="40" y="52" class="title">Fail-open increase by number of actions</text>
   <text x="40" y="72" class="sub">Fail-open count on safety-critical items, 8-bit vs 2-bit, by number of allowed actions.</text>
 
 <line x1="62" y1="330.0" x2="700" y2="330.0" stroke="#E7E4DC" stroke-width="1"/>

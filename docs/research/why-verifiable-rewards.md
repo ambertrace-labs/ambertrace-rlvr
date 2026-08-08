@@ -39,8 +39,6 @@ pays the policy only when its output is *verified* correct. In mathematics the a
 either matches or it does not; in code the tests either pass or they do not. The
 reward is ground truth, and no amount of fluency can flatter its way to it.
 
-> A verifiable reward cannot be charmed. It is either correct or not.
-
 ## SECTION 02: The Domains That Lack a Verifier
 
 Everything turns on the word *verifiable*. Mathematics and code arrive with cheap,
@@ -59,8 +57,8 @@ for it, and a fluent model can produce a confident "deny" that reads just as wel
 So these rule-governed domains, which arguably run the middle of the economy, have
 been left out of the RLVR revolution. Where they were post-trained at all, it was
 against the same learned preference models RLVR was invented to escape. The frontier
-learned to reason toward *checkable* answers; the regulated world kept optimising
-toward *persuasive* ones. **Closing that gap is the reason this project exists.**
+learned to reason towards *checkable* answers; the regulated world kept optimising
+towards *persuasive* ones. **Closing that gap is the reason this project exists.**
 
 ## SECTION 03: The Verifier, and What It Rewards
 
@@ -83,9 +81,6 @@ fact-rejected one *can never out-score it*. That is what makes the reward hard t
 hack: a policy cannot win by smuggling an unsupported fact past the gate or by
 producing a confident but uncertified decision, because the certificate, not the
 prose, carries the credit.
-
-> The answer either certifies against the rules, or it does not. The same three-word
-> test now applies to every domain, not only the ones that ship with a test harness.
 
 ## SECTION 04: Open by Design
 
@@ -131,7 +126,7 @@ a checkable core and say so than overclaim a finished one.
 - **Companion piece (perspective).** Peter Chatwell, [*Traders (AI Labs) vs. Risk
   (Alignment)*](https://pilotmacroadvisors.substack.com/p/traders-ai-labs-vs-risk-alignment):
   why measurable, independent alignment needs teeth, and why "alignment as deviation
-  from provable outputs" is a metric worth building toward.
+  from provable outputs" is a metric worth building towards.
 - **Reproduce.** The offline test suite and the verification-overhead benchmark run
   with no AmberTrace account (built-in `FakeVerifier` + recorded payloads). Authoring
   a platform and training against a live one need an API key from

@@ -15,7 +15,8 @@ you can regenerate from this repo.
   than raw accuracy. The live results table is
   [`../ALIGNMENT_MATRIX.md`](../ALIGNMENT_MATRIX.md).
 
-- **[The Safety Tax of Quantization](quantization-safety-tax.md).**
-  Compressing Qwen3.6-27B holds its accuracy down to 2-bit but flips its errors
-  toward danger, concentrated on graded severity-ladder decisions. Method notes in
+- **[Quantisation and the Safety Direction of Decisions](quantisation-safety-direction.md).**
+  Scoring Qwen3.6-27B across quantisation levels: accuracy holds down to 2-bit, but at
+  2-bit the errors shift towards under-restriction, concentrated on graded
+  severity-ladder decisions. Method notes in
   [`../QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md).
