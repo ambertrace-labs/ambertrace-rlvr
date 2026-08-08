@@ -160,6 +160,11 @@ See also `examples/score_completions.py` for a runnable end-to-end reward smoke
 test and `configs/loan_example.yaml` / `configs/grant_eligibility.yaml` for full
 run configs.
 
+**Cross-domain / swap-the-rule-set:** `examples/cross_domain_demo.py` scores two
+domains (grant eligibility + ACMG variant classification) through one
+domain-agnostic code path — swapping only config + parser, no forks. Runs offline
+with `FakeVerifier`; see [`docs/CROSS_DOMAIN.md`](docs/CROSS_DOMAIN.md).
+
 ## Evaluation & alignment
 
 The same certificate that drives the reward is also a ground-truth **oracle-as-judge**, so this repo ships an evaluation lane that scores *model behaviour* against the proof. It's **independent of training** — it needs only the certificate, never a trainer or the reward shaper — and consumes **only the normalised certificate**, so the verifier's internals stay opaque.
