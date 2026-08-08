@@ -32,7 +32,7 @@ The library is deliberately thin and unopinionated about the RL algorithm. It pr
 - Provide a single, well-typed reward function: `(prompt, completion, sample_metadata) -> reward` backed by an AmberTrace platform.
 - Support **dense, hack-resistant** reward shaping, not just a binary pass/fail.
 - Work with **gold-labelled** domains (e.g. ClinVar variant classifications) *and* **label-free** domains (reward derived purely from rule satisfaction).
-- Be **framework-agnostic**: ship first-class adapters for TRL (GRPO/PPO), with a documented path to veRL and OpenRLHF.
+- Be **framework-agnostic**: ship first-class adapters for TRL (GRPO/RLOO), with a documented path to veRL and OpenRLHF.
 - Be **throughput-aware**: RL needs thousands of verifications per training step, so batching, async I/O, and caching are first-class.
 - Be **reproducible and auditable**: every reward can emit the underlying Amber Report for inspection.
 
@@ -207,7 +207,7 @@ The shaper is pluggable; `DefaultRewardShaper` is the documented baseline and ev
 
 Adapters live in `ambertrace_rlvr.integrations.*` and only translate reward shapes; no algorithm logic.
 
-- **TRL (primary):** `build_grpo_trainer(...)` and `build_ppo_trainer(...)`. GRPO is the recommended default (group-relative, no value model, well-suited to verifiable rewards).
+- **TRL (primary):** `build_grpo_trainer(...)` and `build_rloo_trainer(...)`. GRPO is the recommended default (group-relative, no value model, well-suited to verifiable rewards); RLOO is offered as an alternative group-relative algorithm sharing the same callable-reward contract. PPO is not offered because current TRL removed the callable-reward PPO path (its trainer now requires a reward *model* + value model, not a `reward_funcs` callable).
 - **veRL:** a `verl`-compatible reward worker for large-scale/multi-node runs.
 - **OpenRLHF:** a remote reward-model-server shim exposing the verifier over HTTP.
 
