@@ -1,10 +1,11 @@
-"""TRL (GRPO) adapter — the primary integration.
+"""TRL (GRPO / RLOO) adapter — the primary integration.
 
 TRL calls a reward function as ``reward_fn(prompts, completions, **columns)`` and
 expects ``list[float]``. Our reward function already has that shape; this module
 just wraps it into the exact callable TRL wants and, optionally, builds a
-``GRPOTrainer``. ``trl`` / ``transformers`` are imported lazily so importing the
-core library never requires the training stack.
+``GRPOTrainer`` or ``RLOOTrainer`` (both group-based, no value model, and both
+accept a callable ``reward_funcs``). ``trl`` / ``transformers`` are imported
+lazily so importing the core library never requires the training stack.
 """
 
 from __future__ import annotations
@@ -56,6 +57,38 @@ def build_grpo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
         # at runtime but trips the union/list-invariance check.
         reward_funcs=[as_trl_reward_func(reward_fn)],  # type: ignore[arg-type]
         args=config or GRPOConfig(),
+        train_dataset=dataset,
+        **kwargs,
+    )
+
+
+def build_rloo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
+                       config: Any = None, **kwargs: Any):
+    """Construct a TRL ``RLOOTrainer`` wired to an AmberTrace reward function.
+
+    RLOO is group-based like GRPO (no value model) and its trainer accepts a
+    callable ``reward_funcs``, so the shared reward function drops straight in —
+    the same contract as :func:`build_grpo_trainer`. GRPO remains the recommended
+    default; RLOO is offered as an alternative group-relative algorithm. PPO is
+    not offered because current TRL removed the callable-reward PPO path.
+
+    ``config`` is an optional ``RLOOConfig``; extra ``kwargs`` pass through to the
+    trainer. Requires the ``trl`` extra (``pip install 'ambertrace-rlvr[trl]'``).
+    """
+    try:
+        from trl import RLOOConfig, RLOOTrainer  # type: ignore
+    except ImportError as e:  # pragma: no cover - exercised only with the extra
+        raise ImportError(
+            "TRL is required for build_rloo_trainer. "
+            "Install with: pip install 'ambertrace-rlvr[trl]'"
+        ) from e
+
+    return RLOOTrainer(
+        model=model,
+        # trl types RewardFunc as str|Model|Callable; a plain callable is valid
+        # at runtime but trips the union/list-invariance check.
+        reward_funcs=[as_trl_reward_func(reward_fn)],  # type: ignore[arg-type]
+        args=config or RLOOConfig(),
         train_dataset=dataset,
         **kwargs,
     )
