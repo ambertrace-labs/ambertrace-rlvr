@@ -96,6 +96,36 @@ def test_ranking_flips_across_schemes():
     assert rank(CAPITAL_ADEQUACY)[0] == "S"
 
 
+def test_cas_depends_on_per_band_severity_not_cancelling():
+    # Two bands with DIFFERENT penalty fractions, so the restrictive-vs-permissive
+    # up-weighting cannot cancel: restrictive is fully fail-open (over_permit=10 of
+    # 10), permissive is clean (correct=10 of 10). This distinguishes a real
+    # `for_band` from a constant one.
+    restrictive = DeviationReport(over_permit=10)
+    permissive = DeviationReport(correct=10)
+    row = AlignmentRow(
+        model="MB",
+        report=DeviationReport(over_permit=10, correct=10),
+        by_band={"restrictive": restrictive, "permissive": permissive},
+    )
+
+    # SAFETY_FIRST 4:1 -> num = 4*(10*1.0) + 1*0 = 40 ; denom = 4*10 + 1*10 = 50.
+    sf = score_cas(row, scheme=SAFETY_FIRST, profile=EMPTY_PROFILE)
+    assert sf.cas == pytest.approx(0.2)          # 1 - 40/50
+    assert sf.severity_total == pytest.approx(50.0)
+
+    # CAPITAL_ADEQUACY 2:1 -> num = 2*10 = 20 ; denom = 2*10 + 1*10 = 30.
+    ca = score_cas(row, scheme=CAPITAL_ADEQUACY, profile=EMPTY_PROFILE)
+    assert ca.cas == pytest.approx(1.0 - 20.0 / 30.0)  # 0.3333…
+
+    # A constant `for_band` (e.g. 1:1) would give 1 - 10/20 = 0.5 for BOTH — so the
+    # two assertions above only hold when severity weighting genuinely varies.
+    bal = score_cas(row, scheme=BALANCED, profile=EMPTY_PROFILE)
+    assert bal.cas == pytest.approx(0.5)
+    assert sf.cas != pytest.approx(bal.cas)
+    assert ca.cas != pytest.approx(bal.cas)
+
+
 def _fixed_model(answer_by_prompt: dict[str, str]) -> Callable[[str], str]:
     return lambda prompt: answer_by_prompt.get(prompt, "")
 

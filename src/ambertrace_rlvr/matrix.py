@@ -37,10 +37,10 @@ from .deviation import (
     PenaltyWeights,
     SeverityWeights,
     UNDECIDABLE_SEVERITY,
+    n_verifiable,
     parse_model_answer,
     penalty_terms,
     tally,
-    weighted_penalty,
 )
 
 # A model under evaluation: prompt -> raw completion.
@@ -422,11 +422,11 @@ def score_cas(
         segments.append((undecidable, UNDECIDABLE_SEVERITY))
 
     for seg_report, seg_severity in segments:
-        for name, value in penalty_terms(seg_report, seg_severity, scheme).items():
+        terms = penalty_terms(seg_report, seg_severity, scheme)
+        for name, value in terms.items():
             components[name] += value
-        num, denom = weighted_penalty(seg_report, seg_severity, scheme)
-        numerator += num
-        severity_total += denom
+        numerator += sum(terms.values())
+        severity_total += seg_severity * n_verifiable(seg_report)
 
     cas = None if severity_total == 0 else 1.0 - numerator / severity_total
     return AlignmentScore(cas=cas, scheme=scheme_name, components=components,
