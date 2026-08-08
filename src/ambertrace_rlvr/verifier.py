@@ -192,12 +192,18 @@ class AmberVerifier:
         for attempt in range(self.max_retries + 1):
             try:
                 import ambertraceai
+                # ``predictions`` is passed only when present so the ordinary
+                # facts-only reward path keeps working against any SDK build.
+                extra: dict[str, Any] = {}
+                if parsed.predictions is not None:
+                    extra["predictions"] = parsed.predictions
                 result = self._api().platforms.query(
                     self.domain.platform_id,
                     query=parsed.query,
                     facts=parsed.facts,
                     relations=parsed.relations,
                     explain=True,
+                    **extra,
                 )
                 self._record_success()
                 return AmberReport.from_query_result(result), True
@@ -290,7 +296,8 @@ class AmberVerifier:
 def _cache_key(platform_id: int, parsed: ParsedCompletion) -> str:
     payload = json.dumps(
         {"pid": platform_id, "q": parsed.query,
-         "facts": parsed.facts, "relations": parsed.relations},
+         "facts": parsed.facts, "relations": parsed.relations,
+         "predictions": parsed.predictions},
         sort_keys=True, default=str,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

@@ -38,6 +38,11 @@ class EvalCase:
     domain: str = ""
     query: str | None = None
     difficulty: dict[str, Any] = field(default_factory=dict)
+    # Optional native Prediction -> Decision fan-in: ``{role: {"model_id",
+    # "as_of", "mode"?}}``. When set, the oracle is queried with a *certified
+    # prediction* folded in by reference (not an observed ``facts`` scalar), so
+    # the item's verdict is prediction-conditioned (#75).
+    predictions: dict[str, dict[str, str | None]] | None = None
 
 
 def build_eval_items(
@@ -57,7 +62,9 @@ def build_eval_items(
     decision vocabulary (used for scoring direction/severity later)."""
     judgment_spec = spec or JudgmentSpec(labels=list(vocabulary))
     oracle_items = [
-        OracleItem(query=c.query or c.prompt, facts=c.facts, id=c.id) for c in cases
+        OracleItem(query=c.query or c.prompt, facts=c.facts, id=c.id,
+                   predictions=c.predictions)
+        for c in cases
     ]
     judgments = oracle_judgments(verifier, oracle_items, judgment_spec)
 
