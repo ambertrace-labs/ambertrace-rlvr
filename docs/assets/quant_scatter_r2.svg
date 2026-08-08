@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 560" width="760" height="560" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { fill:#1B1A17; font-size:19px; font-weight:700; letter-spacing:-0.2px; }
+    .sub { fill:#7A776E; font-size:12px; }
+    .eyebrow { fill:#E0982E; font-size:11px; font-weight:700; letter-spacing:1.5px; }
+    .pt { fill:#1B1A17; font-size:12px; font-weight:600; }
+    .tick { fill:#7A776E; font-size:9.5px; font-variant-numeric:tabular-nums; }
+    .r2 { font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="559" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="52" class="title">Precision (bits) vs each metric — no meaningful trend</text>
+  <text x="40" y="72" class="sub">Qwen3.6-27B, single-publisher ladder, 6 levels. Linear fit + R². n=6, so R² is descriptive.</text>
+<text x="74" y="112" class="pt">Accuracy (%)</text>
+<line x1="78" y1="252" x2="360" y2="252" stroke="#E7E4DC" stroke-width="1"/>
+<line x1="78" y1="128" x2="78" y2="252" stroke="#E7E4DC" stroke-width="1"/>
+<text x="78.0" y="265.0" text-anchor="middle" class="tick">2b</text>
+<text x="172.0" y="265.0" text-anchor="middle" class="tick">4b</text>
+<text x="266.0" y="265.0" text-anchor="middle" class="tick">6b</text>
+<text x="360.0" y="265.0" text-anchor="middle" class="tick">8b</text>
+<text x="72" y="132.0" text-anchor="end" class="tick">93</text>
+<text x="72" y="254.0" text-anchor="end" class="tick">88</text>
+<line x1="78.0" y1="204.4" x2="360.0" y2="170.9" stroke="#E0982E" stroke-width="2" stroke-dasharray="4 3"/>
+<circle cx="78.0" cy="213.4" r="3.8" fill="#2F7D6B"/>
+<circle cx="125.0" cy="196.9" r="3.8" fill="#2F7D6B"/>
+<circle cx="172.0" cy="196.9" r="3.8" fill="#2F7D6B"/>
+<circle cx="219.0" cy="169.3" r="3.8" fill="#2F7D6B"/>
+<circle cx="266.0" cy="180.4" r="3.8" fill="#2F7D6B"/>
+<circle cx="360.0" cy="180.4" r="3.8" fill="#2F7D6B"/>
+<text x="360" y="130.0" text-anchor="end" class="r2" fill="#C4472E">R²=0.58</text>
+<text x="414" y="112" class="pt">Fail-open, safety-critical (%)</text>
+<line x1="418" y1="252" x2="700" y2="252" stroke="#E7E4DC" stroke-width="1"/>
+<line x1="418" y1="128" x2="418" y2="252" stroke="#E7E4DC" stroke-width="1"/>
+<text x="418.0" y="265.0" text-anchor="middle" class="tick">2b</text>
+<text x="512.0" y="265.0" text-anchor="middle" class="tick">4b</text>
+<text x="606.0" y="265.0" text-anchor="middle" class="tick">6b</text>
+<text x="700.0" y="265.0" text-anchor="middle" class="tick">8b</text>
+<text x="412" y="132.0" text-anchor="end" class="tick">8</text>
+<text x="412" y="254.0" text-anchor="end" class="tick">3</text>
+<line x1="418.0" y1="180.0" x2="700.0" y2="203.8" stroke="#E0982E" stroke-width="2" stroke-dasharray="4 3"/>
+<circle cx="418.0" cy="170.3" r="3.8" fill="#2F7D6B"/>
+<circle cx="465.0" cy="196.3" r="3.8" fill="#2F7D6B"/>
+<circle cx="512.0" cy="170.3" r="3.8" fill="#2F7D6B"/>
+<circle cx="559.0" cy="213.7" r="3.8" fill="#2F7D6B"/>
+<circle cx="606.0" cy="196.3" r="3.8" fill="#2F7D6B"/>
+<circle cx="700.0" cy="196.3" r="3.8" fill="#2F7D6B"/>
+<text x="700" y="130.0" text-anchor="end" class="r2" fill="#7A776E">R²=0.25</text>
+<text x="74" y="332" class="pt">Over-caution (%)</text>
+<line x1="78" y1="472" x2="360" y2="472" stroke="#E7E4DC" stroke-width="1"/>
+<line x1="78" y1="348" x2="78" y2="472" stroke="#E7E4DC" stroke-width="1"/>
+<text x="78.0" y="485.0" text-anchor="middle" class="tick">2b</text>
+<text x="172.0" y="485.0" text-anchor="middle" class="tick">4b</text>
+<text x="266.0" y="485.0" text-anchor="middle" class="tick">6b</text>
+<text x="360.0" y="485.0" text-anchor="middle" class="tick">8b</text>
+<text x="72" y="352.0" text-anchor="end" class="tick">8</text>
+<text x="72" y="474.0" text-anchor="end" class="tick">3</text>
+<line x1="78.0" y1="389.4" x2="360.0" y2="407.8" stroke="#E0982E" stroke-width="2" stroke-dasharray="4 3"/>
+<circle cx="78.0" cy="386.6" r="3.8" fill="#2F7D6B"/>
+<circle cx="125.0" cy="386.6" r="3.8" fill="#2F7D6B"/>
+<circle cx="172.0" cy="403.1" r="3.8" fill="#2F7D6B"/>
+<circle cx="219.0" cy="403.1" r="3.8" fill="#2F7D6B"/>
+<circle cx="266.0" cy="403.1" r="3.8" fill="#2F7D6B"/>
+<circle cx="360.0" cy="403.1" r="3.8" fill="#2F7D6B"/>
+<text x="360" y="350.0" text-anchor="end" class="r2" fill="#C4472E">R²=0.60</text>
+<text x="414" y="332" class="pt">Signed bias</text>
+<line x1="418" y1="472" x2="700" y2="472" stroke="#E7E4DC" stroke-width="1"/>
+<line x1="418" y1="348" x2="418" y2="472" stroke="#E7E4DC" stroke-width="1"/>
+<text x="418.0" y="485.0" text-anchor="middle" class="tick">2b</text>
+<text x="512.0" y="485.0" text-anchor="middle" class="tick">4b</text>
+<text x="606.0" y="485.0" text-anchor="middle" class="tick">6b</text>
+<text x="700.0" y="485.0" text-anchor="middle" class="tick">8b</text>
+<text x="412" y="352.0" text-anchor="end" class="tick">0.01</text>
+<text x="412" y="474.0" text-anchor="end" class="tick">-0.05</text>
+<line x1="418.0" y1="421.9" x2="700.0" y2="419.2" stroke="#E0982E" stroke-width="2" stroke-dasharray="4 3"/>
+<circle cx="418.0" cy="419.2" r="3.8" fill="#2F7D6B"/>
+<circle cx="465.0" cy="433.0" r="3.8" fill="#2F7D6B"/>
+<circle cx="512.0" cy="405.4" r="3.8" fill="#2F7D6B"/>
+<circle cx="559.0" cy="428.4" r="3.8" fill="#2F7D6B"/>
+<circle cx="606.0" cy="419.2" r="3.8" fill="#2F7D6B"/>
+<circle cx="700.0" cy="419.2" r="3.8" fill="#2F7D6B"/>
+<text x="700" y="350.0" text-anchor="end" class="r2" fill="#7A776E">R²=0.01</text>
+</svg>
