@@ -187,9 +187,11 @@ A binary `proof_checked` is too sparse to train on and easy to game. The default
 | `correctness` | proposed answer vs **gold** (if available) or vs the platform's certified answer | task accuracy |
 | `graded` | fraction of required criteria correctly derived (from `rules_fired`) | **dense** partial credit |
 | `rejected_penalty` | negative, scaled by low-confidence / invalid facts | discourage hallucinated facts |
-| `consistency` | reasoning trace entails the certified derivation (optional, model-graded or rule-checked) | discourage right-answer/wrong-reasons |
+| `consistency` | reasoning trace entails the certified derivation (optional, **rule-checked**) | discourage right-answer/wrong-reasons |
 
 `total = Σ wᵢ · componentᵢ`, clipped to a configured range.
+
+**`consistency` mode decision (#12): rule-checked, default OFF.** The component is implemented as a *rule-checked* comparison, not a model-graded one: for each rule in the certificate's symbolic trace, the completion's stated reasoning is consistent when it names a rule the kernel certified as *fired* and does not name one it did *not* fire; the score is the fraction of evaluated rules the reasoning gets right, in `[0, 1]`. Rule-checked was chosen over model-graded because it is offline-verifiable and deterministic, adds no second-model/network dependency to the reward path, and cannot itself be reward-hacked by a judge model — consistent with the "fail-closed, read-only reward runtime" invariants. A missing/unparseable reasoning trace, an uncertified report, or a report with no rules scores `0.0` for this component (never an exception). It is **opt-in via its config weight and defaults to `0.0`**, so the baseline shaper's behaviour is unchanged; a domain that wants to penalise right-answer/wrong-reasons raises `reward.weights.consistency`.
 
 **Anti-reward-hacking measures (must-haves):**
 - **Fact-provenance check:** facts asserted in the decision block must be supported by the prompt/inputs; unsupported facts are penalised, not rewarded, so the model cannot invent facts that trivially satisfy rules.
@@ -328,7 +330,7 @@ ambertrace-rlvr/
 ## 17. Open questions / decisions for the team
 1. **Primary RL framework** — TRL/GRPO is assumed as the default. Confirm, or prioritise veRL for scale from day one.
 2. **License** — Apache-2.0 proposed (permissive, ecosystem-friendly); confirm vs a copyleft or source-available option given the proprietary kernel.
-3. **Reward for reasoning quality** — should `consistency` be rule-checked, model-graded, or omitted in v0.1?
+3. ~~**Reward for reasoning quality** — should `consistency` be rule-checked, model-graded, or omitted in v0.1?~~ **Resolved (#12): rule-checked, shipped default-OFF (weight `0.0`).** See §8.
 4. **Verifier hosting** — do RL jobs hit the public `app.ambertrace.ai`, a dedicated tenant, or a self-hosted kernel for throughput/latency?
 5. **Graded signal contract** — confirm the exact fields available in the Amber Report for per-criterion partial credit (`rules_fired` structure), against the live API.
 

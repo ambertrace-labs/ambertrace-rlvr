@@ -110,6 +110,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "graded": 0.3,
     "rejected_penalty": 0.2,
     "unsupported_penalty": 0.3,
+    "consistency": 0.0,
 }
 
 
@@ -130,6 +131,13 @@ class DefaultRewardShaper:
                            (subtracted; discourages hallucinated facts).
       * ``unsupported_penalty`` — fraction of asserted facts not grounded in the
                            prompt (subtracted; anti-reward-hacking, #10).
+      * ``consistency``  — rule-checked agreement between the completion's stated
+                           reasoning and the certified derivation: the fraction of
+                           evaluated rules whose firing the reasoning correctly
+                           reflects (mentions the fired ones, does not claim the
+                           unfired ones). Discourages right-answer/wrong-reasons
+                           (spec §8, #12). Opt-in: default weight ``0.0`` so the
+                           baseline shaper is unchanged.
 
     ``rejected_penalty`` vs ``unsupported_penalty`` are orthogonal and *both*
     subtract: the former penalises facts the AmberTrace kernel rejected (malformed
@@ -164,17 +172,20 @@ class DefaultRewardShaper:
         c["graded"] = self._graded(report, criteria_gold)
         c["rejected_penalty"] = self._rejected_fraction(report)
         c["unsupported_penalty"] = self._unsupported_fraction(parsed)
+        c["consistency"] = self._consistency(parsed, report)
 
         # If we require a known schema and the report is on an unknown one, don't
         # trust the dense components — fall back to the certified core only.
         if self.require_supported_schema and not report.schema_supported:
             c["graded"] = 0.0
+            c["consistency"] = 0.0
 
         total = (
             w.get("format", 0.0) * c["format"]
             + w.get("certified", 0.0) * c["certified"]
             + w.get("correctness", 0.0) * c["correctness"]
             + w.get("graded", 0.0) * c["graded"]
+            + w.get("consistency", 0.0) * c["consistency"]
             - w.get("rejected_penalty", 0.0) * c["rejected_penalty"]
             - w.get("unsupported_penalty", 0.0) * c["unsupported_penalty"]
         )
@@ -236,6 +247,31 @@ class DefaultRewardShaper:
         if self.provenance is None or parsed.prompt is None or not parsed.facts:
             return 0.0
         return _clip01(self.provenance.unsupported_fraction(parsed.facts, parsed.prompt))
+
+    def _consistency(self, parsed: ParsedCompletion, report: AmberReport) -> float:
+        """Rule-checked reasoning consistency (opt-in, #12).
+
+        Compares the completion's stated reasoning against the *certified*
+        symbolic trace: for every evaluated rule, the reasoning is consistent when
+        it names a rule the kernel certified as fired and does not name one it did
+        not. The score is the fraction of evaluated rules the reasoning gets right
+        — a "right answer for the right reasons" signal that a right-answer /
+        wrong-reasons trace cannot max out.
+
+        Rule-checked (not model-graded) so it is offline-verifiable and adds no
+        network dependency to the reward path (see docs/spec §8 for the decision).
+
+        Fail-closed: zero on an uncertified report, a report with no rules, or a
+        completion with no captured reasoning — never an exception. Defaults to
+        zero weight, so the baseline shaper is unchanged."""
+        if not report.proof_checked or not report.rules:
+            return 0.0
+        reasoning = parsed.reasoning
+        if not reasoning:
+            return 0.0
+        text = reasoning.lower()
+        agree = sum(1 for r in report.rules if (r.name.lower() in text) == r.fired)
+        return _clip01(agree / len(report.rules))
 
     def _rejected_fraction(self, report: AmberReport) -> float:
         summary = report.fact_summary

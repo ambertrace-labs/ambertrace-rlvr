@@ -24,6 +24,7 @@ class ParsedCompletion:
     relations: dict[str, list[dict[str, Any]]] | None = None
     raw_block: str | None = None
     prompt: str | None = None
+    reasoning: str | None = None
 
 
 @runtime_checkable
@@ -35,6 +36,9 @@ class CompletionParser(Protocol):
 
 # Default decision-block delimiters (see prompts.py for the format contract).
 _DECISION_RE = re.compile(r"<decision>\s*(.*?)\s*</decision>", re.DOTALL | re.IGNORECASE)
+# The model's stated chain of thought (see prompts.py). Captured so the rule-checked
+# ``consistency`` component (#12) can compare the reasoning against the certified trace.
+_REASONING_RE = re.compile(r"<reasoning>\s*(.*?)\s*</reasoning>", re.DOTALL | re.IGNORECASE)
 
 
 @dataclass
@@ -86,6 +90,7 @@ class JSONBlockParser:
             relations=relations,
             raw_block=block,
             prompt=prompt,
+            reasoning=_extract_reasoning(completion),
         )
 
 
@@ -115,6 +120,7 @@ class RegexBlockParser:
             proposed_answer=answer_match.group(1).strip() if answer_match else None,
             raw_block=block,
             prompt=prompt,
+            reasoning=_extract_reasoning(completion),
         )
 
 
@@ -123,6 +129,21 @@ def _extract_block(completion: str, pattern: re.Pattern[str]) -> str | None:
         return None
     m = pattern.search(completion)
     return m.group(1) if m else None
+
+
+def _extract_reasoning(completion: str) -> str | None:
+    """The model's stated reasoning: the ``<reasoning>`` block if present, else the
+    prose preceding the decision block (so an inline chain of thought is still
+    captured). ``None`` when there is nothing to check."""
+    if not completion:
+        return None
+    m = _REASONING_RE.search(completion)
+    if m:
+        text = m.group(1).strip()
+        return text or None
+    # No explicit block: fall back to whatever precedes the decision block.
+    pre = _DECISION_RE.split(completion)[0].strip()
+    return pre or None
 
 
 def _coerce(raw: str) -> Any:

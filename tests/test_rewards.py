@@ -202,6 +202,82 @@ def test_unsupported_penalty_is_zero_when_provenance_none():
     assert b.components["unsupported_penalty"] == 0.0
 
 
+# --- consistency: rule-checked reasoning (#12) -----------------------------
+
+# Certified trace: PVS1 and PS3 fired, BA1 did not.
+_CONSISTENCY_RULES = [("PVS1", True, True), ("PS3", True, True), ("BA1", False, True)]
+
+
+def _parsed_with_reasoning(reasoning: str) -> ParsedCompletion:
+    return ParsedCompletion(query="q", facts={"a": 1}, proposed_answer="permit",
+                            reasoning=reasoning)
+
+
+def test_consistent_reasoning_scores_above_inconsistent():
+    # Weight the component so it affects the total (default is 0.0); a roomy clip
+    # so both totals stay below the ceiling and the difference is observable.
+    shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
+                                          "consistency": 1.0}, clip=(-1.0, 10.0))
+    report = make_report(decision="permit", rules=_CONSISTENCY_RULES)
+    consistent = _parsed_with_reasoning("PVS1 applies and PS3 applies.")  # names only fired
+    inconsistent = _parsed_with_reasoning("The answer is permit.")  # cites no rules
+    hi = shaper.score(consistent, report)
+    lo = shaper.score(inconsistent, report)
+    assert hi.components["consistency"] == 1.0        # all three rules reflected
+    assert lo.components["consistency"] < 1.0
+    assert hi.total > lo.total
+
+
+def test_consistency_penalises_claiming_an_unfired_rule():
+    shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
+                                          "consistency": 1.0})
+    report = make_report(decision="permit", rules=_CONSISTENCY_RULES)
+    honest = _parsed_with_reasoning("PVS1 and PS3 both fired.")            # 3/3
+    wrong_reasons = _parsed_with_reasoning("PVS1, PS3 and BA1 all fired.")  # claims BA1 -> 2/3
+    assert shaper.score(honest, report).components["consistency"] == 1.0
+    assert shaper.score(wrong_reasons, report).components["consistency"] == 2 / 3
+
+
+def test_consistency_default_weight_is_no_op():
+    # Zero weight = no behaviour change: the total is identical whatever the
+    # reasoning says, and the component is still logged for ablation.
+    shaper = DefaultRewardShaper()  # default consistency weight 0.0
+    report = make_report(decision="permit", rules=_CONSISTENCY_RULES)
+    consistent = _parsed_with_reasoning("PVS1 applies and PS3 applies.")
+    inconsistent = _parsed_with_reasoning("no rules mentioned")
+    hi = shaper.score(consistent, report)
+    lo = shaper.score(inconsistent, report)
+    assert hi.total == lo.total
+    assert "consistency" in hi.components
+
+
+def test_consistency_zero_when_no_reasoning_or_uncertified():
+    shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
+                                          "consistency": 1.0})
+    report = make_report(decision="permit", rules=_CONSISTENCY_RULES)
+    # No reasoning captured -> fail-closed 0.0, not an exception.
+    no_reasoning = ParsedCompletion(query="q", facts={"a": 1}, proposed_answer="permit")
+    assert shaper.score(no_reasoning, report).components["consistency"] == 0.0
+    # Uncertified report -> 0.0 even with perfectly aligned reasoning.
+    uncertified = make_report(proof_checked=False, rules=_CONSISTENCY_RULES)
+    aligned = _parsed_with_reasoning("PVS1 and PS3 fired")
+    assert shaper.score(aligned, uncertified).components["consistency"] == 0.0
+
+
+def test_consistency_end_to_end_via_parser_and_fake_verifier():
+    report = make_report(decision="permit", rules=_CONSISTENCY_RULES)
+    shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
+                                          "consistency": 1.0}, clip=(-1.0, 10.0))
+    fv = FakeVerifier(parser=JSONBlockParser(), shaper=shaper,
+                      report_fn=lambda pc: report)
+    reward_fn = fv.as_reward_function()
+    good = ("<reasoning>PVS1 applies and PS3 applies; BA1 does not.</reasoning>"
+            + _completion("permit"))
+    bad = "<reasoning>The answer is permit.</reasoning>" + _completion("permit")
+    rewards = reward_fn(["p", "p"], [good, bad])
+    assert rewards[0] > rewards[1]
+
+
 # --- end-to-end via the fake verifier (offline) ----------------------------
 
 def _completion(answer: str) -> str:
