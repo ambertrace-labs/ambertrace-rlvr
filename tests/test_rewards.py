@@ -232,10 +232,42 @@ def test_consistency_penalises_claiming_an_unfired_rule():
     shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
                                           "consistency": 1.0})
     report = make_report(decision="permit", rules=_CONSISTENCY_RULES)
-    honest = _parsed_with_reasoning("PVS1 and PS3 both fired.")            # 3/3
-    wrong_reasons = _parsed_with_reasoning("PVS1, PS3 and BA1 all fired.")  # claims BA1 -> 2/3
+    # 2 fired (PVS1, PS3), 1 unfired (BA1).
+    honest = _parsed_with_reasoning("PVS1 and PS3 both fired.")            # 2 hits, 0 false
+    wrong_reasons = _parsed_with_reasoning("PVS1, PS3 and BA1 all fired.")  # +1 false claim
     assert shaper.score(honest, report).components["consistency"] == 1.0
-    assert shaper.score(wrong_reasons, report).components["consistency"] == 2 / 3
+    # (fired_named 2 − unfired_named 1) / n_fired 2 = 0.5
+    assert shaper.score(wrong_reasons, report).components["consistency"] == 0.5
+
+
+def test_consistency_no_reasons_scores_low_on_sparse_firing_set():
+    # Regression: many rules evaluated, few fired (the real-trace shape). A
+    # right-answer/no-reasons completion must NOT collect credit for the unfired
+    # rules it simply failed to mention.
+    shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
+                                          "consistency": 1.0})
+    rules = [("FIRE1", True, False), ("FIRE2", True, False)]
+    rules += [(f"NOPE{i}", False, False) for i in range(8)]  # 10 rules, 2 fired
+    report = make_report(decision="permit", rules=rules)
+    silent = _parsed_with_reasoning("the answer is permit")
+    assert shaper.score(silent, report).components["consistency"] == 0.0
+    # Naming the two fired rules earns full credit.
+    grounded = _parsed_with_reasoning("FIRE1 and FIRE2 both apply here")
+    assert shaper.score(grounded, report).components["consistency"] == 1.0
+
+
+def test_consistency_matches_rule_names_on_word_boundaries():
+    # Regression: a raw substring test would let "r1" match inside "r12".
+    shaper = DefaultRewardShaper(weights={**DefaultRewardShaper().weights,
+                                          "consistency": 1.0})
+    report = make_report(decision="permit",
+                         rules=[("R1", True, False), ("R12", False, False)])
+    # Mentions only R12 (unfired): R1 must NOT be credited, R12 is a false claim.
+    collide = _parsed_with_reasoning("R12 was considered")
+    assert shaper.score(collide, report).components["consistency"] == 0.0
+    # Mentions R1 (fired) cleanly: full credit, R12 not matched inside it.
+    clean = _parsed_with_reasoning("R1 fired here")
+    assert shaper.score(clean, report).components["consistency"] == 1.0
 
 
 def test_consistency_default_weight_is_no_op():
@@ -271,7 +303,7 @@ def test_consistency_end_to_end_via_parser_and_fake_verifier():
     fv = FakeVerifier(parser=JSONBlockParser(), shaper=shaper,
                       report_fn=lambda pc: report)
     reward_fn = fv.as_reward_function()
-    good = ("<reasoning>PVS1 applies and PS3 applies; BA1 does not.</reasoning>"
+    good = ("<reasoning>PVS1 applies and PS3 applies.</reasoning>"
             + _completion("permit"))
     bad = "<reasoning>The answer is permit.</reasoning>" + _completion("permit")
     rewards = reward_fn(["p", "p"], [good, bad])

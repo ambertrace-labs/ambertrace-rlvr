@@ -132,12 +132,15 @@ class DefaultRewardShaper:
       * ``unsupported_penalty`` — fraction of asserted facts not grounded in the
                            prompt (subtracted; anti-reward-hacking, #10).
       * ``consistency``  — rule-checked agreement between the completion's stated
-                           reasoning and the certified derivation: the fraction of
-                           evaluated rules whose firing the reasoning correctly
-                           reflects (mentions the fired ones, does not claim the
-                           unfired ones). Discourages right-answer/wrong-reasons
-                           (spec §8, #12). Opt-in: default weight ``0.0`` so the
-                           baseline shaper is unchanged.
+                           reasoning and the certified derivation: the fired-hit
+                           fraction (rules the kernel certified as fired that the
+                           reasoning names) minus a penalty for false claims
+                           (naming rules the kernel says did *not* fire), over the
+                           fired set. Absence of a mention earns nothing, so a
+                           no-reasons trace scores ``0.0``. Discourages
+                           right-answer/wrong-reasons (spec §8, #12). Opt-in:
+                           default weight ``0.0`` so the baseline shaper is
+                           unchanged.
 
     ``rejected_penalty`` vs ``unsupported_penalty`` are orthogonal and *both*
     subtract: the former penalises facts the AmberTrace kernel rejected (malformed
@@ -252,26 +255,44 @@ class DefaultRewardShaper:
         """Rule-checked reasoning consistency (opt-in, #12).
 
         Compares the completion's stated reasoning against the *certified*
-        symbolic trace: for every evaluated rule, the reasoning is consistent when
-        it names a rule the kernel certified as fired and does not name one it did
-        not. The score is the fraction of evaluated rules the reasoning gets right
-        — a "right answer for the right reasons" signal that a right-answer /
-        wrong-reasons trace cannot max out.
+        symbolic trace. Credit is granted only for naming the rules the kernel
+        certified as *fired* (the actual derivation): a fired-hit fraction over
+        the fired set. Naming a rule the kernel certified as *not* fired is a
+        false claim and is subtracted. The absence of a mention earns nothing —
+        so a right-answer / no-reasons completion that names nothing scores 0.0,
+        and only a trace that reflects the certified derivation (and does not
+        invent unfired rules) approaches 1.0.
+
+            score = clip01( (fired_named − unfired_named) / n_fired )
+
+        Real Amber traces evaluate many rules and fire few; crediting the mere
+        absence of unfired-rule mentions would reward silence on those sparse
+        sets, which is exactly the failure this component exists to catch.
+
+        Rule names are matched on word boundaries (as in
+        :class:`SubstringProvenanceChecker`) so a short/prefix name (``R1`` vs
+        ``R12``, ``PS3`` vs ``PS35``) does not spuriously collide.
 
         Rule-checked (not model-graded) so it is offline-verifiable and adds no
         network dependency to the reward path (see docs/spec §8 for the decision).
 
-        Fail-closed: zero on an uncertified report, a report with no rules, or a
-        completion with no captured reasoning — never an exception. Defaults to
-        zero weight, so the baseline shaper is unchanged."""
+        Fail-closed: zero on an uncertified report, a report with no rules, no
+        *fired* rules (no certified derivation to reflect), or a completion with
+        no captured reasoning — never an exception. Defaults to zero weight, so
+        the baseline shaper is unchanged."""
         if not report.proof_checked or not report.rules:
             return 0.0
         reasoning = parsed.reasoning
         if not reasoning:
             return 0.0
+        fired = report.rules_fired
+        if not fired:  # no certified derivation to reflect
+            return 0.0
         text = reasoning.lower()
-        agree = sum(1 for r in report.rules if (r.name.lower() in text) == r.fired)
-        return _clip01(agree / len(report.rules))
+        fired_named = sum(1 for r in fired if _names_rule(r.name, text))
+        unfired_named = sum(1 for r in report.rules
+                            if not r.fired and _names_rule(r.name, text))
+        return _clip01((fired_named - unfired_named) / len(fired))
 
     def _rejected_fraction(self, report: AmberReport) -> float:
         summary = report.fact_summary
@@ -281,6 +302,16 @@ class DefaultRewardShaper:
             return _clip01(rejected / (emitted + rejected)) if (emitted + rejected) else 0.0
         # No summary counts (e.g. fail-closed error report): any rejected fact -> full penalty.
         return 1.0 if rejected else 0.0
+
+
+def _names_rule(name: str, text: str) -> bool:
+    """Whether ``text`` (already lower-cased) names the rule, matched on word
+    boundaries so a short/prefix name does not collide with a longer one
+    (``R1`` must not match inside ``R12``)."""
+    needle = name.strip().lower()
+    if not needle:
+        return False
+    return re.search(rf"\b{re.escape(needle)}\b", text) is not None
 
 
 def _clip(x: float, bounds: tuple[float, float]) -> float:
