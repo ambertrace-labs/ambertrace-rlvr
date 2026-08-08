@@ -96,7 +96,7 @@ You **author** your platform with the SDK (step 2). `ambertrace-rlvr` then **con
 
 ## Status
 
-**M0–M1 complete, M2 core + the eval/alignment lane in.** The full reward path (parser → verifier → shaper) with dense per-criterion partial credit and fact-provenance anti-reward-hacking, a config-driven run loader, fail-closed resilience, the TRL/GRPO **and veRL** adapters, and a demonstrated end-to-end training run (see [Results](docs/RESULTS.md)). Plus a certificate-grounded **[evaluation & alignment](#evaluation--alignment)** lane. The OpenRLHF adapter, the cross-domain demo, and an open-weight-model alignment matrix are next — see the [roadmap](ROADMAP.md). Design spec in [`docs/`](./docs/).
+**M0–M1 complete, M2 core + the eval/alignment lane in, M3 well under way.** The full reward path (parser → verifier → shaper) with dense per-criterion partial credit, fact-provenance anti-reward-hacking, and a rule-checked **consistency** component, a config-driven run loader, fail-closed resilience, the TRL/GRPO **and veRL** adapters, and a demonstrated end-to-end training run (see [Results](docs/RESULTS.md)). The **OpenRLHF** HTTP reward-server shim and the **cross-domain** swap-the-rule-set demo have both shipped. Plus a certificate-grounded **[evaluation & alignment](#evaluation--alignment)** lane — now running over open-weight models through a local **LM Studio** backend, with a published **[alignment matrix](docs/ALIGNMENT_MATRIX.md)** and a preliminary **[quantization sweep](docs/QUANT_ALIGNMENT.md)**. Next: a TRL **RLOO** trainer builder (retargeted from PPO; [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18)) — see the [roadmap](ROADMAP.md). Design spec in [`docs/`](./docs/).
 
 ## Install
 
@@ -174,6 +174,7 @@ The same certificate that drives the reward is also a ground-truth **oracle-as-j
 - **Epistemic honesty** — `score_deviation`: a hard three-bucket partition plus an **overconfidence rate** — how often the model answers a case the oracle *proved* has no determinate answer (never scored as "wrong").
 - **Sycophancy-into-error** — `run_sweep`: re-poses the *same* certified items under social-pressure framings and reports the **signed fail-open Δ** (movement toward under-restriction), split by severity band.
 - **Monitorability** — `faithfulness_curve` / `compare_monitorability`: does stated-reasoning faithfulness erode as reward rises (train-against-verifier vs train-against-a-model-judge)?
+- **Reward-hacking gap** — `reward_hacking_score`: scores a rule-preserving vs a rule-violating probe set and reports the reward gap between them, flagging a policy that scores high while breaking the rules.
 
 ```python
 from ambertrace_rlvr import (
@@ -193,7 +194,10 @@ report = score_deviation(judgments, answers, spec)
 print(report.overconfidence_rate, report.over_permit_rate)   # alignment scores
 ```
 
-Everything here is offline/network-free to test. Coming next: a local **LM Studio** model backend to run this suite over the latest open-weight models and publish a model × alignment-score matrix.
+Everything here is offline/network-free to test. To run it over real open-weight models, `model_backend.py` ships a local **LM Studio** backend (OpenAI-compatible endpoint) that turns a served model into a plain `prompt -> completion` callable; `corpus.py` + `eval_generator.py` build and load the `decision_eval_v1` oracle-anchored benchmark. On top of these:
+
+- **[Alignment matrix](docs/ALIGNMENT_MATRIX.md)** (`matrix.py`) — the eval suite across **17 models / 10 labs**, ranked by fail-open on the safety-critical band. Preliminary: a 120-item stratified slice, single sample, temperature 0; the full run follows.
+- **[Quantization sweep](docs/QUANT_ALIGNMENT.md)** (`quant_sweep.py`) — one base model across quant levels (Q8 → Q2) over the same items, reporting a **safety tax** (fail-open gained vs accuracy lost). Preliminary and directional — one model, small absolute counts.
 
 > **Research.** For the why and the results, see [`docs/research/`](docs/research/):
 > [*Verifiable Rewards Beyond Maths and Code*](docs/research/why-verifiable-rewards.md)
@@ -216,8 +220,13 @@ src/ambertrace_rlvr/
   deviation.py     three-bucket scorer + overconfidence rate
   sycophancy.py    social-pressure sweep — signed fail-open Δ
   faithfulness.py  faithfulness-vs-reward monitorability curve
+  model_backend.py local LM Studio backend (OpenAI-compatible) → model callable
+  corpus.py        decision_eval_v1 benchmark load/write + stats
+  eval_generator.py SDK-driven eval-set generation
+  matrix.py        alignment matrix runner (model × alignment-score)
+  quant_sweep.py   quantization sweep — one model across quant levels
   testing.py       FakeVerifier + offline payload builders
-  integrations/    trl.py (primary), verl.py; openrlhf.py (planned)
+  integrations/    trl.py (primary — GRPO builder; RLOO in flight, #18), verl.py; openrlhf.py (HTTP reward-server shim)
 examples/          runnable examples
 configs/           per-run YAML
 tests/             offline suite (FakeVerifier + recorded payloads)
