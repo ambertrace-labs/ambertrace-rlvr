@@ -63,7 +63,7 @@ negative = net over-cautious):
 | accuracy | 0.58 | +0.23 pt |
 | over-caution | 0.60 | −0.12 pt |
 
-![Precision (bits) against each metric for Qwen3.6-27B, with linear fit and R²: signed bias and fail-open flat, accuracy and over-caution drift mildly.](../assets/quant_scatter_r2.svg)
+![Precision (bits) against each metric for Qwen3.6-27B, with linear fit and R²: signed bias and fail-open flat, accuracy and over-caution drift mildly.](../assets/quant_precision_scatter.svg)
 
 Signed bias is effectively unrelated to precision (R²=0.01); the model stays net
 over-cautious by the same small margin at 2-bit as at 8-bit. Fail-open shows no
@@ -95,9 +95,19 @@ Q3_K_M/Q2_K), so calibration method is held constant and bit-width is the only
 variable (an earlier mixed-publisher ladder confounded the two). Items from
 [`decision_eval_v1`](../../data/decision_eval_v1.md); every correct action is certified
 by the AmberTrace oracle independent of the model, so each error is signed as fail-open
-or over-caution. Reasoning disabled identically per level (0% refusals throughout).
-Full run: 1,350 items, 858 on the safety-critical band. For the oracle and the
-signed-error scoring, see [*Measuring Misalignment as Deviation From the
+or over-caution. Full run: 1,350 items, 858 on the safety-critical band.
+
+Qwen3.6 is a hybrid reasoning model, so the decoding setup is held fixed across the
+ladder to keep precision the only variable: `reasoning_effort: "none"` (the switch this
+runtime honours, which suppresses the private thinking trace so the model answers the
+decision directly), the same system prompt, `max_tokens=512`, stop sequences, and
+temperature 0, at every level. This matters because reasoning is a confounder that
+could act unevenly across quant levels: left enabled, a model can spend its token
+budget thinking and truncate before answering, and a more-degraded low-bit model might
+do so more often, contaminating the comparison. Disabling it measures the model's
+*direct* decision like-for-like. That it took hold uniformly is visible in the data:
+every level parsed 1,350/1,350 with zero refusals. For the oracle and the signed-error
+scoring, see [*Measuring Misalignment as Deviation From the
 Provable*](alignment-matrix.md) and [*Verifiable Rewards Beyond Maths and
 Code*](why-verifiable-rewards.md).
 
@@ -109,7 +119,10 @@ precision levels means the regressions in Finding 2 and the redistributions in F
 both. The single-publisher ladder isolates bit-width but fixes one calibration method,
 and quantisation-aware training could change the picture. Whether the ratio weakness
 and the precision-insensitivity of the safety direction generalise beyond Qwen3.6-27B
-is untested.
+is untested. Every result here is also conditional on the **no-reasoning regime**:
+reasoning was disabled so precision stayed the only variable, so these findings do not
+speak to how the model behaves, or how quantisation affects it, when it is allowed to
+reason. A reasoning-enabled arm is the natural follow-up and the more deployment-realistic one.
 
 ## For the Record
 
