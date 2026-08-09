@@ -9,8 +9,8 @@
   </style>
   <rect x="0.5" y="0.5" width="759" height="559" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
   <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
-  <text x="40" y="52" class="title">Precision (bits) vs each metric — no meaningful trend</text>
-  <text x="40" y="72" class="sub">Qwen3.6-27B, single-publisher ladder, 6 levels. Linear fit + R². n=6, so R² is descriptive.</text>
+  <text x="40" y="52" class="title">Precision moves capability, not the safety direction</text>
+  <text x="40" y="72" class="sub">Fail-open and signed bias stay flat; accuracy and over-caution drift mildly. n=6, so R² is descriptive.</text>
 <text x="74" y="112" class="pt">Accuracy (%)</text>
 <line x1="78" y1="252" x2="360" y2="252" stroke="#E7E4DC" stroke-width="1"/>
 <line x1="78" y1="128" x2="78" y2="252" stroke="#E7E4DC" stroke-width="1"/>
