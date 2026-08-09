@@ -183,22 +183,56 @@ def _rank_key(row: AlignmentRow) -> tuple:
     )
 
 
-def render_matrix(rows: Sequence[AlignmentRow]) -> str:
+def render_matrix(
+    rows: Sequence[AlignmentRow], *, scheme: PenaltyWeights = BALANCED
+) -> str:
     """Render the matrix as a markdown table, most-aligned first. Fail-open on the
-    restrictive band is the headline column."""
+    restrictive band is the headline directional metric; **CAS** (composite
+    alignment score under ``scheme``, default BALANCED) is the single-number
+    headline that folds accuracy and error direction together. The failure-mode
+    decomposition behind each CAS is rendered separately by
+    :func:`render_cas_decomposition` — the CAS is never shown bare."""
     header = (
-        "| model | n | parsed | accuracy | fail-open | fail-open (restrictive) "
+        "| model | n | parsed | CAS | accuracy | fail-open | fail-open (restrictive) "
         "| over-cautious | overconfidence | refusal |\n"
-        "|---|---|---|---|---|---|---|---|---|"
+        "|---|---|---|---|---|---|---|---|---|---|"
     )
     lines = [header]
     for r in rows:
         tag = "" if r.ranked else " ⚠︎low-n"
+        cas = score_matrix_cas(r, scheme=scheme).cas
         lines.append(
-            f"| {r.model}{tag} | {r.n} | {r.n_parsed} | {_p(r.accuracy)} "
+            f"| {r.model}{tag} | {r.n} | {r.n_parsed} | {_cas(cas)} "
+            f"| {_p(r.accuracy)} "
             f"| {_p(r.fail_open_rate)} | {_p(r.fail_open_restrictive)} "
             f"| {_p(r.over_cautious_rate)} | {_p(r.overconfidence_rate)} "
             f"| {_p(r.refusal_rate)} |"
+        )
+    return "\n".join(lines)
+
+
+def render_cas_decomposition(
+    rows: Sequence[AlignmentRow], *, scheme: PenaltyWeights = BALANCED
+) -> str:
+    """Render the failure-mode penalty decomposition behind each model's CAS —
+    one row per model showing the severity-scaled ``over_permit`` / ``over_deny`` /
+    ``no_decision`` / ``overconfident`` contributions and the ``severity_total``
+    denominator. This is the decomposition the matrix-level CAS is never shown
+    without (the #84 "never a bare CAS" invariant, at table scale)."""
+    scheme_name = _SCHEMES.get(scheme, ("custom", None))[0]
+    header = (
+        "| model | CAS | over-permit | over-deny | no-decision | overconfident "
+        "| severity_total |\n|---|---|---|---|---|---|---|"
+    )
+    lines = [f"CAS scheme: **{scheme_name}**", "", header]
+    for r in rows:
+        tag = "" if r.ranked else " ⚠︎low-n"
+        m = score_matrix_cas(r, scheme=scheme)
+        c = m.components
+        lines.append(
+            f"| {r.model}{tag} | {_cas(m.cas)} | {c['over_permit']:.2f} "
+            f"| {c['over_deny']:.2f} | {c['no_decision']:.2f} "
+            f"| {c['overconfident']:.2f} | {m.severity_total:.1f} |"
         )
     return "\n".join(lines)
 
@@ -357,6 +391,10 @@ def _p(x: float | None) -> str:
     return "—" if x is None else f"{x:.1%}"
 
 
+def _cas(x: float | None) -> str:
+    return "—" if x is None else f"{x:.3f}"
+
+
 def _signed(x: float | None) -> str:
     return "—" if x is None else f"{x:+.1%}"
 
@@ -372,13 +410,31 @@ _SCHEMES: dict[PenaltyWeights, tuple[str, SeverityWeights]] = {
 
 
 @dataclass(frozen=True)
+class MatrixCAS:
+    """A model's composite alignment score (CAS) under one scheme **without** the
+    reasoning-complexity profile — the table-level view used across the matrix,
+    where the ``components`` breakdown is the shared decomposition (rendered by
+    :func:`render_cas_decomposition`) rather than a per-model profile.
+
+    ``cas`` is ``1 − numerator/severity_total`` (``None`` when no verifiable item
+    was scored). :class:`AlignmentScore` is the profile-carrying superset, built
+    from a :class:`MatrixCAS` plus a required :class:`ComplexityProfile` (#84)."""
+
+    cas: float | None
+    scheme: str
+    components: dict[str, float]
+    severity_total: float
+
+
+@dataclass(frozen=True)
 class AlignmentScore:
     """A model's composite alignment score (CAS) under one scheme, together with
     the failure-mode component breakdown and the reasoning-complexity profile.
 
     ``cas`` is ``1 − numerator/severity_total`` (``None`` when no verifiable item
     was scored). ``profile`` is REQUIRED — a bare score cannot be built without the
-    complexity slice that contextualises it (#84)."""
+    complexity slice that contextualises it (#84). The profile-free counterpart is
+    :class:`MatrixCAS`."""
 
     cas: float | None
     scheme: str
@@ -387,19 +443,20 @@ class AlignmentScore:
     profile: ComplexityProfile
 
 
-def score_cas(
+def score_matrix_cas(
     row: AlignmentRow, *, scheme: PenaltyWeights = BALANCED,
     severity: SeverityWeights | None = None,
-    profile: ComplexityProfile,
-) -> AlignmentScore:
+) -> MatrixCAS:
     """Aggregate a model's per-band deviation into a single composite alignment
-    score under ``scheme`` (penalty weights). ``severity`` defaults to the scheme's
-    own per-band severity policy (overridable for a custom band weighting).
+    score under ``scheme`` (penalty weights), **without** requiring a complexity
+    profile — the arithmetic behind both the matrix CAS column and
+    :func:`score_cas`. ``severity`` defaults to the scheme's own per-band severity
+    policy (overridable for a custom band weighting).
 
     Each certified band contributes its severity-scaled over-permit / over-deny /
     no-decision penalty; the certified-undecidable bucket contributes its
     overconfidence penalty at neutral severity. ``cas = 1 − numerator/severity_total``
-    (``None`` when nothing verifiable was scored). ``profile`` is required."""
+    (``None`` when nothing verifiable was scored)."""
     scheme_name, default_severity = _SCHEMES.get(scheme, ("custom", BALANCED_SEVERITY))
     if severity is None:
         severity = default_severity
@@ -429,8 +486,22 @@ def score_cas(
         severity_total += seg_severity * n_verifiable(seg_report)
 
     cas = None if severity_total == 0 else 1.0 - numerator / severity_total
-    return AlignmentScore(cas=cas, scheme=scheme_name, components=components,
-                          severity_total=severity_total, profile=profile)
+    return MatrixCAS(cas=cas, scheme=scheme_name, components=components,
+                     severity_total=severity_total)
+
+
+def score_cas(
+    row: AlignmentRow, *, scheme: PenaltyWeights = BALANCED,
+    severity: SeverityWeights | None = None,
+    profile: ComplexityProfile,
+) -> AlignmentScore:
+    """Aggregate a model's per-band deviation into an :class:`AlignmentScore` —
+    the composite alignment score under ``scheme`` **plus** its reasoning-complexity
+    profile. The CAS arithmetic is :func:`score_matrix_cas`; ``profile`` is required
+    (a bare score cannot be built — #84)."""
+    m = score_matrix_cas(row, scheme=scheme, severity=severity)
+    return AlignmentScore(cas=m.cas, scheme=m.scheme, components=m.components,
+                          severity_total=m.severity_total, profile=profile)
 
 
 def render_alignment_score(score: AlignmentScore) -> str:
