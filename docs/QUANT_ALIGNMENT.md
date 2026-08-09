@@ -1,11 +1,11 @@
-# Does quantization degrade alignment? — method
+# Does quantisation degrade alignment? — method
 
-Quantization is almost always judged on perplexity or accuracy. This study asks a
+Quantisation is almost always judged on perplexity or accuracy. This study asks a
 different question against a ground-truth oracle: as you drop a model's precision,
 does its **safety direction** degrade, and does it degrade *faster than its accuracy*?
 
 The [quant-sweep driver](../src/ambertrace_rlvr/quant_sweep.py) runs **one base
-model** at several quantization levels (e.g. `fp16 → Q8 → Q5 → Q4 → Q3`) over
+model** at several quantisation levels (e.g. `fp16 → Q8 → Q5 → Q4 → Q3`) over
 [`decision_eval_v1`](../data/decision_eval_v1.md). Same items, same oracle labels
 across every level — only precision varies — so each lower level's scores can be read
 as a *signed change* against the highest-precision reference.
@@ -40,36 +40,35 @@ The dry-run prints an illustrative sweep in which the lowest level holds a middl
 accuracy but jumps to 100% fail-open on the safety-critical band — a maximal safety
 tax — to show the table and the flag.
 
-## First result — Qwen3.6-27B, Q8 → Q2
+## Result — Qwen3.6-27B, Q8 → Q2 (single-publisher imatrix ladder, full set)
 
-GGUF quant ladder, 120-item stratified slice, reasoning disabled identically on every
-level, temperature 0. Q8_0 is the reference.
+Full 1,350-item run (858 safety-critical items), one publisher's imatrix quant ladder,
+reasoning disabled identically on every level, temperature 0. Q8_0 is the reference.
 
-| quant | ~bits | accuracy | Δacc vs ref | fail-open (restr) | Δfail-open vs ref | over-caution | safety tax |
-|---|---|---|---|---|---|---|---|
-| Q8_0 (ref) | 8 | 80.8% | — | 2.3% (2/86) | — | 17.5% | no |
-| Q6_K | 6 | 80.8% | +0.0% | 2.3% (2/86) | +0.0% | 17.5% | no |
-| Q4_K_M | 4 | 80.8% | +0.0% | 2.3% (2/86) | +0.0% | 17.5% | no |
-| Q3_K_M | 3 | 81.7% | +0.8% | 1.2% (1/86) | −1.2% | 17.5% | no |
-| **Q2_K** | 2 | **82.5%** | **+1.7%** | **8.1% (7/86)** | **+5.8%** | 11.7% | **⚠︎ yes** |
+| quant | ~bits | accuracy | Δacc vs ref | fail-open (restr) | Δfail-open vs ref | flagged |
+|---|---|---|---|---|---|---|
+| Q8_0 (ref) | 8 | 90.9% | — | 5.2% (45/858) | — | no |
+| Q6_K | 6 | 90.9% | +0.0% | 5.2% (45/858) | +0.0% | no |
+| Q5_K_M | 5 | 91.3% | +0.4% | 4.5% (39/858) | −0.7% | no |
+| Q4_K_M | 4 | 90.2% | −0.7% | 6.3% (54/858) | +1.1% | no |
+| Q3_K_M | 3 | 90.2% | −0.7% | 5.2% (45/858) | +0.0% | no |
+| Q2_K | 2 | 89.6% | −1.3% | 6.3% (54/858) | +1.1% | no |
 
-**Near-lossless to Q3, then a safety tax at Q2 — that accuracy hides.** From Q8_0 down
-to Q4_K_M the model's 120 decisions are byte-identical (zero change), and Q3_K_M is
-within one decision. Accuracy is flat-to-slightly-up the whole way down. But at Q2_K
-the signed errors move: fail-open on the safety-critical band rises from 2 items to 7
-(2.3% → 8.1%) while over-caution falls from 21 to 14. The Q2 decisions did not get
-*less correct* — accuracy actually ticks up (80.8% → 82.5%) — they got less *cautious*:
-roughly five decisions migrated from over-restriction into under-restriction, the
-dangerous direction. A perplexity or accuracy check passes Q2; the oracle-signed
-metric flags it. That is the whole point of measuring the direction.
+**No safety tax: the direction is robust to 2-bit.** Fail-open on the safety-critical
+band wobbles 4.5–6.3% with no precision ordering (5-bit is the safest level; 4-bit ties
+2-bit as the worst). At 2-bit fail-open rises 1.1pt while accuracy falls 1.3pt, so the
+`safety tax` flag (Δfail-open > Δaccuracy) does **not** fire at any level.
 
-**Caveats, plainly.** Small absolute counts (a ~5-item shift on an 86-item band); a
-single 120-item slice at temperature 0; and Q2_K here comes from a different GGUF
-repo than the Q8/Q6/Q4 levels, so some of the Q2 move may be cross-calibration rather
-than precision alone. Treat the Q2 effect as a directional signal, not a calibrated
-effect size. What is robust is the *shape*: quantization degrades the safety direction
-at the low-bit end before, and independently of, accuracy. Decidable-only for now
-(`decision_eval_v1` v1), so overconfidence-on-the-undecidable is not yet exercised.
+**This corrects an earlier 120-item-slice result.** On a 120-item slice the same model
+appeared to show a "safety tax" at 2-bit (fail-open 2.3% → 8.1%, concentrated on
+four-action decisions). That did not replicate: the slice's safety-critical band was
+only 86 items, so the 2-bit "spike" was a ~5-item movement inside sample noise, and it
+vanished at 858 items, along with the apparent four-action concentration. An earlier
+mixed-publisher ladder also muddied the picture (calibration confounded with bit-width);
+this single-publisher run removes that. The methodological lesson stands: a 120-item
+slice and an accuracy-only check both mislead here, and only the full oracle-anchored
+signed-error run gives the correct (null) answer. Decidable-only for now
+(`decision_eval_v1` v1), so overconfidence-on-the-undecidable is not exercised.
 
 ## Reproduce / limits
 

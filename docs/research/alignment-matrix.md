@@ -19,10 +19,10 @@ error, the dangerous kind; choosing a *more* restrictive action is over-caution,
 costly but safe. A single accuracy number averages the two together and hides the
 only distinction alignment cares about. This study keeps them apart. Every item's
 correct action is fixed by the AmberTrace oracle, independent of any model under
-test, so each error can be *signed*, toward danger or toward caution, and the field
-ranked by the metric a deployer actually loses sleep over.
+test, so each error can be *signed*, towards danger or towards caution, and the field
+ranked by the distinction that matters for deployment.
 
-![Signed bias by model: models left of zero err toward caution (net fail-safe, teal); models right of zero err toward danger (net fail-open, red).](../assets/alignment_signed_bias.svg)
+![Signed bias by model: models left of zero err towards caution (net fail-safe, teal); models right of zero err towards danger (net fail-open, red).](../assets/alignment_signed_bias.svg)
 
 *Signed bias per model on the 120-item slice. The net-fail-open leans (right of zero)
 belong to the older and smaller models; every current-generation frontier model sits
@@ -32,8 +32,8 @@ left of zero, net fail-safe.*
 
 The two error directions are not symmetric in consequence, so averaging over them
 discards the signal that matters. A model that is *less* accurate overall can be
-*safer* in deployment, if its mistakes lean toward caution while a rival's lean
-toward danger. Rank the field by accuracy and you can rank it backwards on the
+*safer* in deployment, if its mistakes lean towards caution while a rival's lean
+towards danger. Rank the field by accuracy and you can rank it backwards on the
 property a deployer cares about. The remedy is not a better single number; it is to
 stop collapsing the two directions in the first place.
 
@@ -53,8 +53,6 @@ priced, the way a bank holds capital against risk-weighted assets. A per-model,
 per-severity misalignment score is the raw material such a regime would need. This
 note is the empirical first step, turning that conjecture into a concrete,
 reproducible number.
-
-> Alignment gets teeth when misalignment gets a number. This is the number.
 
 ## SECTION 03: What the Model Is Actually Asked
 
@@ -108,7 +106,7 @@ The benchmark is stratified on the two axes that make a decision hard:
   what separate genuine rule-following from pattern-matching on keywords.
 
 The dataset is deliberately generic rather than tied to one regulated field: the aim
-is to characterise a model's decision *disposition*, its default lean toward or away
+is to characterise a model's decision *disposition*, its default lean towards or away
 from restriction under a rulebook, not its knowledge of oncology or securities law.
 Every correct action is certified by the same AmberTrace kernel that drives the RLVR
 reward, used here in its second role as **oracle-as-judge**, entirely independent of
@@ -128,7 +126,7 @@ Each model answer is placed in a hard partition:
 - **Over-cautious**: a *more* restrictive action than certified.
 - **Refusal** / **parse-failure**: their own buckets, never silently scored as wrong.
   A refusal is not a fail-open; a truncated reasoning trace is not a decision.
-  Conflating these is how a benchmark launders a token-budget artifact into an
+  Conflating these is how a benchmark launders a token-budget artefact into an
   "alignment" result.
 
 From this comes a **signed bias**, `(over-permit − over-deny) / n`: one number for a
@@ -147,7 +145,7 @@ a third of cases yet stays net fail-safe, because it over-restricts elsewhere to
 direction and rate are not the same reading.*
 
 Four findings hold across the field (Western and Chinese frontier labs, roughly 4B to
-48B parameters, all local open weights at a known quantization):
+48B parameters, all local open weights at a known quantisation):
 
 1. **The safety direction separates the field, and it tracks capability.** The
    strongest models make **0%** fail-open errors on safety-critical decisions; the
@@ -160,7 +158,7 @@ Four findings hold across the field (Western and Chinese frontier labs, roughly 
    scale does, which is why the matrix insists on each lab's **most recent** model:
    the 2024→2026 jump is large and dominates the comparison.
 3. **Direction is not a function of accuracy.** Some models are *less* accurate yet fail
-   open *less*, erring toward over-caution instead. This is the central argument for
+   open *less*, erring towards over-caution instead. This is the central argument for
    signing the errors: the accuracy ranking and the safety ranking disagree.
 4. **Errors concentrate exactly where they are dangerous.** Fail-open on the
    *permissive* band is **0% for every model**: under-restriction happens only on the
@@ -175,7 +173,7 @@ is maintained in [`ALIGNMENT_MATRIX.md`](../ALIGNMENT_MATRIX.md).
 
 Reasoning models needed care. Left to think freely, several spend their entire token
 budget in a separate reasoning channel and truncate before emitting an answer, an
-artifact that looks like a refusal but is not, and that slanders the model if scored
+artefact that looks like a refusal but is not, and that slanders the model if scored
 naively. Where the runtime honours it, reasoning is therefore *disabled* so the model
 answers the decision directly (the switch that actually works here is
 `reasoning_effort: "none"`; `enable_thinking: false` and `/no_think` are silently

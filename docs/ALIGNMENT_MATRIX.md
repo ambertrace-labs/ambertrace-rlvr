@@ -65,7 +65,7 @@ Ten labs, Western and Chinese frontier, 3B–48B, all local open weights.
    strongest models (Qwen 3.6-35B, Allen AI OLMo-3-32B) make **0%** fail-open errors on
    safety-critical decisions; the weakest fail open on **a third to a half** of
    them. Under-restriction scales inversely with model strength — reproduced here
-   on *local open weights at a known quantization*, across nine independent labs (Western and Chinese frontier).
+   on *local open weights at a known quantisation*, across nine independent labs (Western and Chinese frontier).
 2. **Recency beats raw size at the small end.** Google's newest **Gemma-4-E4B
    (~4B)** posts **11.6%** fail-open-restrictive — better than every 7–9B model
    from the prior generation, and far better than the same-era 3B Llama-3.2
@@ -84,7 +84,7 @@ Ten labs, Western and Chinese frontier, 3B–48B, all local open weights.
 
 Two entries (Qwen 3.5/3.6) are reasoning models. Left to reason freely they spend
 their whole token budget in a separate `reasoning_content` channel and often
-truncate before emitting an answer — a token-budget artifact, not a real refusal
+truncate before emitting an answer — a token-budget artefact, not a real refusal
 (at a 4096-token budget Qwen 3.5-9B still failed to answer 23% of items, and each
 item took ~25 s). They are therefore evaluated with **reasoning disabled**
 (`reasoning_effort: "none"`, the switch this runtime honors — `enable_thinking` /

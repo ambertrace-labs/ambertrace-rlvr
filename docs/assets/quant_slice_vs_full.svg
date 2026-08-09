@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" width="760" height="430" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { fill: #1B1A17; font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+    .sub { fill: #7A776E; font-size: 12px; }
+    .eyebrow { fill: #E0982E; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
+    .tick { fill: #7A776E; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .val { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .leg { fill: #7A776E; font-size: 11px; }
+    .xl { fill: #1B1A17; font-size: 12px; font-weight: 600; }
+    .note { fill: #7A776E; font-size: 11px; font-style: italic; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="429" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="52" class="title">A 120-item slice suggested a spike the full set does not show</text>
+  <text x="40" y="72" class="sub">Fail-open on safety-critical decisions, by precision. The slice&#x27;s 2-bit jump did not survive the full 1,350-item run.</text>
+
+<line x1="62" y1="330.0" x2="700" y2="330.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="333.0" text-anchor="end" class="tick">0%</text>
+<line x1="62" y1="287.2" x2="700" y2="287.2" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="290.2" text-anchor="end" class="tick">2%</text>
+<line x1="62" y1="244.4" x2="700" y2="244.4" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="247.4" text-anchor="end" class="tick">4%</text>
+<line x1="62" y1="201.6" x2="700" y2="201.6" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="204.6" text-anchor="end" class="tick">6%</text>
+<line x1="62" y1="158.8" x2="700" y2="158.8" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="161.8" text-anchor="end" class="tick">8%</text>
+<line x1="62" y1="116.0" x2="700" y2="116.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="54" y="119.0" text-anchor="end" class="tick">10%</text>
+<text x="62.0" y="350.0" text-anchor="middle" class="xl">8-bit</text>
+<text x="274.7" y="350.0" text-anchor="middle" class="xl">6-bit</text>
+<text x="381.0" y="350.0" text-anchor="middle" class="xl">5-bit</text>
+<text x="487.3" y="350.0" text-anchor="middle" class="xl">4-bit</text>
+<text x="593.7" y="350.0" text-anchor="middle" class="xl">3-bit</text>
+<text x="700.0" y="350.0" text-anchor="middle" class="xl">2-bit</text>
+<polyline points="62.0,280.8 274.7,280.8 487.3,280.8 593.7,304.3 700.0,156.7" fill="none" stroke="#E0982E" stroke-width="2.5" stroke-dasharray="5 4"/>
+<circle cx="62.0" cy="280.8" r="3.5" fill="#E0982E"/>
+<circle cx="274.7" cy="280.8" r="3.5" fill="#E0982E"/>
+<circle cx="487.3" cy="280.8" r="3.5" fill="#E0982E"/>
+<circle cx="593.7" cy="304.3" r="3.5" fill="#E0982E"/>
+<circle cx="700.0" cy="156.7" r="3.5" fill="#E0982E"/>
+<polyline points="62.0,218.7 274.7,218.7 381.0,233.7 487.3,195.2 593.7,218.7 700.0,195.2" fill="none" stroke="#2F7D6B" stroke-width="2.5"/>
+<circle cx="62.0" cy="218.7" r="3.5" fill="#2F7D6B"/>
+<circle cx="274.7" cy="218.7" r="3.5" fill="#2F7D6B"/>
+<circle cx="381.0" cy="233.7" r="3.5" fill="#2F7D6B"/>
+<circle cx="487.3" cy="195.2" r="3.5" fill="#2F7D6B"/>
+<circle cx="593.7" cy="218.7" r="3.5" fill="#2F7D6B"/>
+<circle cx="700.0" cy="195.2" r="3.5" fill="#2F7D6B"/>
+<text x="700.0" y="148.7" text-anchor="end" class="val" fill="#E0982E">8.1%</text>
+<text x="708.0" y="199.2" class="val" fill="#2F7D6B">6.3%</text>
+<rect x="62" y="377" width="11" height="11" rx="2.5" fill="#E0982E"/>
+<text x="80" y="386" class="leg">120-item slice (86 restrictive items)</text>
+<rect x="342" y="377" width="11" height="11" rx="2.5" fill="#2F7D6B"/>
+<text x="360" y="386" class="leg">full 1,350-item set (858 restrictive items)</text>
+</svg>
