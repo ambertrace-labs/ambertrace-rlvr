@@ -1,6 +1,6 @@
 # Quantisation and the Safety Direction of Decisions
 
-*Compressing Qwen3.6-27B to 2-bit keeps both its accuracy and the safety direction of its errors.*
+*How Qwen3.6-27B's decision accuracy and the direction of its errors change across a six-level quantisation ladder, measured against a proof-certified oracle.*
 
 **Ambertrace Labs • 2026 • Research • Overseen by Peter Chatwell, Founder/CEO**
 
@@ -8,89 +8,108 @@
 > under the editorial oversight of Peter Chatwell, Founder/CEO, who is accountable
 > for its accuracy and conclusions.
 >
-> **Status: preliminary.** One model, single sample, temperature 0. Driver and data
-> in the open-source repo; see *Reproduce*.
+> **Status: preliminary.** One model, single sample, temperature 0, 1,350 decidable
+> items. Six data points per trend, so regressions are descriptive, not inferential.
 
-The result up front: quantising Qwen3.6-27B from 8-bit down to 2-bit costs almost
-nothing that matters. Accuracy holds near 90%, and, more importantly, the *direction*
-of its errors does not turn dangerous. Scored against a proof-certified oracle, its
-rate of **fail-open** errors (choosing a less restrictive action than the rules
-require, the harmful direction) stays flat around 5% across the whole ladder. You can
-run this model at 2-bit on a laptop and its safety behaviour is essentially the
-8-bit model's.
+Qwen3.6-27B served at six GGUF quantisation levels from one publisher's imatrix
+ladder (Q8_0 to Q2_K), scored on the same 1,350 items (858 on the safety-critical
+band) with oracle-certified correct actions. Reasoning disabled identically at every
+level, so precision is the only variable. Three findings, in order of signal strength.
 
-![Scatter of precision (bits) against each metric for Qwen3.6-27B, with linear fit and R². Signed bias R²=0.01, fail-open R²=0.25, accuracy R²=0.58, over-caution R²=0.60.](../assets/quant_scatter_r2.svg)
+## Finding 1: fail-open is concentrated in one reasoning type
 
-## SECTION 01: The Result
+The model's fail-open errors (choosing a less restrictive action than the rules
+require) are not spread across rule types. They sit almost entirely on **ratio**
+rules, a threshold on a computed ratio such as "the monthly payment must not exceed
+80% of income". Fail-open rate on the safety-critical band, by rule structure, at each
+precision level:
 
-Full 1,350-item run (858 safety-critical items), one publisher's imatrix ladder,
-temperature 0, Q8_0 as reference:
+| rule structure | n | 8-bit | 6-bit | 5-bit | 4-bit | 3-bit | 2-bit |
+|---|---|---|---|---|---|---|---|
+| **ratio** | 171 | 15.8% | 15.8% | 15.8% | **21.1%** | 15.8% | 15.8% |
+| precedence | 180 | 5.0% | 5.0% | 5.0% | 5.0% | 5.0% | 0.0% |
+| baseline threshold | 192 | 4.7% | 4.7% | 1.6% | 4.7% | 4.7% | 9.4% |
+| multi-trigger disjunction | 180 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 5.0% |
+| negation | 135 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 
-| quant | ~bits | accuracy | fail-open (safety-critical) |
-|---|---|---|---|
-| Q8_0 (ref) | 8 | 90.9% | 5.2% |
-| Q6_K | 6 | 90.9% | 5.2% |
-| Q5_K_M | 5 | 91.3% | 4.5% |
-| Q4_K_M | 4 | 90.2% | 6.3% |
-| Q3_K_M | 3 | 90.2% | 5.2% |
-| Q2_K | 2 | 89.6% | 6.3% |
+Ratio rules draw roughly three times the fail-open of any other structure and about
+16% in absolute terms, at every precision including full 8-bit. Logical composition is
+the opposite story: the model never fails open on a negation, and only does so on a
+disjunction at 2-bit. The weakness is **quantitative** reasoning (apply an arithmetic
+threshold), not logical reasoning, and it is a property of the base model that
+quantisation neither creates nor removes.
 
-Fail-open never leaves the 4.5–6.3% band and shows no march as precision drops (5-bit
-is the safest point of all). Regressing each metric on bit-width makes the point
-numerically: the model's **net safety direction (signed bias) has an R² of 0.01** with
-precision, i.e. essentially none, and fail-open's R² is 0.25 (no real trend). The only
-metrics that move at all are accuracy (R²=0.58, about 0.2 points per bit) and
-over-caution (R²=0.60), both mildly: lower precision costs a little capability, and
-what it costs surfaces slightly *more* as over-caution than as fail-open. So the small
-price of 2-bit is paid on the safe side. **The safety direction is robust to 2-bit.**
-(Six levels, so treat the R² values as descriptive, not a significance test.)
+## Finding 2: the aggregate safety direction does not track precision
 
-## SECTION 02: Why Measure the Direction, Not Just Accuracy
+Across the ladder, the net direction of the errors is flat while accuracy declines
+slightly:
 
-This is a stronger statement than "accuracy held", and it needs the oracle to make.
-A decision can be wrong two ways: *fail-open* (under-restriction, the harmful
-direction) or over-caution (over-restriction, safe but costly). Accuracy averages
-them, so a compression step could in principle keep the accuracy number flat while
-quietly shifting the wrong answers from the safe side to the harmful side, and an
-accuracy check would not see it. Because every item here has an oracle-certified
-correct action, each error is *signed*, and we can state positively that the harmful
-direction did **not** grow. That is the claim a deployer actually needs before
-shipping a compressed model.
+| bits | accuracy | fail-open (safety-critical) | over-caution | signed bias |
+|---|---|---|---|---|
+| 8 | 90.9% | 5.2% | 5.8% | −0.024 |
+| 6 | 90.9% | 5.2% | 5.8% | −0.024 |
+| 5 | 91.3% | 4.5% | 5.8% | −0.029 |
+| 4 | 90.2% | 6.3% | 5.8% | −0.018 |
+| 3 | 90.2% | 5.2% | 6.4% | −0.031 |
+| 2 | 89.6% | 6.3% | 6.4% | −0.024 |
 
-## SECTION 03: Method
+Regressing each column on bit-width (signed bias = `(over-permit − over-deny)/n`,
+negative = net over-cautious):
 
-One base model, served at every GGUF level of a single publisher's imatrix ladder
-(Q8_0 to Q2_K), scored on the same items with the same certified answers so precision
-is the only variable. Using one publisher matters: mixing quant *methods* across
-levels would confound calibration with bit-width. Items are from
-[`decision_eval_v1`](../../data/decision_eval_v1.md); correct actions are fixed by the
-AmberTrace oracle, independent of the model. Reasoning is disabled identically on
-every level. (For the oracle and the signed-error scoring, see the companion pieces
-[*Measuring Misalignment as Deviation From the Provable*](alignment-matrix.md) and
-[*Verifiable Rewards Beyond Maths and Code*](why-verifiable-rewards.md).)
+| metric | R² | slope per bit |
+|---|---|---|
+| signed bias | 0.01 | +0.0002 |
+| fail-open (safety-critical) | 0.25 | −0.16 pt |
+| accuracy | 0.58 | +0.23 pt |
+| over-caution | 0.60 | −0.12 pt |
 
-## SECTION 04: A Note on Sample Size
+![Precision (bits) against each metric for Qwen3.6-27B, with linear fit and R²: signed bias and fail-open flat, accuracy and over-caution drift mildly.](../assets/quant_scatter_r2.svg)
 
-An earlier version of this run used a 120-item slice and appeared to show the
-opposite, a sharp jump in fail-open at 2-bit. It did not survive the full set: on the
-slice the safety-critical band was only 86 items, so the "jump" was a movement of
-about five items, inside the noise of a sample that size. At 858 items it is gone.
+Signed bias is effectively unrelated to precision (R²=0.01); the model stays net
+over-cautious by the same small margin at 2-bit as at 8-bit. Fail-open shows no
+reliable trend (R²=0.25). The two columns that do move are accuracy and over-caution,
+both mildly: dropping from 8-bit to 2-bit costs about 1.3 points of accuracy
+(90.9%→89.6%), and the lost capability surfaces marginally more as over-caution than
+as fail-open. Quantisation to 2-bit therefore trades a little accuracy without moving
+the net safety direction. It does not make this model more dangerous; it also does not
+fix the ratio weakness in Finding 1, which is precision-independent.
 
-![Fail-open on safety-critical decisions by precision: the 120-item slice spikes at 2-bit, the full 1,350-item set stays flat.](../assets/quant_slice_vs_full.svg)
+## Finding 3: at 2-bit the failures redistribute
 
-The lesson is worth stating plainly: an alignment claim that turns on a handful of
-items is a claim about the sample, not the model. The full oracle-anchored run is the
-one to trust.
+The near-stable total at 2-bit hides a reshuffle underneath it. The safety-critical
+fail-open count rises only from 45 to 54 items (5.2%→6.3%), but the composition of
+those failures changes. Within the rule-structure cut, baseline fail-open doubles
+(9→18 items) and disjunction appears (0→9), offset by precedence falling to zero
+(9→0), with ratio and negation unchanged. The action-count cut is a different view of
+the same shift: four-action decisions jump (3→12 of 102, i.e. 2.9%→11.8%) while
+three-action decisions fall to zero (9→0). Each of these moves is about nine items on
+a subset of 100–190, small enough to be noise, so the defensible reading is only that
+2-bit changes *where* the model fails at least as much as *how much*. An earlier
+120-item pilot caught the four-action jump in isolation and over-weighted it into an
+apparent 2-bit "safety tax" that the full run does not support.
 
-## SECTION 05: Limits
+## Method
 
-One model, one benchmark, single sample at temperature 0, decidable items only. This
-is a robustness result for Qwen3.6-27B; it does not license a general claim that
-quantisation never affects safety direction, and a model with less low-bit headroom
-could behave differently. The single-publisher ladder removes the quant-method
-confound but fixes one calibration method; quantisation-aware training could move the
-curve. Next steps: multi-sample runs to put error bars on the wobble, and further
-models to see whether "robust to 2-bit" generalises.
+Single base model, one publisher's imatrix GGUF ladder (Q8_0/Q6_K/Q5_K_M/Q4_K_M/
+Q3_K_M/Q2_K), so calibration method is held constant and bit-width is the only
+variable (an earlier mixed-publisher ladder confounded the two). Items from
+[`decision_eval_v1`](../../data/decision_eval_v1.md); every correct action is certified
+by the AmberTrace oracle independent of the model, so each error is signed as fail-open
+or over-caution. Reasoning disabled identically per level (0% refusals throughout).
+Full run: 1,350 items, 858 on the safety-critical band. For the oracle and the
+signed-error scoring, see [*Measuring Misalignment as Deviation From the
+Provable*](alignment-matrix.md) and [*Verifiable Rewards Beyond Maths and
+Code*](why-verifiable-rewards.md).
+
+## Limits
+
+One model, one benchmark, single sample at temperature 0, decidable items only. Six
+precision levels means the regressions in Finding 2 and the redistributions in Finding
+3 are descriptive, not significance-tested; multi-sample runs would put error bars on
+both. The single-publisher ladder isolates bit-width but fixes one calibration method,
+and quantisation-aware training could change the picture. Whether the ratio weakness
+and the precision-insensitivity of the safety direction generalise beyond Qwen3.6-27B
+is untested.
 
 ## For the Record
 
