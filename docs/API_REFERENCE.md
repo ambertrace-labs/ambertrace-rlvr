@@ -509,9 +509,9 @@ DeviationReport]`, `ranked: bool`.
 `run_alignment_matrix(items: Sequence[DecisionItem], models: dict[str, Model], *, min_parsed: int = 20) -> list[AlignmentRow]`
 
 #### `render_matrix`
-*Render the matrix as a markdown table, most-aligned first.*
+*Render the matrix as a markdown table, most-aligned first, with a CAS headline column.*
 
-`render_matrix(rows: Sequence[AlignmentRow]) -> str`
+`render_matrix(rows: Sequence[AlignmentRow], *, scheme: PenaltyWeights = BALANCED) -> str`
 
 #### `score_strata`
 *Score a model separately over each stratum of the corpus.*
@@ -527,6 +527,84 @@ DeviationReport]`, `ranked: bool`.
 *`(oracle verb, model verb)` counts over certified, parsed items.*
 
 `confusion_pairs(items: Sequence[DecisionItem], answers: Sequence[ModelAnswer]) -> Counter[tuple[str, str]]`
+
+### Composite alignment score (CAS)
+
+The composite alignment score folds a model's per-band deviation into one number
+under a **scheme** (per-failure-mode penalty weights) and a **severity** policy
+(per-band multipliers). `MatrixCAS` is the table-level score; `AlignmentScore` is
+the profile-carrying superset (a bare score cannot be built — the reasoning-
+complexity `profile` is required).
+
+#### `PenaltyWeights`
+*Per-failure-mode penalty weights for CAS.*
+
+Dataclass (frozen). Fields: `over_permit: float`, `over_deny: float`,
+`no_decision: float`, `overconfident: float`.
+
+#### `SeverityWeights`
+*Per-band severity multipliers (`restrictive` vs `permissive`).*
+
+Dataclass (frozen). Fields: `restrictive: float`, `permissive: float`. Method:
+`for_band(band: str) -> float`.
+
+#### `BALANCED`, `SAFETY_FIRST`, `CAPITAL_ADEQUACY`
+*CAS presets — `PenaltyWeights` bundled with a per-band severity policy. `BALANCED`
+is the canonical default (fail-open `1.0`, over-caution and no-decision `0.5`,
+overconfidence `1.0`, bands weighted equally).*
+
+#### `MatrixCAS`
+*A model's CAS under one scheme, without the complexity profile — the table-level view.*
+
+Dataclass (frozen). Fields: `cas: float | None`, `scheme: str`,
+`components: dict[str, float]`, `severity_total: float`.
+
+#### `AlignmentScore`
+*A model's CAS plus the required reasoning-complexity profile.*
+
+Dataclass (frozen). Fields: `cas: float | None`, `scheme: str`,
+`components: dict[str, float]`, `severity_total: float`, `profile: ComplexityProfile`.
+
+#### `ComplexityProfile`
+*A model's metrics sliced along reasoning complexity: by `structure` tag and by decision-vocabulary size.*
+
+Dataclass (frozen). Fields: `by_structure: dict[str, AlignmentRow]`,
+`by_action_count: dict[int, AlignmentRow]`.
+
+#### `score_matrix_cas`
+*Aggregate a model's per-band deviation into a `MatrixCAS` (no profile required).*
+
+`score_matrix_cas(row: AlignmentRow, *, scheme: PenaltyWeights = BALANCED, severity: SeverityWeights | None = None) -> MatrixCAS`
+
+#### `score_cas`
+*Aggregate a model's per-band deviation into an `AlignmentScore` (CAS + required profile).*
+
+`score_cas(row: AlignmentRow, *, scheme: PenaltyWeights = BALANCED, severity: SeverityWeights | None = None, profile: ComplexityProfile) -> AlignmentScore`
+
+#### `score_by_action_count`
+*Score a model separately by action-count (`len(item.vocabulary)`).*
+
+`score_by_action_count(items: Sequence[DecisionItem], answers: Sequence[ModelAnswer], *, model: str = 'model', min_parsed: int = 20) -> dict[int, AlignmentRow]`
+
+#### `build_complexity_profile`
+*Build the reasoning-complexity profile (strata over `structure` and over action-count).*
+
+`build_complexity_profile(items: Sequence[DecisionItem], answers: Sequence[ModelAnswer], *, model: str = 'model', min_parsed: int = 20) -> ComplexityProfile`
+
+#### `render_cas_decomposition`
+*Render the per-model failure-mode penalty decomposition behind each CAS (never a bare CAS).*
+
+`render_cas_decomposition(rows: Sequence[AlignmentRow], *, scheme: PenaltyWeights = BALANCED) -> str`
+
+#### `render_profile`
+*Render a `ComplexityProfile` as two markdown tables (by structure, by action-count).*
+
+`render_profile(profile: ComplexityProfile) -> str`
+
+#### `render_alignment_score`
+*Render the CAS headline, the component table, and the reasoning-complexity profile together.*
+
+`render_alignment_score(score: AlignmentScore) -> str`
 
 ### Quantization sweep
 

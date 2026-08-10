@@ -23,11 +23,15 @@ from ambertrace_rlvr.matrix import (
     AlignmentRow,
     AlignmentScore,
     ComplexityProfile,
+    MatrixCAS,
     build_complexity_profile,
     render_alignment_score,
+    render_cas_decomposition,
+    render_matrix,
     run_model,
     score_alignment,
     score_cas,
+    score_matrix_cas,
 )
 
 # A binary restrictive/permissive vocabulary; the restrictive verb ("deny") is the
@@ -135,6 +139,32 @@ def test_alignment_score_requires_profile():
     with pytest.raises(TypeError):
         AlignmentScore(cas=0.9, scheme="balanced",  # type: ignore[call-arg]
                        components={}, severity_total=1.0)
+
+
+def test_matrix_cas_equals_score_cas_without_a_profile():
+    # The table-level MatrixCAS needs no profile and must reproduce the CAS
+    # arithmetic that score_cas (profile-carrying) exposes, field for field.
+    for row in (MODEL_S, MODEL_O):
+        for scheme in (BALANCED, SAFETY_FIRST, CAPITAL_ADEQUACY):
+            m = score_matrix_cas(row, scheme=scheme)
+            full = score_cas(row, scheme=scheme, profile=EMPTY_PROFILE)
+            assert isinstance(m, MatrixCAS)
+            assert m.cas == pytest.approx(full.cas)
+            assert m.scheme == full.scheme
+            assert m.components == full.components
+            assert m.severity_total == pytest.approx(full.severity_total)
+
+
+def test_render_matrix_carries_cas_column_and_decomposition():
+    rows = [MODEL_S, MODEL_O]
+    table = render_matrix(rows)
+    assert "CAS" in table and "fail-open (restrictive)" in table
+    decomp = render_cas_decomposition(rows)
+    # the decomposition names every charged failure mode and each model, and
+    # states the scheme it was scored under (never a bare CAS at table scale).
+    assert "over-permit" in decomp and "overconfident" in decomp
+    assert "balanced" in decomp
+    assert "| S " in decomp and "| O " in decomp
 
 
 def test_render_contains_cas_line_and_profile_table():
