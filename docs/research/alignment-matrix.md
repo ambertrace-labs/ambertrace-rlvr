@@ -42,7 +42,13 @@ Models answer decisions in different ways, and scoring them identically is unfai
 - **† — reasoner, disabled.** Reasons by default but honours `reasoning_effort: none`; run with reasoning off, the like-for-like comparison against the direct models. Qwen 3.5/3.6 and — despite the name — **GLM-4.7-Flash**, which reasons in a hidden channel at ~20 s/item and returns identical answers ~30× faster with reasoning disabled.
 - **‡ — dedicated thinker.** No disable switch; thinking is the SKU. Run thinking-enabled at a 4,096-token budget. OLMo-3-32B-Think and Muse-Glimmer-30B. The budget is not incidental: at 512 tokens Muse spent its whole budget reasoning and emitted nothing on roughly a third of hard items — scored as refusals — and answered them correctly at 4,096.
 
-**One model would not follow the format at all.** Llama-3.1-8B, under the identical prompt, emitted tool-call JSON (`{"name": "make_decision", "parameters": {…}}`) rather than an action word, leaving only 41% of its outputs parseable. It is scored here under **constrained decoding** — a per-item JSON schema restricting output to the allowed verbs — which is an accommodation the other models did not need, and is flagged as such.
+**One model would not follow the format at all — and handling that is part of the method.** Llama-3.1-8B, under the identical prompt every other model received, answered decisions by emitting a *tool call* — `{"name": "make_decision", "parameters": {"flow_rate": 66.2, "capacity": 246.2, …}}` — echoing the case back as function arguments instead of choosing an action. Only 41% of its raw outputs could be coerced to an allowed verb, and the shortfall was systematic: on 4-verb triage, almost none. That is not a decision failure but an instruction-following one — the fingerprint of a model tuned hard for function-calling.
+
+The fair response is to constrain the **format**, not the **decision**. We re-run it with a per-item JSON schema whose only enum is the allowed verbs for that case: the model must return one of them, but which one is entirely its own judgment. Constrained this way it produces clean, scoreable answers — and poor ones. It lands in the fail-open cluster at CAS 0.778 and collapses on 4-verb triage, exactly as its unconstrained fragments implied.
+
+> **Constraining the output format is not constraining the choice — it is letting a format-noncompliant model speak, then scoring what it says.**
+
+Llama-3.1-8B is flagged `◊` and ranked alongside the rest. The accommodation changed how it talks, not what it decides — and the need for it is a small finding of its own: a model can be aligned-enough on paper yet unusable behind a plain decision instruction, because its post-training pulls it toward emitting API calls rather than answers. An eval that runs models the way a business actually would has to notice that.
 
 ## SECTION 04: The Matrix
 
@@ -131,7 +137,7 @@ Two independent builds of Qwen3.6-27B — a bartowski Q4_K_M GGUF and an MLX-4bi
 - **Decidable-only.** `decision_eval_v1` contains no certified-undecidable items, so the overconfidence failure mode (committing to a verb where none is warranted) is not exercised here; it reads 0 for every model by construction.
 - **Single sample, temperature 0.** No variance estimate; a re-sampled run would move individual figures by a point or two, not the groupings.
 - **Local quantised weights.** Every model is a representative local quant, not the lab's hosted endpoint; the numbers describe what a business would actually deploy on its own hardware, not a model's ceiling.
-- **One accommodation.** Llama-3.1-8B is scored under constrained decoding; its 0.778 reflects its decisions when *forced* to emit a valid action, and flatters it relative to its unaided behaviour, which failed the format outright.
+- **One format accommodation.** Llama-3.1-8B is scored under constrained decoding (Section 03). The constraint governs its output format, not its choice, so its 0.778 is a genuine — mediocre, fail-open — decision profile, not an inflated one; the untouched behaviour is worse, in that it does not answer at all.
 - **Synthetic domains.** The policies are SDK-generated, not drawn from a specific regulated book; the structures they test (thresholds, ratios, precedence, negation, disjunction) are domain-general, but a named vertical is future work.
 
 ## For the Record
