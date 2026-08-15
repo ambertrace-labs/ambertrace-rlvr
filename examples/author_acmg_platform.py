@@ -46,35 +46,41 @@ DOMAIN_DESCRIPTION = (
     "A genomic sequence variant is assigned exactly one classification label, chosen "
     "from three category values of equal standing: 'pathogenic', 'benign', or "
     "'uncertain'. The label is determined by simplified ACMG/AMP evidence criteria. "
-    "Two criteria count as pathogenic evidence: (PVS1) the variant is a predicted "
+    "Three criteria count as pathogenic evidence: (PVS1) the variant is a predicted "
     "loss-of-function variant in a gene where loss of function is a known disease "
-    "mechanism; and (PS3) well-established functional studies show the variant has a "
-    "damaging effect. Two criteria count as benign evidence: (BA1) the variant is common "
-    "in the general population; and (BS3) well-established functional studies show the "
-    "variant has no damaging effect. The variant has pathogenic evidence if at least one "
-    "pathogenic criterion is met, and benign evidence if at least one benign criterion is "
-    "met. The classification label is 'pathogenic' when the variant has pathogenic "
-    "evidence and no benign evidence. The classification label is 'benign' when the "
-    "variant has benign evidence and no pathogenic evidence. The classification label is "
-    "'uncertain' when the variant has neither pathogenic nor benign evidence, or when it "
-    "has both and the evidence conflicts."
+    "mechanism; (PS3) well-established functional studies show the variant has a "
+    "damaging effect; and (PP3) multiple computational (in-silico) tools predict the "
+    "variant has a damaging effect. Three criteria count as benign evidence: (BA1) the "
+    "variant is common in the general population; (BS3) well-established functional "
+    "studies show the variant has no damaging effect; and (BP4) multiple computational "
+    "(in-silico) tools predict the variant has no damaging effect. The variant has "
+    "pathogenic evidence if at least one pathogenic criterion is met, and benign "
+    "evidence if at least one benign criterion is met. The classification label is "
+    "'pathogenic' when the variant has pathogenic evidence and no benign evidence. The "
+    "classification label is 'benign' when the variant has benign evidence and no "
+    "pathogenic evidence. The classification label is 'uncertain' when the variant has "
+    "neither pathogenic nor benign evidence, or when it has both and the evidence "
+    "conflicts."
 )
 
 # Known cases used to smoke-test the built platform. The verdict layer surfaces the
 # class labels as `classify_<label>` and maps 'uncertain' to the canonical 'abstain'.
+def _facts(pvs1=False, ps3=False, pp3=False, ba1=False, bs3=False, bp4=False) -> dict:
+    return {"null_variant_in_disease_gene": pvs1, "functional_studies_damaging": ps3,
+            "computational_predicts_damaging": pp3, "common_in_population": ba1,
+            "functional_studies_benign": bs3, "computational_predicts_benign": bp4}
+
+
 CASES = [
-    ("pathogenic", {"null_variant_in_disease_gene": True, "functional_studies_damaging": False,
-                    "common_in_population": False, "functional_studies_benign": False}),
-    ("pathogenic", {"null_variant_in_disease_gene": False, "functional_studies_damaging": True,
-                    "common_in_population": False, "functional_studies_benign": False}),
-    ("benign", {"null_variant_in_disease_gene": False, "functional_studies_damaging": False,
-                "common_in_population": True, "functional_studies_benign": False}),
-    ("benign", {"null_variant_in_disease_gene": False, "functional_studies_damaging": False,
-                "common_in_population": False, "functional_studies_benign": True}),
-    ("uncertain", {"null_variant_in_disease_gene": False, "functional_studies_damaging": False,
-                   "common_in_population": False, "functional_studies_benign": False}),
-    ("uncertain", {"null_variant_in_disease_gene": True, "functional_studies_damaging": False,
-                   "common_in_population": True, "functional_studies_benign": False}),
+    ("pathogenic", _facts(pvs1=True)),
+    ("pathogenic", _facts(ps3=True)),
+    ("pathogenic", _facts(pp3=True)),                 # PP3-only (new criterion)
+    ("benign", _facts(ba1=True)),
+    ("benign", _facts(bs3=True)),
+    ("benign", _facts(bp4=True)),                     # BP4-only (new criterion)
+    ("uncertain", _facts()),                          # no evidence
+    ("uncertain", _facts(pvs1=True, ba1=True)),       # conflicting evidence
+    ("uncertain", _facts(pp3=True, bp4=True)),        # computational tools disagree
 ]
 
 
