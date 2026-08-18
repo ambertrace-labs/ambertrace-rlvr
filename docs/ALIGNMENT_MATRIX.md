@@ -1,6 +1,6 @@
 # Open-weight alignment matrix — full run
 
-The canonical results table for the open-weight alignment matrix: 18 models scored
+The canonical results table for the open-weight alignment matrix: 20 models scored
 locally (LM Studio, Apple M1 Ultra 128 GB) over the full
 [`decision_eval_v1`](../data/decision_eval_v1.md) corpus (1,350 items, single
 sample, temperature 0) against the proof-certified oracle. The headline is not
@@ -12,17 +12,23 @@ The narrative writeup — methodology, what drives alignment, where models break
 Every table here regenerates from `outputs/row_full_*.json` via
 `examples/gen_alignment_matrix.py`.
 
-## Results — 18 models
+## Results — 20 models
 
-Sorted by **CAS** (composite alignment score, BALANCED scheme), best first. `acc` is
+Qwen3.8-27B appears twice — once **reasoning-disabled** (`†`, like the other Qwen `†`
+models, for like-for-like comparison) and once **reasoning-enabled** (`‡`, 4,096-token
+budget). The enabled arm tops the matrix and drives its fail-open rate on the
+safety-critical band to zero; the disabled arm is a mid-table `†` reasoner. Sorted
+by **CAS** (composite alignment score, BALANCED scheme), best first. `acc` is
 raw accuracy; `FO (restrictive)` is fail-open rate on the safety-critical band;
 `signed bias` = `(over-permit − over-deny) / n` (negative = net cautious, positive =
 net fail-open).
 
 | model | lab | params | **CAS** | acc | FO (restrictive) | signed bias | refusal |
 |---|---|---|---|---|---|---|---|
+| Qwen3.8-27B (reasoning) ‡ | Alibaba | 27B | 0.974 | 95.5% | 0.0% | −0.04 | 0.7% |
 | Muse-Glimmer-30B ‡ | Meta | 30B | 0.960 | 94.0% | 3.1% | −0.02 | 0.0% |
 | OLMo-3-32B-Think ‡ | Allen AI | 32B | 0.947 | 93.8% | 3.3% | −0.02 | 2.7% |
+| Qwen3.8-27B † | Alibaba | 27B | 0.937 | 91.3% | 6.3% | −0.01 | 0.0% |
 | Qwen3.6-27B † | Alibaba | 27B | 0.931 | 90.2% | 6.3% | −0.02 | 0.0% |
 | Qwen3.5-9B † | Alibaba | 9B | 0.907 | 84.7% | 5.2% | −0.09 | 0.0% |
 | Phi-4 | Microsoft | 14B | 0.894 | 84.9% | 9.4% | −0.03 | 0.0% |
@@ -40,9 +46,10 @@ net fail-open).
 | Yi-1.5-9B | 01.AI | 9B | 0.701 | 64.2% | 37.8% | +0.12 | 0.0% |
 | Mistral-7B-v0.3 | Mistral | 7B | 0.654 | 54.2% | 36.7% | +0.01 | 0.0% |
 
-**†** reasoner run reasoning-disabled. **‡** dedicated thinker run at a 4,096-token
-budget. **◊** scored under constrained decoding (would not follow the plain
-instruction — emitted tool-call JSON). See *Running models fairly* below.
+**†** reasoner run reasoning-disabled. **‡** run thinking-enabled at a 4,096-token
+budget — dedicated thinkers with no disable switch, plus Qwen3.8-27B's second
+(reasoning-on) arm. **◊** scored under constrained decoding (would not follow the
+plain instruction — emitted tool-call JSON). See *Running models fairly* below.
 
 ![Composite alignment score by model](assets/alignment_cas_1350.svg)
 
@@ -56,8 +63,10 @@ negation / any-of disjunction)
 
 | model | baseline | ratio | precedence | negation | multi-trigger |
 |---|---|---|---|---|---|
+| Qwen3.8-27B (reasoning) | 87.8% | 100.0% | 90.0% | 100.0% | 100.0% |
 | Muse-Glimmer-30B | 90.0% | 90.0% | 90.0% | 100.0% | 100.0% |
 | OLMo-3-32B-Think | 89.2% | 89.3% | 90.0% | 100.0% | 100.0% |
+| Qwen3.8-27B | 83.3% | 86.7% | 86.7% | 100.0% | 100.0% |
 | Qwen3.6-27B | 81.1% | 86.7% | 83.3% | 100.0% | 100.0% |
 | Qwen3.5-9B | 83.3% | 63.3% | 83.3% | 96.7% | 96.7% |
 | Phi-4 | 77.8% | 66.7% | 83.3% | 100.0% | 96.7% |
@@ -79,8 +88,10 @@ negation / any-of disjunction)
 
 | model | 2-verb | 3-verb | 4-verb |
 |---|---|---|---|
+| Qwen3.8-27B (reasoning) | 100.0% | 90.0% | 73.8% |
 | Muse-Glimmer-30B | 97.2% | 90.0% | 78.6% |
 | OLMo-3-32B-Think | 97.1% | 90.0% | 77.3% |
+| Qwen3.8-27B | 95.6% | 86.7% | 69.0% |
 | Qwen3.6-27B | 95.0% | 83.3% | 69.0% |
 | Qwen3.5-9B | 87.1% | 83.3% | 69.0% |
 | Phi-4 | 87.7% | 83.3% | 66.7% |
@@ -109,7 +120,11 @@ negation / any-of disjunction)
   CAPITAL_ADEQUACY schemes (top three unmoved).
 - **Running models fairly.** Reasoning models with a working disable switch (`†`)
   are run reasoning-disabled for like-for-like comparison; dedicated thinkers with
-  no switch (`‡`) are run thinking-enabled at 4,096 tokens; `Llama-3.1-8B` (`◊`)
+  no switch (`‡`) are run thinking-enabled at 4,096 tokens. Qwen3.8-27B is shown
+  both ways — disabled (`†`) for like-for-like, and reasoning-enabled (`‡`) to show
+  the effect of leaving its reasoning on: accuracy rises 91.3% → 95.5% and its
+  fail-open rate on the safety-critical band falls 6.3% → 0.0%, at the cost of a
+  little more over-caution. `Llama-3.1-8B` (`◊`)
   emitted tool-call JSON under the plain instruction, so it is scored under
   per-item constrained decoding — an accommodation the others did not need.
 - **Limits.** Decidable-only (overconfidence unexercised); single sample; local
