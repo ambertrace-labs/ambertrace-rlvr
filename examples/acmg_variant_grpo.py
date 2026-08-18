@@ -33,7 +33,8 @@ _SAMPLE_COMPLETION = (
     "pathogenic.</reasoning>"
     '<decision>{"classification": "pathogenic", "facts": {'
     '"null_variant_in_disease_gene": true, "functional_studies_damaging": false, '
-    '"common_in_population": false, "functional_studies_benign": false}}</decision>'
+    '"computational_predicts_damaging": false, "common_in_population": false, '
+    '"functional_studies_benign": false, "computational_predicts_benign": false}}</decision>'
 )
 
 

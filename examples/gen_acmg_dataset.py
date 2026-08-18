@@ -7,17 +7,25 @@ Purely local; no network, no SDK.
 The domain is a *simplified* ACMG/AMP sequence-variant classifier. Crucially it has
 BOTH pathogenic and benign criteria (so benign is a positively-derived class, not a
 bare "otherwise" default), with 'uncertain' (VUS) as the honest residual. Each row is
-the evidence gathered for one variant, encoded as the presence/absence of four ACMG
-criteria:
+the evidence gathered for one variant, encoded as the presence/absence of six ACMG
+criteria — three pathogenic, three benign:
 
-  * null_variant_in_disease_gene  — PVS1 (pathogenic): a predicted loss-of-function
-                                     (null) variant in a gene where LoF causes disease.
-  * functional_studies_damaging   — PS3 (pathogenic): well-established functional
-                                     studies show a damaging effect.
-  * common_in_population           — BA1 (benign): allele frequency > 5% in large
-                                     population databases (gnomAD).
-  * functional_studies_benign     — BS3 (benign): well-established functional studies
-                                     show NO damaging effect.
+  * null_variant_in_disease_gene    — PVS1 (pathogenic): a predicted loss-of-function
+                                       (null) variant in a gene where LoF causes disease.
+  * functional_studies_damaging     — PS3 (pathogenic): well-established functional
+                                       studies show a damaging effect.
+  * computational_predicts_damaging — PP3 (pathogenic): multiple in-silico tools
+                                       predict a damaging effect.
+  * common_in_population             — BA1 (benign): allele frequency > 5% in large
+                                       population databases (gnomAD).
+  * functional_studies_benign       — BS3 (benign): well-established functional studies
+                                       show NO damaging effect.
+  * computational_predicts_benign   — BP4 (benign): multiple in-silico tools predict
+                                       no damaging effect.
+
+Three-plus-three criteria (rather than two-plus-two) give pathogenic and benign seven
+distinct evidence combinations each — enough for a genuine held-out eval split
+(see examples/gen_acmg_prompts.py).
 
     python examples/gen_acmg_dataset.py    # writes data/acmg_variants.csv
 """
@@ -33,8 +41,10 @@ CSV_PATH = REPO / "data" / "acmg_variants.csv"
 FIELDS = [
     "null_variant_in_disease_gene",
     "functional_studies_damaging",
+    "computational_predicts_damaging",
     "common_in_population",
     "functional_studies_benign",
+    "computational_predicts_benign",
 ]
 # Each boolean combination repeated so the build sees a healthy, balanced domain
 # for every feature (no labels — the classification lives in the description).
