@@ -38,6 +38,8 @@ META = {
     "muse-glimmer-30b": ("Muse-Glimmer-30B", "Meta", "30B", "‡"),
     "olmo-3-32b-think": ("OLMo-3-32B-Think", "Allen AI", "32B", "‡"),
     "olmo-3.1-32b": ("OLMo-3.1-32B-Instruct", "Allen AI", "32B", ""),
+    "qwen3.8-27b": ("Qwen3.8-27B", "Alibaba", "27B", "†"),
+    "qwen3.8-27b-think": ("Qwen3.8-27B (reasoning)", "Alibaba", "27B", "‡"),
     "qwen3.6-35b-a3b": ("Qwen3.6-35B-A3B", "Alibaba", "35B-A3B", "†"),
     "qwen3.6-27b": ("Qwen3.6-27B", "Alibaba", "27B", "†"),
     "qwen3.5-9b": ("Qwen3.5-9B", "Alibaba", "9B", "†"),
