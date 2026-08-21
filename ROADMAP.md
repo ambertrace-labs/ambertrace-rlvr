@@ -28,7 +28,7 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 | [#50](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/50) | Monitorability: faithfulness-vs-reward over training (generalises #12) | ✅ |
 | [#58](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/58) | Local **LM Studio** model backend (OpenAI-compatible) → model callable (`model_backend.py`) | ✅ |
 | [#59](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/59) | `decision_eval_v1` benchmark + loader + SDK eval-set generator (`corpus.py`, `eval_generator.py`) | ✅ |
-| [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(preliminary — 120-item slice)_ |
+| [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(full 1,350-item run, 19 models + CAS)_ |
 | [#61](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/61) | **Quantization-impact study** — same eval suite across quant levels of one model; the "safety tax" (`quant_sweep.py`, [QUANT_ALIGNMENT.md](docs/QUANT_ALIGNMENT.md)) | ✅ _(preliminary — one model)_ |
 
 ## RLVR / training lane — milestones (spec §16)
