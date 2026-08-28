@@ -77,6 +77,12 @@ from .faithfulness import (
     faithfulness_curve,
     load_trajectory,
 )
+from .faithfulness_scorer import (
+    RichScore,
+    append_trajectory,
+    consistency_score,
+    score_batch_rich,
+)
 from .eval_oracle import (
     ABSTAIN,
     JudgmentSpec,
@@ -203,6 +209,10 @@ __all__ = [
     "curve_trend",
     "compare_monitorability",
     "load_trajectory",
+    "RichScore",
+    "score_batch_rich",
+    "append_trajectory",
+    "consistency_score",
     "ModelProvider",
     "LMStudioProvider",
     "ModelBackendError",
