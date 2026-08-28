@@ -34,6 +34,41 @@ logger = logging.getLogger(__name__)
 RewardFunction = Callable[..., list[float]]
 
 
+def score_one_item(
+    shaper: RewardShaper,
+    parsed: ParsedCompletion,
+    report: AmberReport,
+    meta: dict[str, Any],
+    floor: float,
+) -> float:
+    """Shape one (parsed, report) pair into a scalar reward.
+
+    This is the shared per-item step used by :func:`build_reward_function`
+    and :func:`~ambertrace_rlvr.faithfulness_scorer.score_batch_rich`.
+    Fail-closed: shaping errors resolve to ``floor``, never an exception.
+
+    Parameters
+    ----------
+    shaper:
+        Turns (parsed, report) into a :class:`RewardBreakdown`.
+    parsed:
+        The parsed completion (must not be ``None``).
+    report:
+        The certificate (must not be ``None``).
+    meta:
+        Per-item metadata dict (may contain ``gold``, ``criteria_gold``).
+    floor:
+        Reward floor on shaping failure.
+    """
+    try:
+        gold = meta.get("gold") if isinstance(meta, dict) else None
+        criteria_gold = meta.get("criteria_gold") if isinstance(meta, dict) else None
+        return shaper.score(parsed, report, gold, criteria_gold=criteria_gold).total
+    except Exception:
+        logger.exception("reward shaping failed; flooring")
+        return floor
+
+
 def build_reward_function(
     parser: CompletionParser,
     shaper: RewardShaper,
@@ -57,15 +92,7 @@ def build_reward_function(
             if pc is None or report is None:
                 rewards.append(floor)
                 continue
-            try:
-                gold = m.get("gold") if isinstance(m, dict) else None
-                criteria_gold = m.get("criteria_gold") if isinstance(m, dict) else None
-                rewards.append(
-                    shaper.score(pc, report, gold, criteria_gold=criteria_gold).total
-                )
-            except Exception:  # shaping must never crash the loop
-                logger.exception("reward shaping failed; flooring")
-                rewards.append(floor)
+            rewards.append(score_one_item(shaper, pc, report, m, floor))
         return rewards
 
     return reward_fn

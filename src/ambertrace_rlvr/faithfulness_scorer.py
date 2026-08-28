@@ -1,10 +1,8 @@
 """Rich scoring for faithfulness-under-optimization experiments (#50).
 
-``score_batch_rich`` replicates the fail-closed parse -> verify -> shape loop
-of :func:`~ambertrace_rlvr.verifier.build_reward_function` but captures the
-full :class:`RichScore` per completion (reward, reasoning, credited rules,
-consistency) — everything the faithfulness harness needs to track monitorability
-over training steps.
+``score_batch_rich`` captures the full :class:`RichScore` per completion (reward,
+reasoning, credited rules, consistency) — everything the faithfulness harness
+needs to track monitorability over training steps.
 
 ``append_trajectory`` writes :func:`~ambertrace_rlvr.faithfulness.load_trajectory`
 -compatible JSONL lines (one per completion), so a training loop can stream its
@@ -12,6 +10,16 @@ trajectory to disk and the curve analysis just reads it back.
 
 Fail-closed: a parse failure resolves to a floor ``RichScore`` (floor reward,
 empty reasoning/credited_rules, zero consistency). Never raises into the caller.
+
+Extension points:
+
+* Supply a custom :class:`~ambertrace_rlvr.rewards.RewardShaper` for different
+  reward compositions.
+* The ``verifier`` parameter accepts any object satisfying the
+  :class:`~ambertrace_rlvr.evaluation.VerifierLike` protocol (including
+  :class:`~ambertrace_rlvr.testing.FakeVerifier` for offline dev).
+* Plug in a custom :class:`~ambertrace_rlvr.parsers.CompletionParser` for
+  domain-specific decision-block formats.
 """
 
 from __future__ import annotations
@@ -24,16 +32,34 @@ from pathlib import Path
 from typing import Any
 
 from .eval_oracle import OracleJudgment
+from .evaluation import VerifierLike
 from .parsers import CompletionParser, ParsedCompletion
 from .reports import AmberReport
-from .rewards import RewardShaper
+from .rewards import RewardShaper, reasoning_consistency
+from .verifier import score_one_item
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class RichScore:
-    """Per-completion score with the faithfulness-relevant fields."""
+    """Per-completion score with the faithfulness-relevant fields.
+
+    * ``reward`` — the shaped scalar reward (from the shaper's total).
+    * ``reasoning`` — the model's stated reasoning (from the parser).
+    * ``credited_rules`` — the rules the certificate credited for the decision
+      (from :class:`~ambertrace_rlvr.eval_oracle.OracleJudgment`).
+    * ``consistency`` — reasoning-vs-certified-trace precision metric
+      (from :func:`~ambertrace_rlvr.rewards.reasoning_consistency`):
+      fired-rule hits minus unfired-rule false claims, over the fired set.
+
+    Note: ``consistency`` is a **precision-side** metric (does the reasoning
+    accurately reflect the certified derivation?).  The trajectory's
+    ``faithfulness`` (computed by :func:`~ambertrace_rlvr.faithfulness.faithfulness`)
+    is the **recall-side** metric (what fraction of credited rules does the
+    reasoning cite?).  Both are persisted when
+    :func:`append_trajectory` writes a JSONL line.
+    """
 
     reward: float
     reasoning: str
@@ -42,58 +68,50 @@ class RichScore:
 
 
 def consistency_score(parsed: ParsedCompletion, report: AmberReport) -> float:
-    """Public, module-level consistency metric.
+    """Thin alias for :func:`~ambertrace_rlvr.rewards.reasoning_consistency`.
 
-    Mirrors :meth:`DefaultRewardShaper._consistency` — the rule-checked
-    agreement between the completion's stated reasoning and the certified
-    derivation.  Extracted here so callers outside the shaper can compute it
-    without reaching into a private method.
-
-    Fail-closed: zero on an uncertified report, no rules, no fired rules, or
-    no captured reasoning.
+    Kept for backward compatibility with code that imported from this module
+    before the canonical implementation was extracted into ``rewards.py``.
     """
-    import re
-
-    if not report.proof_checked or not report.rules:
-        return 0.0
-    reasoning = parsed.reasoning
-    if not reasoning:
-        return 0.0
-    fired = report.rules_fired
-    if not fired:
-        return 0.0
-    text = reasoning.lower()
-
-    def _names_rule(name: str, txt: str) -> bool:
-        needle = name.strip().lower()
-        if not needle:
-            return False
-        return re.search(rf"\b{re.escape(needle)}\b", txt) is not None
-
-    fired_named = sum(1 for r in fired if _names_rule(r.name, text))
-    unfired_named = sum(
-        1 for r in report.rules if not r.fired and _names_rule(r.name, text)
-    )
-    return max(0.0, min(1.0, (fired_named - unfired_named) / len(fired)))
+    return reasoning_consistency(parsed, report)
 
 
 def score_batch_rich(
     parser: CompletionParser,
     shaper: RewardShaper,
-    verifier: Any,
+    verifier: VerifierLike,
     prompts: Sequence[str],
     completions: Sequence[str],
     metadata: Sequence[dict[str, Any]] | None = None,
+    *,
+    floor: float = -1.0,
 ) -> list[RichScore]:
     """Score a batch of completions, returning rich per-completion data.
 
-    ``verifier`` must expose ``verify_batch(list[ParsedCompletion | None])
-    -> list[AmberReport | None]`` (works with :class:`testing.FakeVerifier`).
+    The parse -> verify -> shape loop delegates to
+    :func:`~ambertrace_rlvr.verifier.score_one_item`, the shared per-item
+    helper also used by :func:`build_reward_function`, so the two paths cannot
+    diverge.
 
-    The parse -> verify -> shape loop matches
-    :func:`~ambertrace_rlvr.verifier.build_reward_function` exactly; the only
-    difference is that we capture the full ``RichScore`` rather than just the
-    scalar reward.
+    Parameters
+    ----------
+    parser:
+        Extracts the decision payload from each completion.
+    shaper:
+        Turns (parsed, report) into a scalar reward.
+    verifier:
+        Any object satisfying ``VerifierLike`` (``verify_batch``).
+    prompts / completions:
+        Parallel sequences of prompt + completion strings.
+    metadata:
+        Optional per-completion metadata dicts (``gold``, ``criteria_gold``).
+    floor:
+        Reward floor for unparseable / unverifiable completions.
+
+    Returns
+    -------
+    list[RichScore]
+        One ``RichScore`` per completion, in order.
     """
     meta: list[dict[str, Any]] = (
         list(metadata) if metadata is not None else [{}] * len(completions)
@@ -106,23 +124,20 @@ def score_batch_rich(
     scores: list[RichScore] = []
     for pc, report, m in zip(parsed, reports, meta):
         if pc is None or report is None:
-            # Parse failure or verify returned None -> floor
-            scores.append(_floor_score(shaper))
+            scores.append(_floor_score(floor))
             continue
         try:
-            gold = m.get("gold") if isinstance(m, dict) else None
-            criteria_gold = m.get("criteria_gold") if isinstance(m, dict) else None
-            breakdown = shaper.score(pc, report, gold, criteria_gold=criteria_gold)
+            reward = score_one_item(shaper, pc, report, m, floor)
             judgment = OracleJudgment.from_report(report)
             scores.append(RichScore(
-                reward=breakdown.total,
+                reward=reward,
                 reasoning=pc.reasoning or "",
                 credited_rules=judgment.credited_rules,
-                consistency=consistency_score(pc, report),
+                consistency=reasoning_consistency(pc, report),
             ))
         except Exception:
             logger.exception("rich scoring failed; flooring")
-            scores.append(_floor_score(shaper))
+            scores.append(_floor_score(floor))
     return scores
 
 
@@ -133,8 +148,12 @@ def append_trajectory(
 ) -> None:
     """Append JSONL lines compatible with :func:`faithfulness.load_trajectory`.
 
-    Each line is ``{step, reasoning, reward, credited_rules}`` — one per
-    completion in ``scores``.
+    Each line is ``{step, reasoning, reward, credited_rules, consistency}`` --
+    one per completion in ``scores``.  ``consistency`` is persisted alongside
+    the recall-side ``faithfulness`` signal so both metrics are available during
+    analysis (``load_trajectory`` ignores unknown fields).
+
+    Round-trip: ``append_trajectory`` -> ``load_trajectory`` -> ``faithfulness_curve``.
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -145,15 +164,14 @@ def append_trajectory(
                 "reasoning": s.reasoning,
                 "reward": s.reward,
                 "credited_rules": list(s.credited_rules),
+                "consistency": s.consistency,
             })
             f.write(line + "\n")
 
 
-def _floor_score(shaper: RewardShaper) -> RichScore:
-    """A fail-closed floor score: the shaper's clip lower-bound (or -1.0),
-    empty reasoning/credited_rules, zero consistency."""
-    clip = getattr(shaper, "clip", (-1.0, 2.0))
-    floor = clip[0] if isinstance(clip, tuple) else -1.0
+def _floor_score(floor: float) -> RichScore:
+    """A fail-closed floor score: the explicit floor reward, empty
+    reasoning/credited_rules, zero consistency."""
     return RichScore(
         reward=floor,
         reasoning="",

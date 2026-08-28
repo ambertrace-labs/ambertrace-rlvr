@@ -110,6 +110,7 @@ def dry_run() -> None:
             verifier=fake,
             prompts=prompts,
             completions=completions,
+            floor=fake.floor,
         )
         append_trajectory(traj_path, step=step, scores=scores)
         rewards = [s.reward for s in scores]
@@ -205,6 +206,7 @@ def train(
             verifier=run.verifier,
             prompts=prompts,
             completions=completions,
+            floor=run.verifier.floor,
         )
         step = step_counter["n"]
         step_counter["n"] += 1

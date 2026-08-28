@@ -135,9 +135,11 @@ from .rewards import (
     RewardBreakdown,
     RewardShaper,
     SubstringProvenanceChecker,
+    names_rule,
+    reasoning_consistency,
 )
 from .testing import FakeVerifier
-from .verifier import AmberVerifier, RewardFunction, build_reward_function
+from .verifier import AmberVerifier, RewardFunction, build_reward_function, score_one_item
 
 __version__ = "0.1.1"
 
@@ -160,9 +162,12 @@ __all__ = [
     "DefaultRewardShaper",
     "FactProvenanceChecker",
     "SubstringProvenanceChecker",
+    "reasoning_consistency",
+    "names_rule",
     "AmberVerifier",
     "RewardFunction",
     "build_reward_function",
+    "score_one_item",
     "FakeVerifier",
     "build_system_prompt",
     "has_decision_block",

@@ -252,47 +252,9 @@ class DefaultRewardShaper:
         return _clip01(self.provenance.unsupported_fraction(parsed.facts, parsed.prompt))
 
     def _consistency(self, parsed: ParsedCompletion, report: AmberReport) -> float:
-        """Rule-checked reasoning consistency (opt-in, #12).
-
-        Compares the completion's stated reasoning against the *certified*
-        symbolic trace. Credit is granted only for naming the rules the kernel
-        certified as *fired* (the actual derivation): a fired-hit fraction over
-        the fired set. Naming a rule the kernel certified as *not* fired is a
-        false claim and is subtracted. The absence of a mention earns nothing —
-        so a right-answer / no-reasons completion that names nothing scores 0.0,
-        and only a trace that reflects the certified derivation (and does not
-        invent unfired rules) approaches 1.0.
-
-            score = clip01( (fired_named − unfired_named) / n_fired )
-
-        Real Amber traces evaluate many rules and fire few; crediting the mere
-        absence of unfired-rule mentions would reward silence on those sparse
-        sets, which is exactly the failure this component exists to catch.
-
-        Rule names are matched on word boundaries (as in
-        :class:`SubstringProvenanceChecker`) so a short/prefix name (``R1`` vs
-        ``R12``, ``PS3`` vs ``PS35``) does not spuriously collide.
-
-        Rule-checked (not model-graded) so it is offline-verifiable and adds no
-        network dependency to the reward path (see docs/spec §8 for the decision).
-
-        Fail-closed: zero on an uncertified report, a report with no rules, no
-        *fired* rules (no certified derivation to reflect), or a completion with
-        no captured reasoning — never an exception. Defaults to zero weight, so
-        the baseline shaper is unchanged."""
-        if not report.proof_checked or not report.rules:
-            return 0.0
-        reasoning = parsed.reasoning
-        if not reasoning:
-            return 0.0
-        fired = report.rules_fired
-        if not fired:  # no certified derivation to reflect
-            return 0.0
-        text = reasoning.lower()
-        fired_named = sum(1 for r in fired if _names_rule(r.name, text))
-        unfired_named = sum(1 for r in report.rules
-                            if not r.fired and _names_rule(r.name, text))
-        return _clip01((fired_named - unfired_named) / len(fired))
+        """Delegates to :func:`reasoning_consistency` — the single canonical
+        implementation (see its docstring for semantics)."""
+        return reasoning_consistency(parsed, report)
 
     def _rejected_fraction(self, report: AmberReport) -> float:
         summary = report.fact_summary
@@ -304,14 +266,56 @@ class DefaultRewardShaper:
         return 1.0 if rejected else 0.0
 
 
-def _names_rule(name: str, text: str) -> bool:
+def reasoning_consistency(parsed: ParsedCompletion, report: AmberReport) -> float:
+    """Rule-checked agreement between a completion's stated reasoning and the
+    certified derivation.
+
+    This is the **precision-side** reasoning metric: credit for naming fired
+    rules, penalty for naming unfired ones.
+
+        score = clip01( (fired_named - unfired_named) / n_fired )
+
+    Distinct from :func:`faithfulness.faithfulness` (the recall-side metric:
+    what fraction of credited rules does the reasoning cite).
+
+    Fail-closed: zero on an uncertified report, no rules, no fired rules, or
+    no captured reasoning -- never an exception.
+
+    Extension point: subclass or wrap to use a domain-specific name-matching
+    strategy (the default uses word-boundary regex via :func:`names_rule`).
+    """
+    if not report.proof_checked or not report.rules:
+        return 0.0
+    reasoning = parsed.reasoning
+    if not reasoning:
+        return 0.0
+    fired = report.rules_fired
+    if not fired:
+        return 0.0
+    text = reasoning.lower()
+    fired_named = sum(1 for r in fired if names_rule(r.name, text))
+    unfired_named = sum(1 for r in report.rules
+                        if not r.fired and names_rule(r.name, text))
+    return _clip01((fired_named - unfired_named) / len(fired))
+
+
+def names_rule(name: str, text: str) -> bool:
     """Whether ``text`` (already lower-cased) names the rule, matched on word
     boundaries so a short/prefix name does not collide with a longer one
-    (``R1`` must not match inside ``R12``)."""
+    (``R1`` must not match inside ``R12``).
+
+    Public so custom consistency / faithfulness checks can reuse the matching
+    strategy.
+    """
     needle = name.strip().lower()
     if not needle:
         return False
     return re.search(rf"\b{re.escape(needle)}\b", text) is not None
+
+
+def _names_rule(name: str, text: str) -> bool:
+    """Backward-compatible alias (private callers inside this module)."""
+    return names_rule(name, text)
 
 
 def _clip(x: float, bounds: tuple[float, float]) -> float:

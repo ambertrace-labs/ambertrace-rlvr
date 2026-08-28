@@ -16,7 +16,7 @@ from ambertrace_rlvr.faithfulness_scorer import (
     score_batch_rich,
 )
 from ambertrace_rlvr.parsers import JSONBlockParser, ParsedCompletion
-from ambertrace_rlvr.rewards import DefaultRewardShaper
+from ambertrace_rlvr.rewards import DefaultRewardShaper, reasoning_consistency
 from ambertrace_rlvr.testing import FakeVerifier, make_report
 
 
@@ -36,6 +36,8 @@ _COMPLETION_NO_CITE = (
 
 # A malformed completion (no decision block).
 _COMPLETION_BAD = "I think pathogenic but no block"
+
+_FLOOR = -1.0
 
 
 def _fake_with_rules() -> FakeVerifier:
@@ -59,6 +61,7 @@ def test_rich_score_with_rules():
         verifier=fake,
         prompts=["Classify variant."] * 2,
         completions=[_COMPLETION_PVS1, _COMPLETION_NO_CITE],
+        floor=_FLOOR,
     )
     assert len(scores) == 2
 
@@ -84,10 +87,11 @@ def test_parse_failure_floors():
         verifier=fake,
         prompts=["Classify variant."],
         completions=[_COMPLETION_BAD],
+        floor=_FLOOR,
     )
     assert len(scores) == 1
     s = scores[0]
-    assert s.reward == fake.shaper.clip[0]  # floor = clip lower bound
+    assert s.reward == _FLOOR
     assert s.reasoning == ""
     assert s.credited_rules == ()
     assert s.consistency == 0.0
@@ -102,6 +106,7 @@ def test_append_and_load_trajectory(tmp_path):
         verifier=fake,
         prompts=["Classify."] * 2,
         completions=[_COMPLETION_PVS1, _COMPLETION_NO_CITE],
+        floor=_FLOOR,
     )
     path = tmp_path / "traj.jsonl"
     append_trajectory(path, step=0, scores=scores)
@@ -118,6 +123,28 @@ def test_append_and_load_trajectory(tmp_path):
     assert curve[0].step == 0 and curve[1].step == 1
 
 
+# --- (c') consistency is persisted in JSONL lines
+def test_consistency_persisted_in_trajectory(tmp_path):
+    fake = _fake_with_rules()
+    scores = score_batch_rich(
+        parser=fake.parser,
+        shaper=fake.shaper,
+        verifier=fake,
+        prompts=["Classify."],
+        completions=[_COMPLETION_PVS1],
+        floor=_FLOOR,
+    )
+    path = tmp_path / "traj.jsonl"
+    append_trajectory(path, step=0, scores=scores)
+    raw = json.loads(path.read_text().strip())
+    assert "consistency" in raw
+    assert raw["consistency"] == scores[0].consistency
+
+    # load_trajectory still works (unknown fields are silently ignored).
+    traces = load_trajectory(path)
+    assert len(traces) == 1
+
+
 # --- (d) metadata pass-through (gold label)
 def test_metadata_gold_passthrough():
     fake = _fake_with_rules()
@@ -128,6 +155,7 @@ def test_metadata_gold_passthrough():
         prompts=["Classify."],
         completions=[_COMPLETION_PVS1],
         metadata=[{"gold": "pathogenic"}],
+        floor=_FLOOR,
     )
     scores_no_gold = score_batch_rich(
         parser=fake.parser,
@@ -136,14 +164,15 @@ def test_metadata_gold_passthrough():
         prompts=["Classify."],
         completions=[_COMPLETION_PVS1],
         metadata=[{}],
+        floor=_FLOOR,
     )
     # With the correct gold label, the correctness component scores 1.0 so
     # the total reward should be at least as high as without it.
     assert scores_with_gold[0].reward >= scores_no_gold[0].reward
 
 
-# --- consistency_score: public function
-def test_consistency_score_directly():
+# --- consistency_score delegates to reasoning_consistency
+def test_consistency_score_delegates():
     parsed = ParsedCompletion(
         query="q", facts={"a": 1}, proposed_answer="pathogenic",
         reasoning="PVS1 fired so pathogenic",
@@ -152,6 +181,8 @@ def test_consistency_score_directly():
         proof_checked=True, decision="pathogenic",
         rules=[("PVS1", True, False), ("BA1", False, False)],
     )
+    # consistency_score is a thin alias; should match reasoning_consistency.
+    assert consistency_score(parsed, report) == reasoning_consistency(parsed, report)
     c = consistency_score(parsed, report)
     assert c > 0.0  # PVS1 named and fired, BA1 not named
     assert c <= 1.0
