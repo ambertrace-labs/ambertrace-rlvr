@@ -114,7 +114,7 @@ def cas_table(rows: dict[str, dict]) -> str:
 
 
 def profile_table(rows: dict[str, dict], slice_key: str, cols, header: str) -> str:
-    out = [f"| model | " + " | ".join(str(c) for c in cols) + " |",
+    out = ["| model | " + " | ".join(str(c) for c in cols) + " |",
            "|---|" + "|".join(["---"] * len(cols)) + "|"]
     ranked = sorted(rows.items(), key=lambda kv: -(kv[1]["cas"]["value"] or -1))
     for key, r in ranked:

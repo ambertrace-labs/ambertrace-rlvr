@@ -28,7 +28,6 @@ import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 
 def cites(reasoning: str, rule: str) -> bool:
