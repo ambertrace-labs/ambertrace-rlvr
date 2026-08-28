@@ -416,9 +416,100 @@ Dataclass. Fields: `verifier: CurveTrend`, `judge: CurveTrend`, `diverge: bool`.
 `compare_monitorability(verifier_curve: Sequence[CurvePoint], judge_curve: Sequence[CurvePoint]) -> MonitorabilityComparison`
 
 #### `load_trajectory`
-*Read a saved trajectory (JSONL; one candidate per line).*
+*Read a saved trajectory (JSONL; one candidate per line). Unknown fields (e.g. `consistency`) are silently ignored; malformed lines are skipped with a summary warning.*
 
 `load_trajectory(path: str | Path) -> list[CandidateTrace]`
+
+### Rich scoring (faithfulness scorer)
+
+The rich scorer captures the full per-completion data needed by the
+faithfulness harness: reward, reasoning, credited rules, and consistency.
+It drives the `score_batch_rich` -> `append_trajectory` -> `load_trajectory`
+round-trip that records monitorability trajectories during training.
+
+#### `RichScore`
+*Per-completion score with faithfulness-relevant fields.*
+
+Dataclass (frozen). Fields:
+- `reward: float` -- the shaped scalar reward.
+- `reasoning: str` -- the model's stated reasoning (from the parser).
+- `credited_rules: tuple[str, ...]` -- the rules the certificate credited.
+- `consistency: float` -- reasoning-vs-certified-trace precision metric.
+
+#### `score_batch_rich`
+*Score a batch of completions, returning rich per-completion data.*
+
+```
+score_batch_rich(parser: CompletionParser, shaper: RewardShaper,
+                 verifier: VerifierLike, prompts: Sequence[str],
+                 completions: Sequence[str],
+                 metadata: Sequence[dict[str, Any]] | None = None, *,
+                 floor: float = -1.0) -> list[RichScore]
+```
+
+The parse -> verify -> shape loop delegates to `score_one_item` (the same
+per-item helper used by `build_reward_function`), so the two paths cannot
+diverge. `verifier` accepts any `VerifierLike` (including `FakeVerifier`).
+
+#### `append_trajectory`
+*Append JSONL lines compatible with `load_trajectory`.*
+
+`append_trajectory(path: str | Path, step: int, scores: Sequence[RichScore]) -> None`
+
+Each line is `{step, reasoning, reward, credited_rules, consistency}`.
+Round-trip: `score_batch_rich` -> `append_trajectory` -> `load_trajectory` ->
+`faithfulness_curve`.
+
+#### `consistency_score`
+*Thin alias for `reasoning_consistency` (backward-compatible import from `faithfulness_scorer`).*
+
+`consistency_score(parsed: ParsedCompletion, report: AmberReport) -> float`
+
+#### `reasoning_consistency`
+*Rule-checked agreement between a completion's stated reasoning and the certified derivation (the precision-side metric).*
+
+```
+reasoning_consistency(parsed: ParsedCompletion, report: AmberReport) -> float
+```
+
+`score = clip01( (fired_named - unfired_named) / n_fired )`
+
+Fail-closed: zero on an uncertified report, no rules, no fired rules, or
+no captured reasoning.
+
+#### `names_rule`
+*Whether lower-cased text names a rule, matched on word boundaries.*
+
+`names_rule(name: str, text: str) -> bool`
+
+Public so custom consistency / faithfulness checks can reuse the matching
+strategy.
+
+#### `score_one_item`
+*Shape one (parsed, report) pair into a scalar reward. The shared per-item step used by `build_reward_function` and `score_batch_rich`.*
+
+```
+score_one_item(shaper: RewardShaper, parsed: ParsedCompletion,
+               report: AmberReport, meta: dict[str, Any],
+               floor: float) -> float
+```
+
+Fail-closed: shaping errors resolve to `floor`, never an exception.
+
+### Which metric? -- disambiguation
+
+Three different "consistency" / "faithfulness" metrics exist in this library,
+measuring distinct things:
+
+| Metric | Module | Measures | Computed from |
+|---|---|---|---|
+| `evaluation.consistency` | `evaluation.py` | Cross-paraphrase agreement: do repeated / paraphrased prompts yield the same answer? | Groups of completions (no certificate needed) |
+| `reasoning_consistency` | `rewards.py` | Reasoning-vs-certified-trace **precision**: does the stated reasoning accurately reflect which rules fired? Penalises naming unfired rules. | `(ParsedCompletion, AmberReport)` |
+| `faithfulness` | `faithfulness.py` | Credited-rule **recall**: what fraction of the rules the certificate credited does the reasoning actually cite? | `(reasoning: str, credited_rules)` |
+
+`reasoning_consistency` and `faithfulness` are complementary -- one is
+precision-side, the other recall-side -- and both are persisted in trajectory
+JSONL lines by `append_trajectory`.
 
 ### Model backend
 
