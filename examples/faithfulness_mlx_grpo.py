@@ -10,7 +10,7 @@ Usage::
     python examples/faithfulness_mlx_grpo.py --dry-run
 
     # Real training (Apple Silicon, needs mlx-lm + mlx-lm-lora + AMBERTRACE_API_KEY).
-    python examples/faithfulness_mlx_grpo.py --config configs/acmg.yaml
+    python examples/faithfulness_mlx_grpo.py --config configs/air_track.yaml
 
 The ``--dry-run`` mode uses :class:`~ambertrace_rlvr.testing.FakeVerifier`
 and emits a small trajectory JSONL to ``outputs/`` so the full offline test
@@ -18,7 +18,7 @@ path is exercisable without any hardware or network dependency.
 
 <reasoning>-vs-<think> channel risk
 --------------------------------------
-The prompt contract (``configs/acmg.yaml``) forces the model's chain of thought
+The prompt contract (``configs/air_track.yaml``) forces the model's chain of thought
 into a ``<reasoning>`` block, which is what :class:`JSONBlockParser` captures
 as ``parsed.reasoning``.  ``allenai/OLMo-3-7B-Think-SFT`` natively uses a
 ``<think>`` tag for its internal reasoning; if the model ignores the prompt
@@ -54,17 +54,23 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = REPO / "configs" / "acmg.yaml"
-DEFAULT_TRAIN = REPO / "data" / "acmg_train.jsonl"
+DEFAULT_CONFIG = REPO / "configs" / "air_track.yaml"
+DEFAULT_TRAIN = REPO / "data" / "air_track_train.jsonl"
 OUTPUT_DIR = REPO / "outputs" / "faithfulness_mlx_grpo"
 
 # Well-formed sample completions for dry-run (one citing a rule, one not).
 _SAMPLE_GOOD = (
-    "<reasoning>PVS1 fired -- loss of function in a disease gene, so pathogenic.</reasoning>"
-    '<decision>{"classification": "pathogenic", '
-    '"facts": {"is_lof": true, "is_rare": true}}</decision>'
+    "<reasoning>The track is squawking emergency, so it is an emergency track. "
+    "By 'Classify Is Emergency' and 'Decide escalate when is_emergency', "
+    "we must escalate.</reasoning>"
+    '<decision>{"triage": "escalate", '
+    '"facts": {"sensor_source": "radar", "iff_mode": "emergency", '
+    '"squawk_emergency": true, "flight_plan_correlated": false, '
+    '"transponder_active": true, "in_restricted_zone": false, '
+    '"corridor_compliant": false, "altitude_ft": 12000, "speed_kts": 320, '
+    '"climb_rate_fpm": 0, "origin_known": false}}</decision>'
 )
-_SAMPLE_BAD = "I think it is pathogenic."
+_SAMPLE_BAD = "I think we should escalate."
 
 
 def _load_dotenv(path: Path = REPO / ".env") -> None:

@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Classify Is Emergency Track",
+    "rule_type": "derive"
+  },
+  {
+    "name": "Decide escalate when is_emergency_track",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Is Emergency Track Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Classify Is Unidentified",
+    "rule_type": "derive"
+  },
+  {
+    "name": "Classify Is Zone Breach",
+    "rule_type": "derive"
+  },
+  {
+    "name": "Classify Is Kinematically Implausible",
+    "rule_type": "derive"
+  },
+  {
+    "name": "Classify Sensor Source",
+    "rule_type": "derive"
+  },
+  {
+    "name": "Check Is Unidentified Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Is Zone Breach Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Is Emergency Track Equals Value (2)",
+    "rule_type": "require"
+  },
+  {
+    "name": "Check Is Unidentified Equals Value (4)",
+    "rule_type": "flag"
+  },
+  {
+    "name": "Check Is Emergency Track Not Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Is Kinematically Implausible Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Decide escalate when is_zone_breach",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Decide clear otherwise",
+    "rule_type": "inference"
+  },
+  {
+    "name": "Check Is Unidentified Equals Value (2)",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Is Unidentified Equals Value (3)",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Transponder Active Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Decide monitor when is_kinematically_implausible",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Escalate Unidentified Track",
+    "rule_type": "escalate"
+  }
+]
