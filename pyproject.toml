@@ -19,6 +19,8 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
 ]
 dependencies = [
     "ambertraceai>=1.0.17",
@@ -29,12 +31,13 @@ dependencies = [
 Homepage = "https://github.com/ambertrace-labs/ambertrace-rlvr"
 Repository = "https://github.com/ambertrace-labs/ambertrace-rlvr"
 Issues = "https://github.com/ambertrace-labs/ambertrace-rlvr/issues"
+Documentation = "https://github.com/ambertrace-labs/ambertrace-rlvr/tree/main/docs"
 "AmberTrace" = "https://ambertrace.ai"
 
 [project.optional-dependencies]
 trl = ["trl>=0.9", "transformers>=4.40", "torch>=2.1"]
 wandb = ["wandb>=0.16"]
-dev = ["pytest>=8.0", "pyright>=1.1"]
+dev = ["pytest>=8.0", "pyright>=1.1", "ruff>=0.5"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ambertrace_rlvr"]
@@ -42,6 +45,15 @@ packages = ["src/ambertrace_rlvr"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+# E701/E702: compact single-line statements are idiomatic in examples/benchmarks
+per-file-ignores = { "examples/*.py" = ["E401", "E402", "E501", "E701", "E702"], "benchmarks/*.py" = ["E501", "E701", "E702"] }
 
 [tool.pyright]
 include = ["src", "tests"]

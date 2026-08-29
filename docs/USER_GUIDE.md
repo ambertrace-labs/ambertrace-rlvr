@@ -148,8 +148,20 @@ It's skipped by default so the offline suite stays deterministic and CI-safe.
 
 ---
 
+## RLOO training
+
+In addition to GRPO, the library ships an **RLOO** (REINFORCE Leave-One-Out) trainer builder. RLOO uses a leave-one-out baseline instead of a group mean, which can improve sample efficiency on some domains. Usage is the same as GRPO — set `framework: trl_rloo` in your config or call `build_rloo_trainer` directly:
+
+```bash
+python examples/grant_eligibility_rloo.py            # real RLOO run
+python examples/grant_eligibility_rloo.py --dry-run  # offline reward-wiring check
+```
+
+See [`examples/grant_eligibility_rloo.py`](../examples/grant_eligibility_rloo.py) for the full script.
+
 ## Where to go next
 
 - Swap the domain: point `configs/*.yaml` at your own platform and parser — no code changes.
 - Tune the reward: adjust component weights, or subclass `RewardShaper` for per-criterion graded credit.
-- Scale up: veRL / OpenRLHF adapters are on the [roadmap](../ROADMAP.md).
+- Try RLOO: switch `framework` to `trl_rloo` in your config for leave-one-out baselines.
+- Scale up: veRL and OpenRLHF adapters are available — see `integrations/`.

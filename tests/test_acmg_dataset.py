@@ -71,7 +71,6 @@ def test_shipped_files_match_generator_output():
 def test_gold_labels_are_consistent_with_the_rule():
     """Each shipped record's gold must equal the rule applied to its combo (no stray
     or hand-edited labels)."""
-    gen = _load_generator()
     for path in (TRAIN, EVAL):
         for rec in _records(path):
             assert rec["gold"] in {"pathogenic", "benign", "uncertain"}

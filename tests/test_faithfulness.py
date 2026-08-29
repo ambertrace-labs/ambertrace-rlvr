@@ -57,7 +57,6 @@ def _rising_reward_curve(faith_by_step):
     # reward rises with step; faithfulness follows the given schedule.
     traces = []
     for step, faith in enumerate(faith_by_step):
-        reasoning = "PVS1" if faith >= 1.0 else ("PVS1" if faith >= 0.5 else "none")
         # encode faithfulness exactly via credited-rule recall:
         if faith == 1.0:
             traces.append(_trace(step, "cite PVS1", float(step), ["PVS1"]))
@@ -103,7 +102,7 @@ def test_load_trajectory_jsonl(tmp_path):
         "not json — should be skipped",
         {"reasoning": "no step field"},  # skipped (no step)
     ]
-    path.write_text("\n".join(l if isinstance(l, str) else json.dumps(l) for l in lines))
+    path.write_text("\n".join(item if isinstance(item, str) else json.dumps(item) for item in lines))
     traces = load_trajectory(path)
     assert len(traces) == 2
     assert traces[0].faithfulness == 1.0 and traces[1].faithfulness == 0.0
