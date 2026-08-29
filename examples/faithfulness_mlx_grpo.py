@@ -200,7 +200,10 @@ def train(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     if traj_path.exists():
         traj_path.unlink()
-    step_counter = {"n": 0}
+    # The trainer may invoke the reward callable more than once per optimizer
+    # step (e.g. for logging); dedupe by completion-batch content so each
+    # rollout group is recorded exactly once and step numbers match iterations.
+    step_counter = {"n": 0, "last_batch": ""}
 
     # --- Build the reward callable matching mlx_lm_lora's RewardFunctions ---
     def ambertrace_reward(
@@ -220,9 +223,11 @@ def train(
             completions=completions,
             floor=run.verifier.floor,
         )
-        step = step_counter["n"]
-        step_counter["n"] += 1
-        append_trajectory(traj_path, step=step, scores=scores)
+        batch_key = "\x00".join(completions)
+        if batch_key != step_counter["last_batch"]:
+            step_counter["last_batch"] = batch_key
+            append_trajectory(traj_path, step=step_counter["n"], scores=scores)
+            step_counter["n"] += 1
         return [s.reward for s in scores]
 
     # Give it a __name__ for mlx_lm_lora's metric logging.
