@@ -159,7 +159,7 @@ def train(
     import mlx.core as mx  # noqa: F811
     import mlx.nn as nn
     from mlx_lm import load as mlx_load
-    from mlx_lm.tuner.utils import apply_lora_layers
+    from mlx_lm.tuner.utils import linear_to_lora_layers
     from mlx_lm_lora.trainer.grpo_trainer import (
         GRPOTrainingArgs,
         iterate_grpo_batches,
@@ -178,7 +178,13 @@ def train(
     # --- Load model + frozen reference ---
     print(f"Loading model: {model_name}")
     model, tokenizer = mlx_load(model_name)
-    apply_lora_layers(model, lora_rank)
+    model.freeze()
+    linear_to_lora_layers(
+        model,
+        num_layers=16,
+        config={"rank": lora_rank, "scale": 20.0, "dropout": 0.0,
+                "keys": ["self_attn.q_proj", "self_attn.v_proj"]},
+    )
     model.train()
 
     # Frozen reference (same architecture, same initial weights, no LoRA grad).
@@ -223,7 +229,9 @@ def train(
     ambertrace_reward.__name__ = "ambertrace_reward"  # type: ignore[attr-defined]
 
     # --- Optimizer ---
-    optimizer = mx.optimizers.Adam(learning_rate=learning_rate)
+    import mlx.optimizers as optim
+
+    optimizer = optim.Adam(learning_rate=learning_rate)
 
     # --- Training args ---
     args = GRPOTrainingArgs(
