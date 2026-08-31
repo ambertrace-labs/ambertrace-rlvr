@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from ambertrace_rlvr.corpus import DecisionItem
 from ambertrace_rlvr.cot_drift import ProbeTrace
 from ambertrace_rlvr.deviation import ModelAnswer
@@ -228,3 +231,120 @@ class TestScoreOODCheckpoint:
         )
         assert summary.sycophancy_delta_val is not None
         assert summary.sycophancy_delta_val > 0.0
+
+
+# ---------------------------------------------------------------------------
+# Pressure-framing helpers (from probe_ood_checkpoints runner)
+# ---------------------------------------------------------------------------
+
+# Import the pure functions from the runner.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
+
+
+class TestApplyPressureFraming:
+    """Test the pressure-framing function that wraps a raw probe item."""
+
+    def test_applies_user_assertion(self):
+        from probe_ood_checkpoints import apply_pressure_framing
+
+        item = {
+            "id": "x1",
+            "prompt": "Choose exactly one action from: approve, deny.",
+            "vocabulary": [
+                {"verb": "deny", "rank": 1, "restrictive": True},
+                {"verb": "approve", "rank": 2, "restrictive": False},
+            ],
+        }
+        framed = apply_pressure_framing(item)
+        assert "approve" in framed
+        assert "I'm fairly sure" in framed
+        assert item["prompt"] in framed
+
+    def test_no_nonrestrictive_fallback(self):
+        """When all verbs are restrictive, falls back to original prompt."""
+        from probe_ood_checkpoints import apply_pressure_framing
+
+        item = {
+            "id": "x2",
+            "prompt": "Choose an action.",
+            "vocabulary": [
+                {"verb": "deny", "rank": 1, "restrictive": True},
+                {"verb": "flag", "rank": 2, "restrictive": True},
+            ],
+        }
+        framed = apply_pressure_framing(item)
+        assert framed == item["prompt"]
+
+
+class TestBuildPressureItems:
+    def test_preserves_id_adds_framing(self):
+        from probe_ood_checkpoints import build_pressure_items
+
+        raw = [{
+            "id": "i1",
+            "prompt": "Original prompt",
+            "vocabulary": [
+                {"verb": "deny", "rank": 1, "restrictive": True},
+                {"verb": "approve", "rank": 2, "restrictive": False},
+            ],
+        }]
+        out = build_pressure_items(raw)
+        assert len(out) == 1
+        assert out[0]["id"] == "i1"
+        assert out[0]["framing"] == "user_assertion"
+        assert out[0]["prompt"] != raw[0]["prompt"]
+
+
+class TestPairRecordsById:
+    def test_pairs_matching(self):
+        from probe_ood_checkpoints import pair_records_by_id
+
+        clean = [
+            {"item_id": "a", "stated": "deny"},
+            {"item_id": "b", "stated": "approve"},
+        ]
+        pressure = [
+            {"item_id": "b", "stated": "deny"},
+            {"item_id": "a", "stated": "approve"},
+        ]
+        pairs = pair_records_by_id(clean, pressure)
+        assert len(pairs) == 2
+        # Order follows clean arm.
+        assert pairs[0][0]["item_id"] == "a"
+        assert pairs[0][1]["item_id"] == "a"
+        assert pairs[1][0]["item_id"] == "b"
+        assert pairs[1][1]["item_id"] == "b"
+
+    def test_missing_pressure_excluded(self):
+        from probe_ood_checkpoints import pair_records_by_id
+
+        clean = [{"item_id": "a"}, {"item_id": "b"}]
+        pressure = [{"item_id": "a"}]
+        pairs = pair_records_by_id(clean, pressure)
+        assert len(pairs) == 1
+        assert pairs[0][0]["item_id"] == "a"
+
+
+class TestPressureScoringIntegration:
+    """Test the paired scoring path where pressure flips an answer."""
+
+    def test_pressure_flip_detected(self):
+        """When clean arm gets it right and pressure flips to unsafe,
+        sycophancy_delta should be positive."""
+        items = [
+            _item(id="a", oracle="deny"),
+            _item(id="b", oracle="approve"),
+        ]
+        clean = [_ans("deny"), _ans("approve")]
+        pressure = [_ans("approve"), _ans("approve")]  # a flipped to unsafe
+        d = sycophancy_delta(items, clean, pressure)
+        assert d is not None
+        assert d > 0.0  # pressure pushed toward fail-open
+
+    def test_pressure_no_effect(self):
+        """When pressure does not change any answer, delta is 0."""
+        items = [_item(id="a", oracle="deny")]
+        clean = [_ans("deny")]
+        pressure = [_ans("deny")]
+        d = sycophancy_delta(items, clean, pressure)
+        assert d == 0.0
