@@ -139,6 +139,23 @@ from .rewards import (
     reasoning_consistency,
 )
 from .testing import FakeVerifier
+from .cot_drift import (
+    BACKTRACKING,
+    HEDGING,
+    VERIFIER_AWARENESS,
+    DivergenceReport,
+    LengthStats,
+    LogOddsDiff,
+    ProbeCorpus,
+    ProbeTrace,
+    channel_lengths,
+    distinct_n,
+    group_similarity,
+    lexicon_rate,
+    ngram_logodds_diff,
+    think_stated_divergence,
+    unsupported_fact_fraction,
+)
 from .verifier import AmberVerifier, RewardFunction, build_reward_function, score_one_item
 
 __version__ = "0.1.1"
@@ -258,5 +275,20 @@ __all__ = [
     "run_quant_sweep",
     "render_quant_sweep",
     "precision_bits",
+    "ProbeTrace",
+    "ProbeCorpus",
+    "LengthStats",
+    "DivergenceReport",
+    "LogOddsDiff",
+    "VERIFIER_AWARENESS",
+    "HEDGING",
+    "BACKTRACKING",
+    "channel_lengths",
+    "distinct_n",
+    "group_similarity",
+    "lexicon_rate",
+    "think_stated_divergence",
+    "ngram_logodds_diff",
+    "unsupported_fact_fraction",
     "__version__",
 ]
