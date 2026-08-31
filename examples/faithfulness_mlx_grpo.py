@@ -251,7 +251,9 @@ def train(
         max_completion_length=max_completion_length,
         adapter_file=str(OUTPUT_DIR / "adapters.safetensors"),
         steps_per_report=1,
-        steps_per_save=max_iters,  # save only at end
+        steps_per_save=10,  # checkpoint periodically; memory kills lose <=10 iters
+        grad_checkpoint=True,  # trade compute for the gradient-step memory peak
+        max_seq_length=max_completion_length + 2048,  # prompt + completion
     )
 
     print(f"Training {model_name} for {max_iters} iters "
