@@ -21,3 +21,10 @@ you can regenerate from this repo.
   precision; the net safety direction is precision-insensitive (signed-bias R²=0.01)
   while accuracy declines mildly; at 2-bit the failures redistribute rather than grow.
   Method notes in [`../QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md).
+
+- **[Faithfulness of Stated Reasoning Under Verifiable-Reward RL](faithfulness-under-rlvr.md).**
+  Does RL against a proof-certified reward erode the faithfulness of a model's chain
+  of thought? OLMo-3-7B-Think-SFT trained on air-track triage with the consistency
+  weight at zero (measured, never optimised). Pilot: no faithfulness erosion; mild
+  positive drift on held-out probes; OOD arm shows a drift toward over-caution in
+  untrained domains. Main run in progress. Living draft.

@@ -202,9 +202,11 @@ Everything here is offline/network-free to test. To run it over real open-weight
 
 > **Research.** For the why and the results, see [`docs/research/`](docs/research/):
 > [*Verifiable Rewards Beyond Maths and Code*](docs/research/why-verifiable-rewards.md)
-> (objectives + the case for a checkable reward) and
+> (objectives + the case for a checkable reward),
 > [*Measuring Misalignment as Deviation From the Provable*](docs/research/alignment-matrix.md)
-> (the open-weight alignment matrix).
+> (the open-weight alignment matrix), and
+> [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
+> (does the reward erode chain-of-thought faithfulness? living draft, pilot results in).
 
 ## Repository layout
 
