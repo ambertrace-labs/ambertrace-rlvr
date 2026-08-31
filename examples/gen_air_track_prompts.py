@@ -62,28 +62,36 @@ INT_FIELDS = {"altitude_ft", "speed_kts", "climb_rate_fpm"}
 CITATION_RULE_PREFIXES = ("Classify", "Decide", "Escalate", "Monitor", "Clear")
 
 
-def _load_rules_manifest() -> list[str]:
-    """Load rule names from the manifest, filtering to meaningful policy rules."""
+def _load_rules_manifest() -> list[tuple[str, str]]:
+    """Load (name, description) pairs from the manifest, filtered to policy rules.
+
+    Descriptions are load-bearing: rule names are auto-generated and can read
+    misleadingly (e.g. ``Decide monitor when is_identified`` whose condition is
+    ``NOT is_identified``). Quoting a bare name teaches the model the wrong
+    policy, so the citation contract always pairs name with description."""
     if not RULES_MANIFEST.exists():
         raise SystemExit(
             f"rules manifest not found: {RULES_MANIFEST}\n"
             "run first: python examples/author_air_track_platform.py"
         )
     raw = json.loads(RULES_MANIFEST.read_text())
-    names = []
+    pairs = []
     for entry in raw:
         name = entry.get("name", "")
         if any(name.startswith(p) for p in CITATION_RULE_PREFIXES):
-            names.append(name)
-    if not names:
-        # Fall back to all rule names if no prefix match (safety).
-        names = [e["name"] for e in raw if e.get("name")]
-    return names
+            pairs.append((name, entry.get("description", "")))
+    if not pairs:
+        # Fall back to all rules if no prefix match (safety).
+        pairs = [(e["name"], e.get("description", "")) for e in raw if e.get("name")]
+    return pairs
 
 
-def build_system_prompt(rule_names: list[str]) -> str:
+def build_system_prompt(rule_pairs: list[tuple[str, str]]) -> str:
     """Build the full system prompt with schema, policy, and citation contract."""
-    rules_list = "\n".join(f"  - {name}" for name in rule_names)
+    rules_list = "\n".join(
+        f"  - '{name}' — {desc}" if desc else f"  - '{name}'"
+        for name, desc in rule_pairs
+    )
     return f"""\
 You are an air-track triage decision support system. Your task is to triage \
 each track as "clear", "monitor", or "escalate" based on the track's sensor \
@@ -277,9 +285,9 @@ def _write_jsonl(path: Path, records: list[dict]) -> None:
 
 def main() -> None:
     DATA.mkdir(exist_ok=True)
-    rule_names = _load_rules_manifest()
-    print(f"loaded {len(rule_names)} policy rules from manifest")
-    system = build_system_prompt(rule_names)
+    rule_pairs = _load_rules_manifest()
+    print(f"loaded {len(rule_pairs)} policy rules from manifest")
+    system = build_system_prompt(rule_pairs)
 
     train_records = _generate_from_csv(TRAIN_CSV, system, has_gold=False, seed=42)
     eval_records = _generate_from_csv(HOLDOUT_CSV, system, has_gold=True, seed=99)

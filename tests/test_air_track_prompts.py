@@ -21,17 +21,19 @@ from gen_air_track_prompts import (  # noqa: E402
 
 from ambertrace_rlvr.parsers import JSONBlockParser  # noqa: E402
 
-# A fixture rules manifest (the real one is written by the author script).
+# A fixture rules manifest of (name, description) pairs (the real one is
+# written by the author script; descriptions are load-bearing because rule
+# names are auto-generated and can read misleadingly).
 FIXTURE_RULES = [
-    "Classify Is Emergency",
-    "Classify Is Identified",
-    "Classify Is Zone Breach",
-    "Classify Is Kinematically Implausible",
-    "Decide escalate when is_emergency",
-    "Decide escalate when is_zone_breach",
-    "Escalate Unidentified Track",
-    "Monitor Kinematically Implausible",
-    "Decide clear otherwise",
+    ("Classify Is Emergency", "Emergency squawk set or IFF mode emergency."),
+    ("Classify Is Identified", "Flight-plan correlated and IFF mode3_valid."),
+    ("Classify Is Zone Breach", "In restricted zone and not corridor-compliant."),
+    ("Classify Is Kinematically Implausible", "Fast-low or extreme climb rate."),
+    ("Decide escalate when is_emergency", "Escalate any emergency track."),
+    ("Decide escalate when is_zone_breach", "Escalate any zone breach."),
+    ("Escalate Unidentified Track", "Escalate unidentified with bad IFF."),
+    ("Monitor Kinematically Implausible", ""),
+    ("Decide clear otherwise", "Clear when no trigger applies."),
 ]
 
 
@@ -60,8 +62,10 @@ def test_system_prompt_has_decision_block_instruction():
 # --- (c) rule names from fixture manifest appear in system prompt
 def test_system_prompt_has_rule_names():
     system = _system()
-    for rule in FIXTURE_RULES:
-        assert rule in system, f"rule {rule!r} missing from system prompt"
+    for name, desc in FIXTURE_RULES:
+        assert name in system, f"rule {name!r} missing from system prompt"
+        if desc:
+            assert desc in system, f"description for {name!r} missing"
 
 
 # --- JSONL round-trip

@@ -1,107 +1,133 @@
 [
   {
     "name": "Classify Is Identified",
-    "rule_type": "derive"
+    "rule_type": "derive",
+    "description": "Flags a track as identified when it correlates to a flight plan and its IFF mode is mode3_valid."
   },
   {
     "name": "Classify Is Zone Breach",
-    "rule_type": "derive"
+    "rule_type": "derive",
+    "description": "Flags a track as a zone breach if it is inside a restricted operating zone and not corridor-compliant."
   },
   {
     "name": "Classify Is Kinematically Implausible",
-    "rule_type": "derive"
+    "rule_type": "derive",
+    "description": "Flags a track as kinematically implausible when its speed is at least 600 knots and altitude at most 2000 feet, or its climb rate is at least 8000 feet per minute."
   },
   {
     "name": "Classify Is Emergency",
-    "rule_type": "derive"
+    "rule_type": "derive",
+    "description": "Flags a track as an emergency if its emergency-squawk flag is set or its IFF mode is 'emergency'."
   },
   {
     "name": "Classify Sensor Source",
-    "rule_type": "derive"
+    "rule_type": "derive",
+    "description": "Classify records where sensor_source is ads_b"
   },
   {
     "name": "Check Is Emergency Equals Value",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Enforces that any emergency track must be escalated to an operator."
   },
   {
     "name": "Check Is Emergency Not Equals Value",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Ensures that if a track is neither emergency, zone-breach, nor identified, it is monitored by default."
   },
   {
     "name": "Check Is Kinematically Implausible Equals Value",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Ensures that any kinematically implausible track is monitored."
   },
   {
     "name": "Check Is Zone Breach Equals Value",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Enforces that any zone breach track must be escalated."
   },
   {
     "name": "Decide escalate when is_emergency",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when is_emergency eq True (synthesized from the policy's decision list)."
   },
   {
     "name": "Validate Altitude Ft",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'altitude_ft' field is within a reasonable range for an aircraft."
   },
   {
     "name": "Validate Climb Rate Fpm",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'climb_rate_fpm' field is within a reasonable range for an aircraft."
   },
   {
     "name": "Validate Corridor Compliant",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'corridor_compliant' field contains a valid boolean-like value (0 or 1)."
   },
   {
     "name": "Validate Flight Plan Correlated",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'flight_plan_correlated' field contains a valid boolean-like value (0 or 1)."
   },
   {
     "name": "Validate Origin Known",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'origin_known' field contains a valid boolean-like value (0 or 1)."
   },
   {
     "name": "Validate Sensor Source",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'sensor_source' field contains a valid categorical value."
   },
   {
     "name": "Validate Speed Kts",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'speed_kts' field is within a reasonable range for an aircraft."
   },
   {
     "name": "Validate Transponder Active",
-    "rule_type": "validation"
+    "rule_type": "validation",
+    "description": "Validates that the 'transponder_active' field contains a valid boolean-like value (0 or 1)."
   },
   {
     "name": "Decide escalate when is_zone_breach",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when is_zone_breach eq True (synthesized from the policy's decision list)."
   },
   {
     "name": "Check Iff Mode In Set",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when all of [iff_mode] hold (synthesized from the policy's decision list)."
   },
   {
     "name": "Check Is Identified Equals Value",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Reach the 'monitor' decision when all of [is_identified, iff_mode] hold (synthesized from the policy's decision list)."
   },
   {
     "name": "Flag Is Emergency Equals Value",
-    "rule_type": "inference"
+    "rule_type": "inference",
+    "description": "Reach the 'clear' decision on the records no stated trigger selects (synthesized as the complement of the policy's decision list)."
   },
   {
     "name": "Check Transponder Active Equals Value",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Check when transponder_active is false/no"
   },
   {
     "name": "Decide monitor when is_kinematically_implausible",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Reach the 'monitor' decision when is_kinematically_implausible eq True (synthesized from the policy's decision list)."
   },
   {
     "name": "Decide monitor when is_identified",
-    "rule_type": "constraint"
+    "rule_type": "constraint",
+    "description": "Reach the 'monitor' decision when is_identified eq False (synthesized from the policy's decision list)."
   },
   {
     "name": "Decide clear otherwise",
-    "rule_type": "inference"
+    "rule_type": "inference",
+    "description": "Reach the 'clear' decision on the records no stated trigger selects (synthesized as the complement of the policy's decision list)."
   },
   {
     "name": "Triage Emergency",

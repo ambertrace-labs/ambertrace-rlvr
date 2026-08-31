@@ -112,38 +112,25 @@ def _find_by_name(items: list, name: str):
 
 
 def _write_rules_manifest(api, platform_id: int) -> None:
-    """Fetch the platform's rule inventory and write the rules manifest."""
-    # The platform detail includes the domain; from the domain we get rules.
-    platform = api.platforms.get(platform_id)
-    domain_id = platform.get("domain_id") or platform.get("domain", {}).get("id")
-    if domain_id is None:
-        raise RuntimeError("cannot determine domain_id from platform detail")
+    """Fetch the platform's rule inventory and write the rules manifest.
 
-    domain = api.domains.get(domain_id)
-    rules_raw = domain.get("rules") or []
-    # Fallback: query the platform with a showcase track and read rules from the
-    # explanation symbolic trace.
-    if not rules_raw:
-        print("  (no rules on domain; extracting from a showcase query)")
-        _, _, facts = SHOWCASE_TRACKS[0]
-        res = api.platforms.query(platform_id, query="Triage this track.",
-                                 facts=facts, explain=True)
-        expl = (res.get("explanation") or {})
-        trace = expl.get("symbolic_trace") or {}
-        rules_raw = trace.get("rules") or []
+    Uses ``platforms.list_rules`` — the query-independent rule inventory. The
+    ``description`` is carried through because rule *names* are auto-generated
+    and can read misleadingly (e.g. a rule named ``Decide monitor when
+    is_identified`` whose condition is ``NOT is_identified``); any prompt that
+    quotes rule names to a model must pair them with their descriptions."""
+    rules_raw = api.platforms.list_rules(platform_id)
 
     manifest = []
     for r in rules_raw:
-        name = r.get("rule_name") or r.get("name")
+        name = r.get("name")
         if not name:
             continue
         entry: dict = {"name": str(name)}
         if r.get("rule_type"):
             entry["rule_type"] = str(r["rule_type"])
-        if "fired" in r:
-            entry["fired"] = bool(r["fired"])
-        if "required" in r:
-            entry["required"] = bool(r["required"])
+        if r.get("description"):
+            entry["description"] = str(r["description"])
         manifest.append(entry)
 
     # Deduplicate by name (multiple queries may repeat rules).
