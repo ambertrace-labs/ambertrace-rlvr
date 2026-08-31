@@ -1,18 +1,6 @@
 [
   {
-    "name": "Classify Is Emergency Track",
-    "rule_type": "derive"
-  },
-  {
-    "name": "Decide escalate when is_emergency_track",
-    "rule_type": "constraint"
-  },
-  {
-    "name": "Check Is Emergency Track Equals Value",
-    "rule_type": "constraint"
-  },
-  {
-    "name": "Classify Is Unidentified",
+    "name": "Classify Is Identified",
     "rule_type": "derive"
   },
   {
@@ -24,27 +12,19 @@
     "rule_type": "derive"
   },
   {
+    "name": "Classify Is Emergency",
+    "rule_type": "derive"
+  },
+  {
     "name": "Classify Sensor Source",
     "rule_type": "derive"
   },
   {
-    "name": "Check Is Unidentified Equals Value",
+    "name": "Check Is Emergency Equals Value",
     "rule_type": "constraint"
   },
   {
-    "name": "Check Is Zone Breach Equals Value",
-    "rule_type": "constraint"
-  },
-  {
-    "name": "Check Is Emergency Track Equals Value (2)",
-    "rule_type": "require"
-  },
-  {
-    "name": "Check Is Unidentified Equals Value (4)",
-    "rule_type": "flag"
-  },
-  {
-    "name": "Check Is Emergency Track Not Equals Value",
+    "name": "Check Is Emergency Not Equals Value",
     "rule_type": "constraint"
   },
   {
@@ -52,20 +32,60 @@
     "rule_type": "constraint"
   },
   {
+    "name": "Check Is Zone Breach Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Decide escalate when is_emergency",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Validate Altitude Ft",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Climb Rate Fpm",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Corridor Compliant",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Flight Plan Correlated",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Origin Known",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Sensor Source",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Speed Kts",
+    "rule_type": "validation"
+  },
+  {
+    "name": "Validate Transponder Active",
+    "rule_type": "validation"
+  },
+  {
     "name": "Decide escalate when is_zone_breach",
     "rule_type": "constraint"
   },
   {
-    "name": "Decide clear otherwise",
+    "name": "Check Iff Mode In Set",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Check Is Identified Equals Value",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Flag Is Emergency Equals Value",
     "rule_type": "inference"
-  },
-  {
-    "name": "Check Is Unidentified Equals Value (2)",
-    "rule_type": "constraint"
-  },
-  {
-    "name": "Check Is Unidentified Equals Value (3)",
-    "rule_type": "constraint"
   },
   {
     "name": "Check Transponder Active Equals Value",
@@ -76,7 +96,15 @@
     "rule_type": "constraint"
   },
   {
-    "name": "Escalate Unidentified Track",
-    "rule_type": "escalate"
+    "name": "Decide monitor when is_identified",
+    "rule_type": "constraint"
+  },
+  {
+    "name": "Decide clear otherwise",
+    "rule_type": "inference"
+  },
+  {
+    "name": "Triage Emergency",
+    "rule_type": "constraint"
   }
 ]
