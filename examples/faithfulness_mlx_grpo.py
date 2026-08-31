@@ -145,6 +145,9 @@ def train(
     config_path: Path = DEFAULT_CONFIG,
     model_name: str = "allenai/OLMo-3-7B-Think-SFT",
     ref_model_name: str | None = None,
+    resume_adapter: Path | None = None,
+    output_dir: Path = OUTPUT_DIR,
+    step_offset: int = 0,
     max_iters: int = 20,
     group_size: int = 4,
     batch_size: int = 2,
@@ -196,18 +199,26 @@ def train(
     ref_model.eval()
     mx.eval(ref_model.parameters())
 
+    # --- Resume: load previous segment's adapter weights into the LoRA model ---
+    if resume_adapter is not None:
+        print(f"Resuming from adapter: {resume_adapter} (step offset {step_offset})")
+        model.load_weights(str(resume_adapter), strict=False)
+
     # --- Load dataset ---
     dataset = _load_mlx_dataset(DEFAULT_TRAIN, tokenizer)
 
     # --- Trajectory state ---
-    traj_path = OUTPUT_DIR / "trajectory.jsonl"
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    if traj_path.exists():
+    # Each run segment writes to its own output_dir; ``step_offset`` keeps the
+    # trajectory's step numbering continuous across stop/resume segments so the
+    # faithfulness curves concatenate cleanly.
+    traj_path = output_dir / "trajectory.jsonl"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if traj_path.exists() and resume_adapter is None and step_offset == 0:
         traj_path.unlink()
     # The trainer may invoke the reward callable more than once per optimizer
     # step (e.g. for logging); dedupe by completion-batch content so each
     # rollout group is recorded exactly once and step numbers match iterations.
-    step_counter = {"n": 0, "last_batch": ""}
+    step_counter = {"n": step_offset, "last_batch": ""}
 
     # --- Build the reward callable matching mlx_lm_lora's RewardFunctions ---
     def ambertrace_reward(
@@ -249,7 +260,7 @@ def train(
         group_size=group_size,
         beta=beta,
         max_completion_length=max_completion_length,
-        adapter_file=str(OUTPUT_DIR / "adapters.safetensors"),
+        adapter_file=str(output_dir / "adapters.safetensors"),
         steps_per_report=1,
         steps_per_save=10,  # checkpoint periodically; memory kills lose <=10 iters
         grad_checkpoint=True,  # trade compute for the gradient-step memory peak
@@ -272,7 +283,7 @@ def train(
     )
 
     print(f"\nTraining complete.  Trajectory at {traj_path}")
-    print(f"Adapter weights at {OUTPUT_DIR / 'adapters.safetensors'}")
+    print(f"Adapter weights at {output_dir / 'adapters.safetensors'}")
 
 
 def _load_mlx_dataset(
@@ -313,6 +324,12 @@ def main() -> None:
     ap.add_argument("--model", type=str, default="allenai/OLMo-3-7B-Think-SFT")
     ap.add_argument("--ref-model", type=str, default=None,
                     help="frozen KL-reference model (e.g. a quantized copy); defaults to --model")
+    ap.add_argument("--resume-adapter", type=Path, default=None,
+                    help="adapter .safetensors from a previous segment to resume from")
+    ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR,
+                    help="segment output dir (trajectory + adapters)")
+    ap.add_argument("--step-offset", type=int, default=0,
+                    help="trajectory step offset (last step of the previous segment)")
     ap.add_argument("--max-iters", type=int, default=20)
     ap.add_argument("--group-size", type=int, default=4)
     ap.add_argument("--batch-size", type=int, default=2)
@@ -330,6 +347,9 @@ def main() -> None:
             config_path=args.config,
             model_name=args.model,
             ref_model_name=args.ref_model,
+            resume_adapter=args.resume_adapter,
+            output_dir=args.output_dir,
+            step_offset=args.step_offset,
             max_iters=args.max_iters,
             group_size=args.group_size,
             batch_size=args.batch_size,
