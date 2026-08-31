@@ -139,6 +139,16 @@ from .rewards import (
     reasoning_consistency,
 )
 from .testing import FakeVerifier
+from .ood_drift import (
+    POLICY_BLEED_LEXICON,
+    OODBehaviouralMetrics,
+    OODCheckpointSummary,
+    format_leakage_rate,
+    policy_bleed_rate,
+    score_behavioural,
+    score_ood_checkpoint,
+    sycophancy_delta,
+)
 from .cot_drift import (
     BACKTRACKING,
     HEDGING,
@@ -290,5 +300,13 @@ __all__ = [
     "think_stated_divergence",
     "ngram_logodds_diff",
     "unsupported_fact_fraction",
+    "POLICY_BLEED_LEXICON",
+    "OODBehaviouralMetrics",
+    "OODCheckpointSummary",
+    "format_leakage_rate",
+    "policy_bleed_rate",
+    "score_behavioural",
+    "score_ood_checkpoint",
+    "sycophancy_delta",
     "__version__",
 ]
