@@ -144,6 +144,7 @@ def train(
     *,
     config_path: Path = DEFAULT_CONFIG,
     model_name: str = "allenai/OLMo-3-7B-Think-SFT",
+    ref_model_name: str | None = None,
     max_iters: int = 20,
     group_size: int = 4,
     batch_size: int = 2,
@@ -156,13 +157,11 @@ def train(
     _load_dotenv()
 
     # All MLX imports are inside this function so --dry-run never touches them.
-    import mlx.core as mx  # noqa: F811
-    import mlx.nn as nn
+    import mlx.core as mx
     from mlx_lm import load as mlx_load
     from mlx_lm.tuner.utils import linear_to_lora_layers
     from mlx_lm_lora.trainer.grpo_trainer import (
         GRPOTrainingArgs,
-        iterate_grpo_batches,
         train_grpo,
     )
 
@@ -173,7 +172,10 @@ def train(
     )
 
     run = load_run_config(config_path)
-    reward_fn = run.reward_function()
+    # Training scores small rollout groups; keep API concurrency gentle so
+    # rate limits never trip the circuit breaker mid-run (a floored batch
+    # would poison the group advantage).
+    run.verifier.max_concurrency = 2
 
     # --- Load model + frozen reference ---
     print(f"Loading model: {model_name}")
@@ -188,7 +190,9 @@ def train(
     model.train()
 
     # Frozen reference (same architecture, same initial weights, no LoRA grad).
-    ref_model, _ = mlx_load(model_name)
+    # The reference only anchors the KL term; a quantized copy halves its
+    # memory with negligible effect on the penalty.
+    ref_model, _ = mlx_load(ref_model_name or model_name)
     ref_model.eval()
     mx.eval(ref_model.parameters())
 
@@ -305,6 +309,8 @@ def main() -> None:
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
                     help="run config YAML (default: configs/acmg.yaml)")
     ap.add_argument("--model", type=str, default="allenai/OLMo-3-7B-Think-SFT")
+    ap.add_argument("--ref-model", type=str, default=None,
+                    help="frozen KL-reference model (e.g. a quantized copy); defaults to --model")
     ap.add_argument("--max-iters", type=int, default=20)
     ap.add_argument("--group-size", type=int, default=4)
     ap.add_argument("--batch-size", type=int, default=2)
@@ -321,6 +327,7 @@ def main() -> None:
         train(
             config_path=args.config,
             model_name=args.model,
+            ref_model_name=args.ref_model,
             max_iters=args.max_iters,
             group_size=args.group_size,
             batch_size=args.batch_size,
