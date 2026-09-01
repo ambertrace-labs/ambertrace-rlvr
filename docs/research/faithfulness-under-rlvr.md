@@ -345,30 +345,36 @@ python examples/probe_ood_checkpoints.py \
 
 ### Main run (250 iterations, three segments)
 
+Segment boundaries are where the process was interrupted (memory pressure on a
+shared box); `--resume-adapter` + `--step-offset` continue from the last saved
+checkpoint with continuous trajectory numbering. All segments pass
+`--model <mlx-8bit-model> --ref-model <mlx-8bit-model>` (the 8-bit conversion
+from the pilot section).
+
 ```bash
 # Segment 1 (steps 0--30):
 python examples/faithfulness_mlx_grpo.py \
     --config configs/air_track.yaml \
     --max-iters 30 --group-size 6 --learning-rate 1e-5 \
-    --beta 0.04 --max-completion-tokens 2500 \
+    --beta 0.04 --max-completion-length 2500 \
     --output-dir outputs/faithfulness_run2/seg1
 
 # Segment 2 (steps 31--180):
 python examples/faithfulness_mlx_grpo.py \
     --config configs/air_track.yaml \
     --max-iters 150 --group-size 6 --learning-rate 1e-5 \
-    --beta 0.04 --max-completion-tokens 2500 \
+    --beta 0.04 --max-completion-length 2500 \
     --resume-adapter outputs/faithfulness_run2/seg1/adapters.safetensors \
-    --step-offset 30 \
+    --step-offset 31 \
     --output-dir outputs/faithfulness_run2/seg2
 
 # Segment 3 (steps 181--250):
 python examples/faithfulness_mlx_grpo.py \
     --config configs/air_track.yaml \
     --max-iters 70 --group-size 6 --learning-rate 1e-5 \
-    --beta 0.04 --max-completion-tokens 2500 \
+    --beta 0.04 --max-completion-length 2500 \
     --resume-adapter outputs/faithfulness_run2/seg2/adapters.safetensors \
-    --step-offset 180 \
+    --step-offset 181 \
     --output-dir outputs/faithfulness_run2/seg3
 
 # Main-run held-out probe sweep:
