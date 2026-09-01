@@ -102,7 +102,7 @@ def test_load_trajectory_jsonl(tmp_path):
         "not json — should be skipped",
         {"reasoning": "no step field"},  # skipped (no step)
     ]
-    path.write_text("\n".join(l if isinstance(l, str) else json.dumps(l) for l in lines))
+    path.write_text("\n".join(item if isinstance(item, str) else json.dumps(item) for item in lines))
     traces = load_trajectory(path)
     assert len(traces) == 2
     assert traces[0].faithfulness == 1.0 and traces[1].faithfulness == 0.0

@@ -127,7 +127,8 @@ have its `platform_id`, the reward function is a few lines:
 from ambertrace_rlvr import AmberVerifier, DefaultRewardShaper, JSONBlockParser, VerifiableDomain
 
 # AMBERTRACE_API_KEY (scoped, platform-only) comes from the environment.
-domain = VerifiableDomain.from_env(platform_id=YOUR_PLATFORM_ID, parser=JSONBlockParser())
+platform_id = 146  # <- your platform id from the author script
+domain = VerifiableDomain.from_env(platform_id=platform_id, parser=JSONBlockParser())
 reward_fn = AmberVerifier(domain=domain, shaper=DefaultRewardShaper()).as_reward_function()
 rewards = reward_fn(prompts, completions, [{"gold": "permit"}, ...])   # -> list[float]
 ```
@@ -208,6 +209,13 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
 > (does the reward erode chain-of-thought faithfulness? living draft, pilot results in).
 
+## Design principles
+
+- **Community-friendly and agent-usable.** Every public API is typed, every extension point is documented, and new domains are a config + a parser — not a fork.
+- **Offline-first development.** The default test suite and benchmarks run with no network, no API key, and no GPU, using `FakeVerifier` and recorded payloads.
+- **Fail-closed reward invariants.** A malformed completion, SDK error, or timeout resolves to the reward floor — never an exception into the training loop. Components are bounded to `[0, 1]`; a hallucinated completion can never out-score a certified one.
+- **Read-only reward runtime.** The reward path queries a verified platform; it never authors or mutates one. Authoring is a separate step via the `ambertraceai` SDK.
+
 ## Repository layout
 
 ```
@@ -229,7 +237,7 @@ src/ambertrace_rlvr/
   matrix.py        alignment matrix runner (model × alignment-score)
   quant_sweep.py   quantization sweep — one model across quant levels
   testing.py       FakeVerifier + offline payload builders
-  integrations/    trl.py (primary — GRPO builder; RLOO in flight, #18), verl.py; openrlhf.py (HTTP reward-server shim)
+  integrations/    trl.py (GRPO + RLOO builders), verl.py, openrlhf.py (HTTP reward-server shim)
 examples/          runnable examples
 configs/           per-run YAML
 tests/             offline suite (FakeVerifier + recorded payloads)
