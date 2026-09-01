@@ -23,7 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "ambertraceai>=1.0.17",
+    "ambertraceai>=2.1.3",
     "pyyaml>=6.0",
 ]
 

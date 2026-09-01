@@ -33,6 +33,23 @@ logger = logging.getLogger(__name__)
 # reward_fn(prompts, completions, metadata) -> list[float]
 RewardFunction = Callable[..., list[float]]
 
+# The minimal set of top-level response fields ``AmberReport.from_query_result``
+# needs.  Requesting only these via the SDK's ``projection`` parameter avoids
+# transferring the full explanation payload on every query and ``query_batch``
+# call.  The ``explanation`` field carries the sub-structure (confidence, rules,
+# rejected facts, deciding rules, schema_version) that the report normaliser
+# reads, so it must always be present.
+REWARD_PROJECTION: list[str] = [
+    "proof_checked",
+    "answer",
+    "decision",
+    "proof_summary",
+    "explanation",
+]
+
+# Maximum items per ``query_batch`` call (SDK + platform limit).
+_BATCH_CHUNK_SIZE = 50
+
 
 def score_one_item(
     shaper: RewardShaper,
@@ -117,6 +134,11 @@ class AmberVerifier:
     breaker_threshold: int = 5
     breaker_cooldown: float = 30.0
 
+    # When True (default) and the SDK supports ``projection``, request only the
+    # minimal set of response fields ``AmberReport.from_query_result`` needs.
+    # Set to False to always fetch the full response (debugging / audit).
+    use_projection: bool = True
+
     _client: Any = field(default=None, init=False, repr=False)
     _cache: dict[str, AmberReport] = field(default_factory=dict, init=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -151,6 +173,22 @@ class AmberVerifier:
         if key:
             return text.replace(key, "***REDACTED***")
         return text
+
+    def _projection_args(self) -> dict[str, Any]:
+        """Return ``{"projection": [...]}`` when projection is enabled and the
+        SDK supports it, else ``{}``.
+
+        ``projection`` was added to both ``query`` and ``query_batch`` in SDK
+        2.1.3 — the same release that introduced ``query_batch``.  So we gate
+        on ``query_batch`` presence (already checked by ``_supports_batch``)
+        as the proxy for projection support; an SDK without ``query_batch``
+        also lacks ``projection``.
+        """
+        if not self.use_projection:
+            return {}
+        if not hasattr(self._api().platforms, "query_batch"):
+            return {}
+        return {"projection": list(REWARD_PROJECTION)}
 
     def _breaker_allow(self) -> bool:
         """Whether a call may reach the SDK right now. Also claims the single
@@ -224,6 +262,7 @@ class AmberVerifier:
                 extra: dict[str, Any] = {}
                 if parsed.predictions is not None:
                     extra["predictions"] = parsed.predictions
+                extra.update(self._projection_args())
                 result = self._api().platforms.query(
                     self.domain.platform_id,
                     query=parsed.query,
@@ -275,43 +314,200 @@ class AmberVerifier:
 
     def _supports_batch(self) -> bool:
         """Capability gate, not a version check: does the wired SDK client expose
-        a ``platforms.query_batch``? As of ``ambertraceai==1.0.5`` it does not
-        (see issue #27). Building a batch payload path against an unpublished
-        signature would mean guessing at the SDK surface, so that work is
-        deferred until the platform ships it."""
+        a ``platforms.query_batch``?"""
         return hasattr(self._api().platforms, "query_batch")
+
+    def _build_batch_query(self, parsed: ParsedCompletion) -> dict[str, Any]:
+        """Build a single item dict for a ``query_batch`` call."""
+        item: dict[str, Any] = {
+            "query": parsed.query,
+            "facts": parsed.facts,
+            "explain": True,
+        }
+        if parsed.relations:
+            item["relations"] = parsed.relations
+        if parsed.predictions is not None:
+            item["predictions"] = parsed.predictions
+        return item
+
+    def _query_batch_chunk(
+        self,
+        items: list[tuple[int, ParsedCompletion]],
+    ) -> list[tuple[int, AmberReport, bool]]:
+        """Execute one chunk (<=50) via ``query_batch`` with retry/backoff +
+        circuit breaker. Returns ``[(original_index, report, cacheable), ...]``.
+
+        A batch-level transport failure retries the entire batch and counts
+        toward the breaker. Per-item errors within a successful batch response
+        are handled individually: a certification/gate deny (status ``"error"``
+        whose error matches a known deny pattern) produces ``from_error``
+        (cacheable); any other per-item error produces a floor (not cacheable).
+        One bad row never fails the batch.
+        """
+        if not self._breaker_allow():
+            logger.info(
+                "circuit breaker open for platform %s; flooring batch chunk "
+                "without SDK call",
+                self.domain.platform_id,
+            )
+            return [
+                (idx, AmberReport.floor(reason="circuit_open"), False)
+                for idx, _ in items
+            ]
+
+        queries = [self._build_batch_query(pc) for _, pc in items]
+        proj_args = self._projection_args()
+
+        last_err: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                import ambertraceai
+                resp = self._api().platforms.query_batch(
+                    self.domain.platform_id,
+                    queries=queries,
+                    **proj_args,
+                )
+                self._record_success()
+                # Parse per-item results in request order.
+                results_list = resp.get("results", []) if isinstance(resp, dict) else []
+                out: list[tuple[int, AmberReport, bool]] = []
+                for i, (idx, _pc) in enumerate(items):
+                    if i < len(results_list):
+                        item_result = results_list[i]
+                    else:
+                        # Missing result — floor.
+                        out.append(
+                            (idx, AmberReport.floor(reason="missing_batch_item"), False)
+                        )
+                        continue
+                    status = item_result.get("status") if isinstance(item_result, dict) else None
+                    if status == "ok":
+                        data = item_result.get("data", {})
+                        out.append((idx, AmberReport.from_query_result(data), True))
+                    elif status == "error":
+                        err_body = item_result.get("error", {})
+                        err_msg = err_body.get("message", "") if isinstance(err_body, dict) else str(err_body)
+                        err_code = err_body.get("code", "") if isinstance(err_body, dict) else ""
+                        # Certification/gate deny — treat like AmbertraceError.
+                        # These have structured codes; a transport error at the
+                        # item level would not have a code.
+                        if err_code:
+                            status_code = err_body.get("status_code", 422) if isinstance(err_body, dict) else 422
+                            synth_err = ambertraceai.AmbertraceError(
+                                status_code, err_code, err_msg,
+                                rejected_facts=err_body.get("rejected_facts") if isinstance(err_body, dict) else None,
+                            )
+                            out.append(
+                                (idx, AmberReport.from_error(synth_err), True)
+                            )
+                        else:
+                            reason = self._redact(
+                                f"batch_item_error: {err_msg}"
+                            )
+                            out.append(
+                                (idx, AmberReport.floor(reason=reason), False)
+                            )
+                    else:
+                        out.append(
+                            (idx, AmberReport.floor(reason="unknown_batch_status"), False)
+                        )
+                return out
+            except Exception as err:  # noqa: BLE001 — batch-level transport failure
+                last_err = err
+                if attempt < self.max_retries:
+                    jitter = random.uniform(0, self.backoff_base)
+                    delay = min(self.backoff_max, self.backoff_base * (2 ** attempt) + jitter)
+                    logger.info(
+                        "transient batch error (attempt %d/%d) for platform %s; "
+                        "retrying in %.2fs: %s",
+                        attempt + 1, self.max_retries + 1, self.domain.platform_id,
+                        delay, self._redact(repr(err)),
+                    )
+                    self._sleep(delay)
+                    continue
+                logger.error(
+                    "batch error; retries exhausted; flooring chunk: %s",
+                    self._redact(repr(err)),
+                )
+                self._record_transient_failure()
+                reason = self._redact(f"verifier_error: {last_err!r}")
+                return [
+                    (idx, AmberReport.floor(reason=reason), False)
+                    for idx, _ in items
+                ]
+
+        # Unreachable.
+        reason = self._redact(f"verifier_error: {last_err!r}")
+        return [
+            (idx, AmberReport.floor(reason=reason), False)
+            for idx, _ in items
+        ]
 
     def verify_batch(
         self, parsed: list[ParsedCompletion | None]
     ) -> list[AmberReport | None]:
         """Verify a batch with bounded concurrency, preserving order. ``None`` in
-        maps to ``None`` out (unparseable → no verify).
+        maps to ``None`` out (unparseable -> no verify).
 
-        No batch payload path is built here: ``ambertraceai==1.0.5`` exposes
-        neither ``platforms.query_batch`` nor a compact/projection param on
-        ``platforms.query``, and guessing an unpublished signature is out of
-        scope (see issue #27). This gates on capability and
-        falls back to the existing per-item ``ThreadPoolExecutor`` pool, which
-        is already the correct bounded-concurrency mechanism for the published
-        SDK surface."""
+        When ``query_batch`` is available on the SDK, cache-misses are grouped
+        into chunks of up to 50 and dispatched via the batch endpoint.  Chunks
+        are fanned out across a thread pool for multi-chunk concurrency.  When
+        ``query_batch`` is absent, falls back to per-item ``verify_one`` through
+        the same ``ThreadPoolExecutor`` pool — the library still works against
+        older servers/SDKs.
+        """
         results: list[AmberReport | None] = [None] * len(parsed)
-        todo = [(i, pc) for i, pc in enumerate(parsed) if pc is not None]
+        todo: list[tuple[int, ParsedCompletion]] = []
+        for i, pc in enumerate(parsed):
+            if pc is None:
+                continue
+            if self.cache:
+                key = _cache_key(self.domain.platform_id, pc)
+                with self._lock:
+                    hit = self._cache.get(key)
+                if hit is not None:
+                    results[i] = hit
+                    continue
+            todo.append((i, pc))
         if not todo:
             return results
-        if not self._supports_batch() and not self._logged_no_batch:
-            self._logged_no_batch = True
-            logger.debug(
-                "platform has no query_batch; verifying per-item at "
-                "max_concurrency=%d pending platform support (see issue #27)",
-                self.max_concurrency,
-            )
-        workers = max(1, min(self.max_concurrency, len(todo)))
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for i, report in zip(
-                (i for i, _ in todo),
-                pool.map(lambda ip: self.verify_one(ip[1]), todo),
-            ):
-                results[i] = report
+
+        if self._supports_batch():
+            # Chunk into <=50 and fan out chunks across a thread pool.
+            chunks: list[list[tuple[int, ParsedCompletion]]] = []
+            for start in range(0, len(todo), _BATCH_CHUNK_SIZE):
+                chunks.append(todo[start:start + _BATCH_CHUNK_SIZE])
+
+            workers = max(1, min(self.max_concurrency, len(chunks)))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                chunk_results = list(pool.map(self._query_batch_chunk, chunks))
+
+            for chunk_out in chunk_results:
+                for idx, report, cacheable in chunk_out:
+                    results[idx] = report
+                    if self.cache and cacheable:
+                        # Retrieve the parsed completion for caching.
+                        pc_for_cache = parsed[idx]
+                        if pc_for_cache is not None:
+                            key = _cache_key(self.domain.platform_id, pc_for_cache)
+                            with self._lock:
+                                self._cache[key] = report
+        else:
+            # Fallback: per-item verify_one via thread pool.
+            if not self._logged_no_batch:
+                self._logged_no_batch = True
+                logger.debug(
+                    "platform has no query_batch; verifying per-item at "
+                    "max_concurrency=%d pending platform support (see issue #27)",
+                    self.max_concurrency,
+                )
+            workers = max(1, min(self.max_concurrency, len(todo)))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for i, report in zip(
+                    (i for i, _ in todo),
+                    pool.map(lambda ip: self.verify_one(ip[1]), todo),
+                ):
+                    results[i] = report
         return results
 
     def as_reward_function(self) -> RewardFunction:
