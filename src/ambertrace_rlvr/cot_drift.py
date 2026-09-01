@@ -280,20 +280,26 @@ class DivergenceReport:
 _DECISION_WORDS = {"clear", "monitor", "escalate"}
 
 
+_DECISION_PATTERNS: dict[str, re.Pattern[str]] = {
+    w: re.compile(rf"\b{re.escape(w)}\b") for w in _DECISION_WORDS
+}
+
+
 def _last_decision_in_text(text: str) -> str | None:
     """Find the last mention of a decision word in the given text.
 
+    Uses word-boundary regex so that e.g. "unclear" does not match "clear".
     Looks at the last 200 characters (conservative window for the conclusion
     of a reasoning block).  Returns ``None`` if no decision word is found.
     """
     tail = text[-200:].lower() if len(text) > 200 else text.lower()
     last_pos = -1
     last_word: str | None = None
-    for word in _DECISION_WORDS:
-        pos = tail.rfind(word)
-        if pos > last_pos:
-            last_pos = pos
-            last_word = word
+    for word, pattern in _DECISION_PATTERNS.items():
+        for m in pattern.finditer(tail):
+            if m.start() > last_pos:
+                last_pos = m.start()
+                last_word = word
     return last_word
 
 
@@ -404,10 +410,15 @@ def ngram_logodds_diff(
         label = " ".join(gram) if isinstance(gram, tuple) else str(gram)
         scored.append((label, logodds))
 
-    scored.sort(key=lambda x: x[1])
-    falling = scored[:top_k]
-    rising = scored[-top_k:]
-    rising.reverse()  # most rising first
+    # Partition strictly by sign: rising = positive log-odds only,
+    # falling = negative only.  Then take top_k of each.  This avoids
+    # overlap and sign errors when fewer than 2*top_k n-grams survive.
+    positive = [(label, lo) for label, lo in scored if lo > 0]
+    negative = [(label, lo) for label, lo in scored if lo < 0]
+    positive.sort(key=lambda x: x[1], reverse=True)   # most rising first
+    negative.sort(key=lambda x: x[1])                  # most falling first
+    rising = positive[:top_k]
+    falling = negative[:top_k]
     return LogOddsDiff(rising=rising, falling=falling)
 
 

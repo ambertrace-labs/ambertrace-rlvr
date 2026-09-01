@@ -6,7 +6,7 @@
 #
 # AMBERTRACE_API_KEY (scoped, platform-only) comes from the environment.
 domain:
-  platform_id: 1325
+  platform_id: 1325                # replace with YOUR platform id (the author script prints it)
   base_url: https://app.ambertrace.ai
   query_template: "Triage this track: {facts}"
   parser: json_block

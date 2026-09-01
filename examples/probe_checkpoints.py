@@ -37,7 +37,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
 DEFAULT_CHECKPOINTS_DIR = REPO / "outputs" / "faithfulness_mlx_grpo"
-DEFAULT_MODEL = "/Users/peterpilotgenai/models/mlx/Olmo-3-7B-Think-SFT-8bit"
+DEFAULT_MODEL = "allenai/OLMo-3-7B-Think-SFT"
 DEFAULT_PROBES = REPO / "data" / "air_track_eval.jsonl"
 DEFAULT_CONFIG = REPO / "configs" / "air_track.yaml"
 DEFAULT_OUT_DIR = REPO / "outputs" / "probe_runs"

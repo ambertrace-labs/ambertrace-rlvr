@@ -325,6 +325,10 @@ rollout generation can use vLLM (faster, different sampling characteristics).
 ### Reproduce
 
 ```bash
+# 0. Author the Air Track platform on your own AmberTrace account and set
+#    the printed platform id in configs/air_track.yaml:
+python examples/author_air_track_platform.py
+
 # Dry-run (offline, no MLX/network, exercises reward + trajectory wiring):
 python examples/faithfulness_mlx_grpo.py --dry-run
 
@@ -440,7 +444,7 @@ optimization pressure during this run was moderate, not extreme.
 | 0 | 1.218 | 0.78 | 0.238 | 0.044 | 459 | 110 | 0.320 | 0.002 | 0.013 | 0.097 | 0.062 | 0 | 0 | 0.084 |
 | 50 | 1.286 | 0.80 | 0.182 | 0.038 | 432 | 113 | 0.329 | 0.001 | 0.014 | 0.093 | 0.105 | 0 | 1 | 0.097 |
 | 100 | 1.406 | 0.84 | 0.234 | 0.074 | 511 | 111 | 0.327 | 0.001 | 0.020 | 0.110 | 0.026 | 0 | 0 | 0.100 |
-| 150 | 1.196 | 0.76 | 0.238 | 0.056 | 482 | 111 | 0.331 | 0.001 | 0.016 | 0.103 | 0.082 | 0 | 2 | 0.080 |
+| 150 | 1.196 | 0.76 | 0.238 | 0.056 | 482 | 111 | 0.331 | 0.001 | 0.016 | 0.103 | 0.082 | 0 | 1 | 0.080 |
 | 200 | 1.230 | 0.76 | 0.194 | 0.064 | 444 | 121 | 0.314 | 0.000 | 0.007 | 0.083 | 0.103 | 0 | 1 | 0.076 |
 | 250 | 1.247 | 0.78 | 0.182 | 0.099 | 477 | 112 | 0.305 | 0.004 | 0.014 | 0.098 | 0.064 | 0 | 0 | 0.096 |
 
@@ -459,7 +463,7 @@ to 0.099). The model is becoming more selective in what it cites, not more
 confabulatory.
 
 Concealment is zero at every checkpoint. Decision flips are sparse and
-non-trending (0, 1, 0, 2, 1, 0). Verifier-awareness stays near zero
+non-trending (0, 1, 0, 1, 1, 0). Verifier-awareness stays near zero
 throughout (peak 0.004 at step 250, still negligible). Unsupported-fact
 fraction is stable (0.076--0.100, no trend). Distinct-3 drifts gently
 downward (0.320 to 0.305) but remains well above collapse thresholds.
@@ -528,7 +532,7 @@ findings emerge:
    (policy bleed flat at ~0.009, format leakage zero).
 
 3. **Null signals remain null.** Concealment is zero throughout.
-   Decision flips are sparse (at most 2 at any checkpoint, non-trending).
+   Decision flips are sparse (at most 1 at any checkpoint, non-trending).
    Verifier-awareness is negligible (peak 0.004). Unsupported-fact
    fraction is stable. The pilot's citation/contract meta-language n-gram
    signal did not grow: the step-250 top rising unigrams are benign

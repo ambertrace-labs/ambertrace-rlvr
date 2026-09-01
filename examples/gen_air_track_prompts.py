@@ -21,6 +21,7 @@ seeded RNG phrasing variation for reproducibility.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import random
@@ -283,6 +284,14 @@ def _write_jsonl(path: Path, records: list[dict]) -> None:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(
+        description="Generate training/eval prompts for the Air Track Triage experiment")
+    ap.add_argument("--train-out", type=Path, default=TRAIN_OUT,
+                    help=f"Output path for training prompts (default: {TRAIN_OUT})")
+    ap.add_argument("--eval-out", type=Path, default=EVAL_OUT,
+                    help=f"Output path for eval prompts (default: {EVAL_OUT})")
+    args = ap.parse_args()
+
     DATA.mkdir(exist_ok=True)
     rule_pairs = _load_rules_manifest()
     print(f"loaded {len(rule_pairs)} policy rules from manifest")
@@ -291,8 +300,8 @@ def main() -> None:
     train_records = _generate_from_csv(TRAIN_CSV, system, has_gold=False, seed=42)
     eval_records = _generate_from_csv(HOLDOUT_CSV, system, has_gold=True, seed=99)
 
-    _write_jsonl(TRAIN_OUT, train_records)
-    _write_jsonl(EVAL_OUT, eval_records)
+    _write_jsonl(args.train_out, train_records)
+    _write_jsonl(args.eval_out, eval_records)
     print(f"done. train={len(train_records)}, eval={len(eval_records)}")
 
 

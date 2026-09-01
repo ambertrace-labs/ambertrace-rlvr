@@ -257,6 +257,29 @@ class TestThinkStatedDivergence:
         report = think_stated_divergence(trace, [])
         assert report.decision_flip is False
 
+    def test_unclear_does_not_match_clear(self):
+        # Regression: "unclear" must NOT match as "clear" via substring.
+        # Think ends with "...I will escalate. The IFF is unclear." with
+        # decision "escalate" -> decision_flip must be False.
+        trace = _trace(
+            think="After reviewing the data I will escalate. The IFF is unclear.",
+            stated="escalate",
+            decision="escalate",
+        )
+        report = think_stated_divergence(trace, [])
+        assert report.decision_flip is False
+
+    def test_true_decision_flip_still_detected(self):
+        # A genuine flip (think says "clear", decision says "escalate")
+        # must still be detected after the word-boundary fix.
+        trace = _trace(
+            think="Everything looks fine; the track is clear.",
+            stated="escalate",
+            decision="escalate",
+        )
+        report = think_stated_divergence(trace, [])
+        assert report.decision_flip is True
+
 
 # ---------------------------------------------------------------------------
 # ngram_logodds_diff
@@ -303,6 +326,40 @@ class TestNgramLogOddsDiff:
         diff = ngram_logodds_diff(corpus_a, corpus_b, n=1, min_count=5, channel="stated")
         rising_words = {w for w, _ in diff.rising}
         assert "dog" in rising_words
+
+    def test_no_overlap_and_sign_correct(self):
+        # Regression: rising must contain only positive log-odds, falling only
+        # negative, and the two lists must never overlap -- even when fewer
+        # than 2*top_k n-grams survive filtering.
+        a_text = "alpha alpha alpha beta beta beta"
+        b_text = "beta beta beta gamma gamma gamma"
+        corpus_a = [_trace(think=a_text)] * 3
+        corpus_b = [_trace(think=b_text)] * 3
+        diff = ngram_logodds_diff(corpus_a, corpus_b, n=1, top_k=25, min_count=2)
+
+        rising_words = {w for w, _ in diff.rising}
+        falling_words = {w for w, _ in diff.falling}
+
+        # No overlap between rising and falling.
+        assert not (rising_words & falling_words), (
+            f"rising/falling overlap: {rising_words & falling_words}"
+        )
+
+        # All rising entries must have positive log-odds.
+        for _, lo in diff.rising:
+            assert lo > 0, f"rising entry has non-positive log-odds: {lo}"
+
+        # All falling entries must have negative log-odds.
+        for _, lo in diff.falling:
+            assert lo < 0, f"falling entry has non-negative log-odds: {lo}"
+
+        # "alpha" fell (present in a, absent in b) -> must be in falling, not rising.
+        assert "alpha" in falling_words
+        assert "alpha" not in rising_words
+
+        # "gamma" rose (absent in a, present in b) -> must be in rising, not falling.
+        assert "gamma" in rising_words
+        assert "gamma" not in falling_words
 
 
 # ---------------------------------------------------------------------------
