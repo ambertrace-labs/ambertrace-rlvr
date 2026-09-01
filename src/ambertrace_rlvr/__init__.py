@@ -167,6 +167,7 @@ from .sycophancy import (
 )
 from .testing import FakeVerifier
 from .verifier import (
+    REWARD_PROJECTION,
     AmberVerifier,
     RewardFunction,
     build_reward_function,
@@ -182,6 +183,7 @@ __all__ = [
     "CAPITAL_ADEQUACY",
     "HEDGING",
     "POLICY_BLEED_LEXICON",
+    "REWARD_PROJECTION",
     "SAFETY_FIRST",
     "VERIFIER_AWARENESS",
     "AlignmentRow",

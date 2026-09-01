@@ -41,14 +41,31 @@ AmberVerifier(domain: VerifiableDomain, shaper: RewardShaper = <factory>,
               batch_size: int = 32, max_concurrency: int = 16, cache: bool = True,
               floor: float = -1.0, max_retries: int = 2, backoff_base: float = 0.5,
               backoff_max: float = 8.0, breaker_threshold: int = 5,
-              breaker_cooldown: float = 30.0)
+              breaker_cooldown: float = 30.0, use_projection: bool = True)
 ```
 
-Key fields: `domain`, `shaper`, and resilience controls — `batch_size` /
+Key fields: `domain`, `shaper`, and resilience controls -- `batch_size` /
 `max_concurrency` for throughput, `cache` to dedupe identical payloads, `floor`
 as the reward floor on failure, `max_retries` / `backoff_base` / `backoff_max`
 for retry backoff, and `breaker_threshold` / `breaker_cooldown` for the circuit
 breaker. Satisfies `VerifierLike` (`verify_batch`).
+
+**Batch path (SDK >= 2.1.3, issue #27).** When the SDK exposes
+`platforms.query_batch`, cache-misses are grouped into chunks of up to 50 and
+dispatched via the batch endpoint. Multi-chunk fan-out uses the existing
+`ThreadPoolExecutor` with `max_concurrency` workers. Per-item errors within a
+successful batch response are handled individually: a certification/gate deny
+produces `AmberReport.from_error` (cacheable); other per-item errors produce a
+floor report (not cacheable). One bad row never fails the batch. Batch-level
+transport failures are retried with the same backoff and count toward the
+circuit breaker. When `query_batch` is absent, the verifier falls back to
+per-item `query` through the thread pool.
+
+**Compact projection.** When `use_projection=True` (default) and the SDK
+supports it, `AmberVerifier` requests only the minimal set of top-level
+response fields that `AmberReport.from_query_result` consumes
+(`REWARD_PROJECTION`), reducing transfer overhead. Set `use_projection=False`
+to always fetch the full response (useful for debugging / audit).
 
 ### `RewardShaper`
 *Protocol: turns a parsed completion + certificate into a `RewardBreakdown`.*
