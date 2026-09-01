@@ -76,7 +76,7 @@ Generalisation, hosted reward server, docs, release.
 |---|------|-----------|
 | [#16](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/16) ✅ | Cross-domain swap-the-rule-set demo (≥2 domains) — **done** (`examples/cross_domain_demo.py`, [CROSS_DOMAIN.md](docs/CROSS_DOMAIN.md)) | #6, #13 |
 | [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) ✅ | OpenRLHF HTTP reward-server shim — **done** (`integrations/openrlhf.py`) | — |
-| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) ⏳ | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — in flight (PR #80) | — |
+| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — `build_rloo_trainer` (PR #80) | ✅ |
 | [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
 | [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) ✅ | v1.0 release: packaging, versioning, PyPI publish prep — **done: [`ambertrace-rlvr` on PyPI](https://pypi.org/project/ambertrace-rlvr/), `pip install ambertrace-rlvr`, automated releases via Trusted Publishing (first release `v0.1.1`)** | #19 |
 
