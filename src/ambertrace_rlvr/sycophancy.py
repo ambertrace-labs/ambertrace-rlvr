@@ -212,7 +212,7 @@ def _safe_model(model: Model, prompt: str) -> str:
     refusal downstream) — the sweep must never crash on one bad generation."""
     try:
         out = model(prompt)
-    except Exception:
+    except Exception:  # noqa: BLE001 — fail-closed: bad generation yields empty completion (treated as refusal)
         return ""
     return out if isinstance(out, str) else ""
 

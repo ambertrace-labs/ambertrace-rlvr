@@ -274,8 +274,7 @@ def _generate_from_csv(
 
 def _write_jsonl(path: Path, records: list[dict]) -> None:
     with open(path, "w") as f:
-        for r in records:
-            f.write(json.dumps(r) + "\n")
+        f.writelines(json.dumps(r) + "\n" for r in records)
     golds = [r.get("gold") for r in records]
     gold_counts = {}
     for g in golds:

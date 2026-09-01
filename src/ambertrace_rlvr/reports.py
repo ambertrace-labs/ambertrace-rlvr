@@ -11,7 +11,8 @@ the training loop.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field as dc_field  # aliased: RejectedFact has a `field` attr
+from dataclasses import dataclass  # aliased: RejectedFact has a `field` attr
+from dataclasses import field as dc_field
 from typing import Any
 
 # The explanation schema_version this normaliser was written against. When the

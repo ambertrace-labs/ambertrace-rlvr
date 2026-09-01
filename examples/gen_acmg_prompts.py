@@ -179,8 +179,7 @@ def _records_for(combos: list[tuple[bool, ...]], start_i: int = 0) -> list[dict]
 
 def _write(path: Path, records: list) -> None:
     with open(path, "w") as f:
-        for r in records:
-            f.write(json.dumps(r) + "\n")
+        f.writelines(json.dumps(r) + "\n" for r in records)
     counts = {c: sum(r["gold"] == c for r in records)
               for c in ("pathogenic", "benign", "uncertain")}
     print(f"wrote {len(records)} prompts to {path} ({counts})")

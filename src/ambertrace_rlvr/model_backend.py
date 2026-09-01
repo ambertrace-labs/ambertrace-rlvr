@@ -105,14 +105,14 @@ def _http_post(url: str, payload: dict[str, Any], timeout: float) -> dict[str, A
         url, data=body, headers={"Content-Type": "application/json"}, method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed scheme)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         # A 4xx/5xx with a body is a *response* (e.g. a template role error the
         # caller can recover from), not an unreachable server — surface the body.
         try:
             raw = e.read().decode("utf-8")
-        except Exception:
+        except (OSError, ValueError):
             raise ModelBackendError(f"HTTP {e.code} from {url}: {e!r}") from e
     except (urllib.error.URLError, OSError) as e:
         raise ModelBackendError(f"cannot reach model server at {url}: {e!r}") from e

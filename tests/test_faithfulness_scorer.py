@@ -10,15 +10,13 @@ from ambertrace_rlvr.faithfulness import (
     load_trajectory,
 )
 from ambertrace_rlvr.faithfulness_scorer import (
-    RichScore,
     append_trajectory,
     consistency_score,
     score_batch_rich,
 )
-from ambertrace_rlvr.parsers import JSONBlockParser, ParsedCompletion
-from ambertrace_rlvr.rewards import DefaultRewardShaper, reasoning_consistency
+from ambertrace_rlvr.parsers import ParsedCompletion
+from ambertrace_rlvr.rewards import reasoning_consistency
 from ambertrace_rlvr.testing import FakeVerifier, make_report
-
 
 # A well-formed completion citing rule PVS1.
 _COMPLETION_PVS1 = (

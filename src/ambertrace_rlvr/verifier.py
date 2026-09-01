@@ -244,7 +244,7 @@ class AmberVerifier:
                 )
                 self._record_success()
                 return AmberReport.from_error(err), True
-            except Exception as err:  # network/timeout/5xx — retryable, counts toward breaker
+            except Exception as err:  # noqa: BLE001 — network/timeout/5xx — retryable, counts toward breaker
                 last_err = err
                 if attempt < self.max_retries:
                     jitter = random.uniform(0, self.backoff_base)

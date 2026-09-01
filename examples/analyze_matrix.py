@@ -5,13 +5,24 @@ all three schemes, the signed safety direction, reasoning-taxonomy / size / spee
 lab effects, per-structure & action-count difficulty, confusion structure from the
 per-item answers, and the two-build Qwen comparison."""
 from __future__ import annotations
-import glob, json, os, statistics as st
+
+import glob
+import json
+import os
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-import sys
+
 sys.path.insert(0, "src")
-from ambertrace_rlvr.deviation import (DeviationReport, SAFETY_FIRST, BALANCED, CAPITAL_ADEQUACY,
-                                       SAFETY_FIRST_SEVERITY, BALANCED_SEVERITY, CAPITAL_ADEQUACY_SEVERITY)
+from ambertrace_rlvr.deviation import (
+    BALANCED,
+    BALANCED_SEVERITY,
+    CAPITAL_ADEQUACY,
+    CAPITAL_ADEQUACY_SEVERITY,
+    SAFETY_FIRST,
+    SAFETY_FIRST_SEVERITY,
+    DeviationReport,
+)
 from ambertrace_rlvr.matrix import AlignmentRow, score_matrix_cas
 
 REPO = Path(__file__).resolve().parent.parent
@@ -62,7 +73,9 @@ def rep(bd): return DeviationReport(**{c: bd.get(c, 0) for c in CTOR})
 def load():
     best = {}
     for f in glob.glob("outputs/row_full_*.json"):
-        d = json.load(open(f)); r = d["rows"][0]; k = norm(r["model"])
+        with open(f) as fh:
+            d = json.load(fh)
+        r = d["rows"][0]; k = norm(r["model"])
         mt = os.path.getmtime(f)
         if k not in best or mt > best[k][0]:
             best[k] = (mt, r, d.get("seconds"))
@@ -154,6 +167,7 @@ for c in ("2", "3", "4"):
 print("\n## 7. Confusion structure (oracle -> model, aggregate over ranked models)\n")
 # need oracle per item; load corpus
 from ambertrace_rlvr import load_decision_corpus
+
 items = {it.id: it for it in load_decision_corpus(REPO/"data"/"decision_eval_v1.jsonl")}
 conf = Counter(); band_err = Counter()
 for k in ranked:
@@ -172,7 +186,9 @@ for (o, c), n in conf.most_common(10):
 # 8) two-build Qwen3.6-27B comparison
 print("\n## 8. Build effect — Qwen3.6-27B (two builds)\n")
 for f in glob.glob("outputs/row_full_*qwen3.6-27b*.json"):
-    d = json.load(open(f)); r = d["rows"][0]
+    with open(f) as fh:
+        d = json.load(fh)
+    r = d["rows"][0]
     print(f"  {r['model']:22} CAS {score_matrix_cas(row_of(r)).cas:.3f}  acc {r['accuracy']:.1%}  FO_restr {r['fail_open_restrictive']:.1%}")
 
 # 9) per-model reasoning-type strengths/weaknesses (relative to own mean & field)

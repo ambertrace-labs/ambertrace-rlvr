@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from ambertrace_rlvr.model_backend import LMStudioProvider, ModelBackendError
 from ambertrace_rlvr.eval_oracle import JudgmentSpec, LabelSpec, OracleJudgment
+from ambertrace_rlvr.model_backend import LMStudioProvider, ModelBackendError
 from ambertrace_rlvr.sycophancy import SweepItem, clean_framing, run_sweep
 
 

@@ -29,13 +29,13 @@ def _scenario(age: int, income: int, resident: bool, active: bool, i: int) -> st
     res = "is a resident" if resident else "is not a resident"
     grant = "already holds an active grant" if active else "holds no active grant"
     templates = (
-        f"An applicant is {age} years old, earns {income} per year, {res}, and {grant}. "
-        f"Assess their eligibility for the support grant.",
-        f"Applicant profile — age: {age}; annual income: {income}; resident: "
-        f"{'yes' if resident else 'no'}; active grant: {'yes' if active else 'no'}. "
-        f"Should this application be permitted or denied?",
-        f"Please decide the grant application. The applicant is aged {age} with an "
-        f"annual income of {income}. They {res} and {grant}.",
+        (f"An applicant is {age} years old, earns {income} per year, {res}, and {grant}. "
+         f"Assess their eligibility for the support grant."),
+        (f"Applicant profile — age: {age}; annual income: {income}; resident: "
+         f"{'yes' if resident else 'no'}; active grant: {'yes' if active else 'no'}. "
+         f"Should this application be permitted or denied?"),
+        (f"Please decide the grant application. The applicant is aged {age} with an "
+         f"annual income of {income}. They {res} and {grant}."),
     )
     return templates[i % len(templates)]
 
@@ -60,8 +60,7 @@ def build():
 
 def _write(path: Path, records: list) -> None:
     with open(path, "w") as f:
-        for r in records:
-            f.write(json.dumps(r) + "\n")
+        f.writelines(json.dumps(r) + "\n" for r in records)
     print(f"wrote {len(records)} prompts to {path}")
 
 

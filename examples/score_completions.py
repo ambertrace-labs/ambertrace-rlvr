@@ -26,7 +26,9 @@ DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "loan_exam
 def _load_dotenv(path: str = ".env") -> None:
     if not os.path.exists(path):
         return
-    for line in open(path):
+    with open(path) as fh:
+        lines = fh.readlines()
+    for line in lines:
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
@@ -36,12 +38,12 @@ def _load_dotenv(path: str = ".env") -> None:
 # Two candidate completions for a strong loan application (should permit).
 COMPLETIONS = [
     # well-formed, correct facts
-    '<reasoning>strong profile</reasoning><decision>'
-    '{"classification": "permit", "facts": {"applicant_age": 67, "annual_income": 135403,'
-    ' "credit_score": 818, "credit_history_months": 4, "debt_to_income_ratio": 0.26,'
-    ' "employment_status": "retired", "employment_years": 0.4, "loan_type": "unsecured",'
-    ' "loan_amount": 54887, "collateral_value": 0, "loan_purpose": "personal",'
-    ' "existing_loans": 0}}</decision>',
+    ('<reasoning>strong profile</reasoning><decision>'
+     '{"classification": "permit", "facts": {"applicant_age": 67, "annual_income": 135403,'
+     ' "credit_score": 818, "credit_history_months": 4, "debt_to_income_ratio": 0.26,'
+     ' "employment_status": "retired", "employment_years": 0.4, "loan_type": "unsecured",'
+     ' "loan_amount": 54887, "collateral_value": 0, "loan_purpose": "personal",'
+     ' "existing_loans": 0}}</decision>'),
     # malformed — no decision block (should floor)
     "I think this loan should be approved.",
 ]

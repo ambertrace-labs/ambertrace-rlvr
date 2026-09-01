@@ -9,8 +9,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-import pytest
-
 from ambertrace_rlvr.domain import VerifiableDomain
 from ambertrace_rlvr.parsers import JSONBlockParser, ParsedCompletion
 from ambertrace_rlvr.reports import AmberReport

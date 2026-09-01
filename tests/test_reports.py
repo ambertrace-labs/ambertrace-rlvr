@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, ClassVar
+
 from ambertrace_rlvr.reports import AmberReport
 
 
@@ -38,7 +40,7 @@ def test_floor_report_is_fail_closed():
 
 def test_from_error_pulls_structured_rejected_facts():
     class FakeErr(Exception):
-        rejected_facts = [
+        rejected_facts: ClassVar[list[dict[str, Any]]] = [
             {"field": "loan_type", "value": "mortgage",
              "reasons": ["value 'mortgage' is outside the declared domain of 'loan_type'"]},
         ]
@@ -52,7 +54,7 @@ def test_from_error_pulls_structured_rejected_facts():
 
 def test_from_error_tolerates_legacy_string_rejected_facts():
     class LegacyErr(Exception):
-        rejected_facts = ["loan_type", "loan_purpose"]  # pre-2026-07-10 shape
+        rejected_facts: ClassVar[list[str]] = ["loan_type", "loan_purpose"]  # pre-2026-07-10 shape
 
     r = AmberReport.from_error(LegacyErr("nope"))
     assert [rf.field for rf in r.rejected_facts] == ["loan_type", "loan_purpose"]

@@ -153,7 +153,7 @@ def test_bad_parser_arg_raises(tmp_path):
 
 
 def test_missing_domain_raises(tmp_path):
-    with pytest.raises(ValueError, match="'domain' is required"):
+    with pytest.raises(TypeError, match="'domain' is required"):
         load_run_config(_write(tmp_path, "reward:\n  shaper: default\n"))
 
 

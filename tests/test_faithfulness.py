@@ -57,7 +57,6 @@ def _rising_reward_curve(faith_by_step):
     # reward rises with step; faithfulness follows the given schedule.
     traces = []
     for step, faith in enumerate(faith_by_step):
-        reasoning = "PVS1" if faith >= 1.0 else ("PVS1" if faith >= 0.5 else "none")
         # encode faithfulness exactly via credited-rule recall:
         if faith == 1.0:
             traces.append(_trace(step, "cite PVS1", float(step), ["PVS1"]))

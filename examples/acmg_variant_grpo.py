@@ -83,7 +83,7 @@ def train(*, max_steps: int | None = None, num_generations: int | None = None,
     try:
         import transformers.core_model_loading as _cml
         _cml.GLOBAL_WORKERS = 1
-    except Exception:
+    except (ImportError, AttributeError):
         pass
 
     run = load_run_config(CONFIG)

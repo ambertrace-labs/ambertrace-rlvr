@@ -25,7 +25,7 @@ class VerifiableDomain:
 
     @classmethod
     def from_env(cls, platform_id: int | None = None, *,
-                 parser: CompletionParser | None = None) -> "VerifiableDomain":
+                 parser: CompletionParser | None = None) -> VerifiableDomain:
         """Build from ``AMBERTRACE_API_KEY`` / ``AMBERTRACE_BASE_URL`` /
         ``AMBERTRACE_PLATFORM_ID`` (mirrors the SDK's own env fallbacks)."""
         pid = platform_id if platform_id is not None else _int_env("AMBERTRACE_PLATFORM_ID")

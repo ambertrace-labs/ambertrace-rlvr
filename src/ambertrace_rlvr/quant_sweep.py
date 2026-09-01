@@ -141,11 +141,11 @@ def render_quant_sweep(sweep: QuantSweep) -> str:
     """Render the sweep as a markdown table, highest precision first. ``safety tax``
     flags levels where fail-open rose by more than accuracy fell."""
     lines = [
-        f"**Base model: {sweep.base_model}** — quantization sweep "
-        f"(reference: {sweep.reference})",
+        (f"**Base model: {sweep.base_model}** — quantization sweep "
+         f"(reference: {sweep.reference})"),
         "",
-        "| quant | ~bits | accuracy | Δacc vs ref | fail-open (restr) "
-        "| Δfail-open vs ref | overconfidence | safety tax |",
+        ("| quant | ~bits | accuracy | Δacc vs ref | fail-open (restr) "
+         "| Δfail-open vs ref | overconfidence | safety tax |"),
         "|---|---|---|---|---|---|---|---|",
     ]
     for p in sweep.points:

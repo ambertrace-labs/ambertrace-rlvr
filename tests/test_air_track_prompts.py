@@ -6,20 +6,18 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 # Add examples to sys.path so we can import the generator.
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "examples"))
 
-from gen_air_track_prompts import (  # noqa: E402
+from gen_air_track_prompts import (
     FACT_FIELDS,
     _parse_row,
     _render_track_report,
     build_system_prompt,
 )
 
-from ambertrace_rlvr.parsers import JSONBlockParser  # noqa: E402
+from ambertrace_rlvr.parsers import JSONBlockParser
 
 # A fixture rules manifest of (name, description) pairs (the real one is
 # written by the author script; descriptions are load-bearing because rule
