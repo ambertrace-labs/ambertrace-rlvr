@@ -50,6 +50,12 @@ REWARD_PROJECTION: list[str] = [
 # Maximum items per ``query_batch`` call (SDK + platform limit).
 _BATCH_CHUNK_SIZE = 50
 
+# Per-item batch errors are app-level by construction (transport 5xx is retried
+# inside the SDK before a batch response exists), but the app can still emit
+# *transient* per-item errors. Those must floor without caching — caching one
+# as a certification deny would silently pin the floor for the rest of a run.
+_TRANSIENT_ERROR_MARKERS = ("rate_limit", "unavailable", "timeout", "internal", "overloaded")
+
 
 def score_one_item(
     shaper: RewardShaper,
@@ -391,7 +397,10 @@ class AmberVerifier:
                         # Certification/gate deny — treat like AmbertraceError.
                         # These have structured codes; a transport error at the
                         # item level would not have a code.
-                        if err_code:
+                        transient = any(
+                            m in str(err_code).lower() for m in _TRANSIENT_ERROR_MARKERS
+                        ) or (isinstance(err_body, dict) and err_body.get("status_code") == 429)
+                        if err_code and not transient:
                             status_code = err_body.get("status_code", 422) if isinstance(err_body, dict) else 422
                             synth_err = ambertraceai.AmbertraceError(
                                 status_code, err_code, err_msg,

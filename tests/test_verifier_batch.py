@@ -206,6 +206,34 @@ class TestPerItemErrors:
         assert report.error is not None
         assert "denied" in report.error
 
+    def test_transient_coded_error_floors_and_is_not_cached(self):
+        """A per-item error with a *transient* code (rate limit, unavailable,
+        internal) must floor without caching — caching it as a deny would pin
+        the floor for the rest of a training run."""
+        for code, status in (("rate_limited", 429), ("service_unavailable", 503),
+                             ("internal_error", 500)):
+            v = AmberVerifier(domain=_domain(), cache=True)
+            v._sleep = lambda _: None
+            platforms = _FakePlatformsBatch(batch_results=[{
+                "platform_id": 1,
+                "results": [
+                    {"index": 0, "status": "error", "error": {
+                        "code": code, "message": "try again later",
+                        "status_code": status,
+                    }},
+                ],
+            }])
+            _wire_batch(v, platforms)
+
+            results = v.verify_batch([_parsed(0)])
+            report = results[0]
+            assert report is not None
+            assert report.proof_checked is False
+            assert report.error is not None and "batch_item_error" in report.error, code
+            # not cached: a retry must reach the API again
+            with v._lock:
+                assert not v._cache, code
+
     def test_unstructured_error_produces_floor_not_cacheable(self):
         """A per-item ``status: "error"`` without a code -> floor (not cacheable)."""
         v = _verifier()
