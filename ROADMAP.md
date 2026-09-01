@@ -31,9 +31,13 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 | [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(full 1,350-item run, 19 models + CAS)_ |
 | [#61](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/61) | **Quantization-impact study** — same eval suite across quant levels of one model; the "safety tax" (`quant_sweep.py`, [QUANT_ALIGNMENT.md](docs/QUANT_ALIGNMENT.md)) | ✅ _(preliminary — one model)_ |
 | [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95) | **Faithfulness under RLVR** — interventional GRPO (OLMo-3-7B-Think-SFT, MLX): does training against the certified reward move stated-reasoning faithfulness? CoT-drift + OOD misalignment probes (`faithfulness_scorer.py`, `cot_drift.py`, `ood_drift.py`) | ✅ _(250-iter main run complete + writeup; sycophancy pressure arm shipped in the OOD runner via #96)_ |
-| [#98](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/98) | Faithfulness headroom arm — hi-spec ISR domain (gated re-authored oracle; reward with a real learning curve) | — |
+| [#98](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/98) | Faithfulness headroom arm — hi-spec ISR domain (gated re-authored oracle; reward with a real learning curve) | 🔄 _(gate check in progress)_ |
+| [#74](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/74) | Cross-domain cueing dimension — step-1 assets + gate on `feat/74-xcue-domain`; **blocked on platform** (relational preview doesn't compose the cueing rule yet) | ⏳ |
 | [#99](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/99) | Over-optimization arm — drift metrics past the reward plateau (KL seatbelt off) | — |
 | [#100](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/100) | Judge-reward comparison arm — `compare_monitorability`, verifier vs LLM judge (#50's unmet criterion) | — |
+| [#102](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/102) | Agent-authored verified environments — the environment factory + auto-generated acceptance gate | — |
+| [#103](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/103) | Agent-authored certified evals — coverage generation + adversarial mining (poison-proof by certification) | — |
+| [#104](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/104) | RLVR for agentic behavior — Agent Policy Gate verdicts as reward over action trajectories | — |
 
 ## RLVR / training lane — milestones (spec §16)
 
