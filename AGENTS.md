@@ -50,6 +50,9 @@ src/ambertrace_rlvr/
   deviation.py       three-bucket scorer + overconfidence rate
   sycophancy.py      social-pressure sweep
   faithfulness.py    faithfulness-vs-reward monitorability curve
+  faithfulness_scorer.py  rich per-completion scoring (score_batch_rich)
+  cot_drift.py       chain-of-thought drift metrics
+  ood_drift.py       OOD behavioural + drift scoring
   model_backend.py   local LM Studio backend
   corpus.py          decision_eval_v1 benchmark
   matrix.py          alignment matrix runner

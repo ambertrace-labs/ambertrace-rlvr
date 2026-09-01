@@ -66,15 +66,14 @@ def train(*, max_steps: int | None = None, num_generations: int | None = None,
           max_completion_length: int = 320, learning_rate: float | None = None) -> dict:
     _load_dotenv()
 
+    # macOS/MPS workaround: force single-threaded weight loading (see the GRPO
+    # example for the full rationale). Harmless elsewhere.
+    import transformers.core_model_loading as _cml
     from datasets import load_dataset  # type: ignore
     from trl import RLOOConfig  # type: ignore
 
     from ambertrace_rlvr import build_run_report, write_run_report
     from ambertrace_rlvr.integrations.trl import build_rloo_trainer
-
-    # macOS/MPS workaround: force single-threaded weight loading (see the GRPO
-    # example for the full rationale). Harmless elsewhere.
-    import transformers.core_model_loading as _cml
     _cml.GLOBAL_WORKERS = 1
 
     run = load_run_config(CONFIG)

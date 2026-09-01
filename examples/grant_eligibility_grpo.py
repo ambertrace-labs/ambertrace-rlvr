@@ -67,17 +67,16 @@ def train(*, max_steps: int | None = None, num_generations: int | None = None,
     _load_dotenv()
     import os
 
-    from datasets import load_dataset  # type: ignore
-    from trl import GRPOConfig  # type: ignore
-
-    from ambertrace_rlvr import build_run_report, write_run_report
-    from ambertrace_rlvr.integrations.trl import build_grpo_trainer
-
     # macOS/MPS workaround: transformers 5.x materializes weights across a
     # ThreadPoolExecutor (GLOBAL_WORKERS=min(4, cpu_count)); concurrent Metal
     # tensor copies segfault under trl's model load. Force single-threaded
     # loading. (Harmless elsewhere; only affects load parallelism.)
     import transformers.core_model_loading as _cml
+    from datasets import load_dataset  # type: ignore
+    from trl import GRPOConfig  # type: ignore
+
+    from ambertrace_rlvr import build_run_report, write_run_report
+    from ambertrace_rlvr.integrations.trl import build_grpo_trainer
     _cml.GLOBAL_WORKERS = 1
 
     run = load_run_config(CONFIG)

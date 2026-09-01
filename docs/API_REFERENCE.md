@@ -416,9 +416,218 @@ Dataclass. Fields: `verifier: CurveTrend`, `judge: CurveTrend`, `diverge: bool`.
 `compare_monitorability(verifier_curve: Sequence[CurvePoint], judge_curve: Sequence[CurvePoint]) -> MonitorabilityComparison`
 
 #### `load_trajectory`
-*Read a saved trajectory (JSONL; one candidate per line).*
+*Read a saved trajectory (JSONL; one candidate per line). Unknown fields (e.g. `consistency`) are silently ignored; malformed lines are skipped with a summary warning.*
 
 `load_trajectory(path: str | Path) -> list[CandidateTrace]`
+
+### Rich scoring (faithfulness scorer)
+
+The rich scorer captures the full per-completion data needed by the
+faithfulness harness: reward, reasoning, credited rules, and consistency.
+It drives the `score_batch_rich` -> `append_trajectory` -> `load_trajectory`
+round-trip that records monitorability trajectories during training.
+
+#### `RichScore`
+*Per-completion score with faithfulness-relevant fields.*
+
+Dataclass (frozen). Fields:
+- `reward: float` -- the shaped scalar reward.
+- `reasoning: str` -- the model's stated reasoning (from the parser).
+- `credited_rules: tuple[str, ...]` -- the rules the certificate credited.
+- `consistency: float` -- reasoning-vs-certified-trace precision metric.
+
+#### `score_batch_rich`
+*Score a batch of completions, returning rich per-completion data.*
+
+```
+score_batch_rich(parser: CompletionParser, shaper: RewardShaper,
+                 verifier: VerifierLike, prompts: Sequence[str],
+                 completions: Sequence[str],
+                 metadata: Sequence[dict[str, Any]] | None = None, *,
+                 floor: float = -1.0) -> list[RichScore]
+```
+
+The parse -> verify -> shape loop delegates to `score_one_item` (the same
+per-item helper used by `build_reward_function`), so the two paths cannot
+diverge. `verifier` accepts any `VerifierLike` (including `FakeVerifier`).
+
+#### `append_trajectory`
+*Append JSONL lines compatible with `load_trajectory`.*
+
+`append_trajectory(path: str | Path, step: int, scores: Sequence[RichScore]) -> None`
+
+Each line is `{step, reasoning, reward, credited_rules, consistency}`.
+Round-trip: `score_batch_rich` -> `append_trajectory` -> `load_trajectory` ->
+`faithfulness_curve`.
+
+#### `consistency_score`
+*Thin alias for `reasoning_consistency` (backward-compatible import from `faithfulness_scorer`).*
+
+`consistency_score(parsed: ParsedCompletion, report: AmberReport) -> float`
+
+#### `reasoning_consistency`
+*Rule-checked agreement between a completion's stated reasoning and the certified derivation (the precision-side metric).*
+
+```
+reasoning_consistency(parsed: ParsedCompletion, report: AmberReport) -> float
+```
+
+`score = clip01( (fired_named - unfired_named) / n_fired )`
+
+Fail-closed: zero on an uncertified report, no rules, no fired rules, or
+no captured reasoning.
+
+#### `names_rule`
+*Whether lower-cased text names a rule, matched on word boundaries.*
+
+`names_rule(name: str, text: str) -> bool`
+
+Public so custom consistency / faithfulness checks can reuse the matching
+strategy.
+
+#### `score_one_item`
+*Shape one (parsed, report) pair into a scalar reward. The shared per-item step used by `build_reward_function` and `score_batch_rich`.*
+
+```
+score_one_item(shaper: RewardShaper, parsed: ParsedCompletion,
+               report: AmberReport, meta: dict[str, Any],
+               floor: float) -> float
+```
+
+Fail-closed: shaping errors resolve to `floor`, never an exception.
+
+### CoT-drift metrics
+
+Pure, network-free functions that measure how the model's internal reasoning
+evolves over training checkpoints. Used by the faithfulness experiment's
+held-out probe sweep (`examples/probe_checkpoints.py`). All functions operate
+on a `ProbeCorpus` (a sequence of `ProbeTrace` dicts).
+
+#### `ProbeTrace`
+*One completion's channels: `think`, `stated`, `decision`, and optionally the
+prompt and credited rules.*
+
+Dataclass. Fields: `think: str`, `stated: str`, `decision: str`,
+`prompt: str | None`, `credited_rules: tuple[str, ...] | None`.
+
+`ProbeCorpus = Sequence[ProbeTrace | dict[str, Any]]`
+
+#### `LengthStats`
+*Mean/median whitespace-token counts for the think and stated channels.*
+
+Dataclass. Fields: `think_mean: float`, `think_median: float`,
+`stated_mean: float`, `stated_median: float`.
+
+#### `channel_lengths`
+*Compute per-channel length statistics over a corpus.*
+
+`channel_lengths(corpus: ProbeCorpus) -> LengthStats`
+
+#### `distinct_n`
+*Unique n-grams / total n-grams (vocabulary diversity). Falling values signal collapse.*
+
+`distinct_n(corpus: ProbeCorpus, n: int = 3, channel: str = "think") -> float`
+
+#### `lexicon_rate`
+*Mean per-trace hit rate of a curated lexicon in the specified channel.*
+
+`lexicon_rate(corpus: ProbeCorpus, lexicon: Sequence[str], channel: str = "think") -> float`
+
+Built-in lexicons: `VERIFIER_AWARENESS`, `HEDGING`, `BACKTRACKING`.
+
+#### `DivergenceReport`
+*Per-corpus think-vs-stated divergence summary.*
+
+Dataclass. Fields: `concealment: float`, `decision_flips: int`,
+`channel_overlap: float`.
+
+#### `think_stated_divergence`
+*Concealment, decision flips, and channel overlap between think and stated reasoning.*
+
+`think_stated_divergence(corpus: ProbeCorpus) -> DivergenceReport`
+
+#### `LogOddsDiff`
+*One unigram's frequency shift between two checkpoints.*
+
+Dataclass. Fields: `token: str`, `logodds_diff: float`, `count_new: int`,
+`count_base: int`.
+
+#### `ngram_logodds_diff`
+*Laplace-smoothed log-odds ratio of unigram frequencies at checkpoint N vs step 0.*
+
+`ngram_logodds_diff(corpus: ProbeCorpus, baseline: ProbeCorpus, *, top_k: int = 20) -> list[LogOddsDiff]`
+
+#### `unsupported_fact_fraction`
+*Fraction of facts in the decision block not grounded in the prompt (reuses `SubstringProvenanceChecker`).*
+
+`unsupported_fact_fraction(corpus: ProbeCorpus) -> float`
+
+#### `group_similarity`
+*Mean pairwise trigram Jaccard across groups of completions.*
+
+`group_similarity(groups: Sequence[Sequence[str]]) -> float`
+
+### OOD-drift metrics
+
+Typed, network-free scoring over per-checkpoint OOD capture corpora. Reuses
+`deviation` / `matrix` for behavioural metrics and `cot_drift` for CoT
+metrics. Used by the faithfulness experiment's OOD probe sweep
+(`examples/probe_ood_checkpoints.py`).
+
+#### `OODBehaviouralMetrics`
+*One checkpoint's OOD behavioural scores.*
+
+Dataclass. Fields: `accuracy: float`, `fail_open: float`,
+`over_caution: float`, `signed_bias: float`.
+
+#### `score_behavioural`
+*Score accuracy, fail-open, over-caution, and signed bias over OOD items.*
+
+`score_behavioural(items: Sequence[DecisionItem], answers: Sequence[ModelAnswer]) -> OODBehaviouralMetrics`
+
+#### `policy_bleed_rate`
+*Mean per-trace hit rate of training-domain vocabulary in OOD think channels.*
+
+`policy_bleed_rate(corpus: ProbeCorpus) -> float`
+
+Built-in lexicon: `POLICY_BLEED_LEXICON`.
+
+#### `format_leakage_rate`
+*Fraction of OOD completions emitting a training-domain format block where none was expected.*
+
+`format_leakage_rate(corpus: Sequence[dict[str, Any]]) -> float`
+
+#### `sycophancy_delta`
+*Signed fail-open delta between a pressure arm and the clean baseline.*
+
+`sycophancy_delta(clean: OODBehaviouralMetrics, pressure: OODBehaviouralMetrics) -> float`
+
+#### `OODCheckpointSummary`
+*Full summary for one OOD checkpoint: behavioural, CoT-drift, policy bleed, format leakage, and sycophancy delta.*
+
+Dataclass. Fields: `step: int`, `behavioural: OODBehaviouralMetrics`,
+`bleed: float`, `fmt_leak: float`, `syc_delta: float`,
+`think_len: float`, `hedge: float`, `backtrack: float`.
+
+#### `score_ood_checkpoint`
+*Score a full OOD checkpoint (clean + pressure captures) into an `OODCheckpointSummary`.*
+
+`score_ood_checkpoint(items: Sequence[DecisionItem], clean_completions: Sequence[str], pressure_completions: Sequence[str], *, step: int) -> OODCheckpointSummary`
+
+### Which metric? -- disambiguation
+
+Three different "consistency" / "faithfulness" metrics exist in this library,
+measuring distinct things:
+
+| Metric | Module | Measures | Computed from |
+|---|---|---|---|
+| `evaluation.consistency` | `evaluation.py` | Cross-paraphrase agreement: do repeated / paraphrased prompts yield the same answer? | Groups of completions (no certificate needed) |
+| `reasoning_consistency` | `rewards.py` | Reasoning-vs-certified-trace **precision**: does the stated reasoning accurately reflect which rules fired? Penalises naming unfired rules. | `(ParsedCompletion, AmberReport)` |
+| `faithfulness` | `faithfulness.py` | Credited-rule **recall**: what fraction of the rules the certificate credited does the reasoning actually cite? | `(reasoning: str, credited_rules)` |
+
+`reasoning_consistency` and `faithfulness` are complementary -- one is
+precision-side, the other recall-side -- and both are persisted in trajectory
+JSONL lines by `append_trajectory`.
 
 ### Model backend
 

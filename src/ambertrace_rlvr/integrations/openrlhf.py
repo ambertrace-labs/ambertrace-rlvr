@@ -126,8 +126,8 @@ def build_openrlhf_reward_app(
             if queries is None:
                 queries = data.get("queries")
             if not isinstance(queries, list):
-                raise ValueError("request must contain a 'query' list")
-        except Exception:
+                raise TypeError("request must contain a 'query' list")
+        except Exception:  # noqa: BLE001 — fail-closed: unknown batch size, reject the whole request
             # Batch size is unknown, so there is nothing to floor — reject.
             logger.warning("openrlhf reward request rejected: malformed request body")
             return _respond(start_response, "400 Bad Request",
@@ -187,7 +187,7 @@ def _read_json(environ: dict[str, Any]) -> dict[str, Any]:
     body = environ["wsgi.input"].read(length) if length > 0 else b""
     data = json.loads(body) if body else {}
     if not isinstance(data, dict):
-        raise ValueError("request body must be a JSON object")
+        raise TypeError("request body must be a JSON object")
     return data
 
 

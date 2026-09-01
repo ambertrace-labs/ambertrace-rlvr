@@ -30,6 +30,7 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 | [#59](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/59) | `decision_eval_v1` benchmark + loader + SDK eval-set generator (`corpus.py`, `eval_generator.py`) | ✅ |
 | [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(full 1,350-item run, 19 models + CAS)_ |
 | [#61](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/61) | **Quantization-impact study** — same eval suite across quant levels of one model; the "safety tax" (`quant_sweep.py`, [QUANT_ALIGNMENT.md](docs/QUANT_ALIGNMENT.md)) | ✅ _(preliminary — one model)_ |
+| [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95) | **Faithfulness under RLVR** — interventional GRPO (OLMo-3-7B-Think-SFT, MLX): does training against the certified reward move stated-reasoning faithfulness? CoT-drift + OOD misalignment probes (`faithfulness_scorer.py`, `cot_drift.py`, `ood_drift.py`) | ✅ _(250-iter main run complete + writeup; sycophancy pressure arm shipped in the OOD runner via #96)_ |
 
 ## RLVR / training lane — milestones (spec §16)
 
@@ -75,7 +76,7 @@ Generalisation, hosted reward server, docs, release.
 |---|------|-----------|
 | [#16](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/16) ✅ | Cross-domain swap-the-rule-set demo (≥2 domains) — **done** (`examples/cross_domain_demo.py`, [CROSS_DOMAIN.md](docs/CROSS_DOMAIN.md)) | #6, #13 |
 | [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) ✅ | OpenRLHF HTTP reward-server shim — **done** (`integrations/openrlhf.py`) | — |
-| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) ⏳ | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — in flight (PR #80) | — |
+| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — `build_rloo_trainer` (PR #80) | ✅ |
 | [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
 | [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) ✅ | v1.0 release: packaging, versioning, PyPI publish prep — **done: [`ambertrace-rlvr` on PyPI](https://pypi.org/project/ambertrace-rlvr/), `pip install ambertrace-rlvr`, automated releases via Trusted Publishing (first release `v0.1.1`)** | #19 |
 

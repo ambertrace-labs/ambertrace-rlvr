@@ -36,6 +36,7 @@ Documentation = "https://github.com/ambertrace-labs/ambertrace-rlvr/tree/main/do
 
 [project.optional-dependencies]
 trl = ["trl>=0.9", "transformers>=4.40", "torch>=2.1"]
+mlx = ["mlx>=0.18", "mlx-lm>=0.18", "mlx-lm-lora>=0.1"]
 wandb = ["wandb>=0.16"]
 dev = ["pytest>=8.0", "pyright>=1.1", "ruff>=0.5"]
 
@@ -57,6 +58,8 @@ per-file-ignores = { "examples/*.py" = ["E401", "E402", "E501", "E701", "E702"],
 
 [tool.pyright]
 include = ["src", "tests"]
+# tests import a few example modules via sys.path insertion
+extraPaths = ["examples"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
 venvPath = "."

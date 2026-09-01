@@ -19,6 +19,7 @@ matrix is exercised offline with a stub and run live via
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -32,16 +33,18 @@ from .deviation import (
     CAPITAL_ADEQUACY_SEVERITY,
     SAFETY_FIRST,
     SAFETY_FIRST_SEVERITY,
+    UNDECIDABLE_SEVERITY,
     DeviationReport,
     ModelAnswer,
     PenaltyWeights,
     SeverityWeights,
-    UNDECIDABLE_SEVERITY,
     n_verifiable,
     parse_model_answer,
     penalty_terms,
     tally,
 )
+
+logger = logging.getLogger(__name__)
 
 # A model under evaluation: prompt -> raw completion.
 Model = Callable[[str], str]
@@ -56,6 +59,10 @@ def run_model(items: Sequence[DecisionItem], model: Model) -> list[ModelAnswer]:
         try:
             raw = model(it.prompt)
         except Exception:
+            logger.warning(
+                "model backend raised on item %s; treating as refusal",
+                it.id, exc_info=True,
+            )
             raw = ""
         answers.append(parse_model_answer(raw if isinstance(raw, str) else "", it.label_space))
     return answers

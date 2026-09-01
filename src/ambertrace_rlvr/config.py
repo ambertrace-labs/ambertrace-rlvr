@@ -115,7 +115,7 @@ def load_run_config(path: str | Path, *, api_key: str | None = None) -> RunConfi
 def _build_domain(raw: Mapping[str, Any], api_key: str | None) -> VerifiableDomain:
     dcfg = raw.get("domain")
     if not isinstance(dcfg, Mapping):
-        raise ValueError("config section 'domain' is required")
+        raise TypeError("config section 'domain' is required")
     dcfg = dict(dcfg)
     if "api_key" in dcfg:
         raise ValueError(
@@ -182,7 +182,7 @@ def _build_weights(raw: Any) -> dict[str, float]:
     if raw is None:
         return weights
     if not isinstance(raw, Mapping):
-        raise ValueError(f"reward.weights must be a mapping, got {type(raw).__name__}")
+        raise TypeError(f"reward.weights must be a mapping, got {type(raw).__name__}")
     unknown = set(raw) - set(DEFAULT_WEIGHTS)
     if unknown:
         raise ValueError(
@@ -215,7 +215,7 @@ def _build_training(cfg: Any) -> TrainingConfig | None:
     if cfg is None:
         return None
     if not isinstance(cfg, Mapping):
-        raise ValueError("config section 'training' must be a mapping")
+        raise TypeError("config section 'training' must be a mapping")
     cfg = dict(cfg)
     if "framework" not in cfg or "model" not in cfg:
         raise ValueError("'training' requires 'framework' and 'model'")
@@ -233,7 +233,7 @@ def _build_dataset(cfg: Any) -> DatasetConfig | None:
     if cfg is None:
         return None
     if not isinstance(cfg, Mapping):
-        raise ValueError("config section 'dataset' must be a mapping")
+        raise TypeError("config section 'dataset' must be a mapping")
     cfg = dict(cfg)
     _reject_unknown(cfg, {"path"}, "dataset")
     if "path" not in cfg:
@@ -245,12 +245,12 @@ def _build_eval(cfg: Any) -> EvalConfig | None:
     if cfg is None:
         return None
     if not isinstance(cfg, Mapping):
-        raise ValueError("config section 'eval' must be a mapping")
+        raise TypeError("config section 'eval' must be a mapping")
     cfg = dict(cfg)
     _reject_unknown(cfg, {"path", "probes"}, "eval")
     probes = cfg.get("probes") or []
     if not isinstance(probes, (list, tuple)):
-        raise ValueError("'eval.probes' must be a list")
+        raise TypeError("'eval.probes' must be a list")
     path = cfg.get("path")
     return EvalConfig(
         path=str(path) if path is not None else None,
@@ -267,7 +267,7 @@ def _read_yaml(path: str | Path) -> dict[str, Any]:
     if data is None:
         return {}
     if not isinstance(data, Mapping):
-        raise ValueError(f"config must be a YAML mapping, got {type(data).__name__}")
+        raise TypeError(f"config must be a YAML mapping, got {type(data).__name__}")
     return dict(data)
 
 
@@ -276,7 +276,7 @@ def _section(raw: Mapping[str, Any], name: str) -> Mapping[str, Any]:
     if cfg is None:
         return {}
     if not isinstance(cfg, Mapping):
-        raise ValueError(f"config section '{name}' must be a mapping")
+        raise TypeError(f"config section '{name}' must be a mapping")
     return cfg
 
 

@@ -24,10 +24,13 @@ certificate's credited-rule set is consumed — verifier internals stay opaque.
 from __future__ import annotations
 
 import json
+import logging
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def cites(reasoning: str, rule: str) -> bool:
@@ -151,9 +154,11 @@ def compare_monitorability(
 
 def load_trajectory(path: str | Path) -> list[CandidateTrace]:
     """Read a saved trajectory (JSONL; one candidate per line with fields
-    ``step``, ``reasoning``, ``reward``, ``credited_rules``). Missing/invalid lines
-    are skipped, so a partial dump never crashes the harness."""
+    ``step``, ``reasoning``, ``reward``, ``credited_rules``). Missing/invalid
+    lines are skipped (with a summary warning), so a partial dump never crashes
+    the harness.  Unknown fields (e.g. ``consistency``) are silently ignored."""
     traces: list[CandidateTrace] = []
+    skipped = 0
     for line in Path(path).read_text().splitlines():
         line = line.strip()
         if not line:
@@ -161,8 +166,10 @@ def load_trajectory(path: str | Path) -> list[CandidateTrace]:
         try:
             rec = json.loads(line)
         except (json.JSONDecodeError, ValueError):
+            skipped += 1
             continue
         if not isinstance(rec, dict) or "step" not in rec:
+            skipped += 1
             continue
         traces.append(CandidateTrace(
             step=int(rec["step"]),
@@ -170,6 +177,8 @@ def load_trajectory(path: str | Path) -> list[CandidateTrace]:
             reward=float(rec.get("reward", 0.0)),
             credited_rules=tuple(str(r) for r in rec.get("credited_rules", [])),
         ))
+    if skipped > 0:
+        logger.warning("skipped %d malformed trajectory lines in %s", skipped, path)
     return traces
 
 

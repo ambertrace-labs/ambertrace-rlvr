@@ -37,7 +37,7 @@ def build_run_report(
     """
     curve = _reward_curve(log_history, reward_key)
     return {
-        "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "created_utc": datetime.datetime.now(datetime.UTC).isoformat(),
         "config": _redact(config),
         "versions": dict(versions or {}),
         "reward_curve": curve,

@@ -56,8 +56,8 @@ META = {
     "llama-3.2-3b": ("Llama-3.2-3B", "Meta", "3B", ""),
     "yi-1.5-9b": ("Yi-1.5-9B", "01.AI", "9B", ""),
 }
-PALETTE = dict(PAPER="#F7F6F3", CARD_LINE="#E7E4DC", INK="#1B1A17",
-               MUTED="#7A776E", AMBER="#E0982E")
+PALETTE = {"PAPER": "#F7F6F3", "CARD_LINE": "#E7E4DC", "INK": "#1B1A17",
+           "MUTED": "#7A776E", "AMBER": "#E0982E"}
 
 
 def norm(model: str) -> str:
@@ -84,7 +84,8 @@ def load_rows() -> dict[str, dict]:
     """model-key -> row dict (deduped, keeping the most recently written file)."""
     best: dict[str, tuple[float, dict]] = {}
     for f in glob.glob(str(REPO / "outputs" / "row_full_*.json")):
-        d = json.load(open(f))
+        with open(f) as fh:
+            d = json.load(fh)
         r = d["rows"][0]
         key = norm(r["model"])
         mt = os.path.getmtime(f)
