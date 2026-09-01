@@ -4,7 +4,7 @@ The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs
 
 Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
 
-**Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, released `v0.1.1`). `#27` is a platform-blocked follow-up.
+**Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, released `v0.1.1`). `#27` is now unblocked (SDK 2.1.3 ships `query_batch` + projection).
 
 ## Two lanes
 
@@ -31,20 +31,23 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 | [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(full 1,350-item run, 19 models + CAS)_ |
 | [#61](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/61) | **Quantization-impact study** — same eval suite across quant levels of one model; the "safety tax" (`quant_sweep.py`, [QUANT_ALIGNMENT.md](docs/QUANT_ALIGNMENT.md)) | ✅ _(preliminary — one model)_ |
 | [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95) | **Faithfulness under RLVR** — interventional GRPO (OLMo-3-7B-Think-SFT, MLX): does training against the certified reward move stated-reasoning faithfulness? CoT-drift + OOD misalignment probes (`faithfulness_scorer.py`, `cot_drift.py`, `ood_drift.py`) | ✅ _(250-iter main run complete + writeup; sycophancy pressure arm shipped in the OOD runner via #96)_ |
+| [#98](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/98) | Faithfulness headroom arm — hi-spec ISR domain (gated re-authored oracle; reward with a real learning curve) | — |
+| [#99](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/99) | Over-optimization arm — drift metrics past the reward plateau (KL seatbelt off) | — |
+| [#100](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/100) | Judge-reward comparison arm — `compare_monitorability`, verifier vs LLM judge (#50's unmet criterion) | — |
 
 ## RLVR / training lane — milestones (spec §16)
 
 The reward path + trainer adapters. Foundational reward components (#9, #10) are shared with the eval lane through the certificate. Done items marked ✅.
 
 ### M0 — Complete the bridge ✅
-Prerequisite plumbing for a real training loop. **Complete** (#27 remains as a platform-blocked follow-up).
+Prerequisite plumbing for a real training loop. **Complete** (#27 unblocked by SDK 2.1.3 — implementation pending).
 
 | # | Item | Spec |
 |---|------|------|
 | [#2](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/2)  | Config → run loader: YAML fully describes a run | §11 |
 | [#3](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/3)  | Verifier resilience: retries, backoff, circuit-breaker → floor | §10 |
 | [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 |
-| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection once the platform ships them — **blocked on platform** | — |
+| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection — **unblocked**: SDK 2.1.3 ships both (needs 2.x migration validation) | — |
 
 ### M1 — Warm-up domain (end-to-end) ✅
 First end-to-end GRPO loop against a platform we author via the SDK; first learning curves. **Complete** — see [Results](docs/RESULTS.md).
