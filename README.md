@@ -207,7 +207,7 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > [*Measuring Misalignment as Deviation From the Provable*](docs/research/alignment-matrix.md)
 > (the open-weight alignment matrix), and
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
-> (does the reward erode chain-of-thought faithfulness? living draft, pilot results in).
+> (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift).
 
 ## Design principles
 
@@ -231,6 +231,9 @@ src/ambertrace_rlvr/
   deviation.py     three-bucket scorer + overconfidence rate
   sycophancy.py    social-pressure sweep — signed fail-open Δ
   faithfulness.py  faithfulness-vs-reward monitorability curve
+  faithfulness_scorer.py  rich per-completion scoring (score_batch_rich → trajectory round-trip)
+  cot_drift.py     chain-of-thought drift metrics (channel lengths, distinct-n, lexicon tripwires, divergence)
+  ood_drift.py     OOD behavioural + drift scoring (policy bleed, format leakage, sycophancy delta)
   model_backend.py local LM Studio backend (OpenAI-compatible) → model callable
   corpus.py        decision_eval_v1 benchmark load/write + stats
   eval_generator.py SDK-driven eval-set generation

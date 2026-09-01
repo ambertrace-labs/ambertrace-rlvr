@@ -24,7 +24,11 @@ you can regenerate from this repo.
 
 - **[Faithfulness of Stated Reasoning Under Verifiable-Reward RL](faithfulness-under-rlvr.md).**
   Does RL against a proof-certified reward erode the faithfulness of a model's chain
-  of thought? OLMo-3-7B-Think-SFT trained on air-track triage with the consistency
-  weight at zero (measured, never optimised). Pilot: no faithfulness erosion; mild
-  positive drift on held-out probes; OOD arm shows a drift toward over-caution in
-  untrained domains. Main run in progress. Living draft.
+  of thought? OLMo-3-7B-Think-SFT trained on air-track triage (250 iterations, QLoRA
+  8-bit, three stop/resume segments) with the consistency weight at zero (measured,
+  never optimised). Headline: faithfulness recall drifts down mildly (0.238 to 0.182)
+  while consistency (precision) rises (0.044 to 0.099) — the model becomes more
+  selective, not more confabulatory. No reward-correlated confabulation (corr +0.12),
+  no concealment, verifier-awareness near zero. OOD fail-open goes to 0.000 from step
+  60 durably; signed bias locks mildly negative (over-caution); OOD accuracy rises to
+  0.983.

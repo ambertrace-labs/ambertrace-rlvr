@@ -30,7 +30,7 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 | [#59](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/59) | `decision_eval_v1` benchmark + loader + SDK eval-set generator (`corpus.py`, `eval_generator.py`) | ✅ |
 | [#60](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/60) | **Open-weight alignment matrix** — eval suite over open-weight models; published model × alignment-score matrix (`matrix.py`, [ALIGNMENT_MATRIX.md](docs/ALIGNMENT_MATRIX.md)) | ✅ _(full 1,350-item run, 19 models + CAS)_ |
 | [#61](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/61) | **Quantization-impact study** — same eval suite across quant levels of one model; the "safety tax" (`quant_sweep.py`, [QUANT_ALIGNMENT.md](docs/QUANT_ALIGNMENT.md)) | ✅ _(preliminary — one model)_ |
-| [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95) | **Faithfulness under RLVR** — interventional GRPO (OLMo-3-7B-Think-SFT, MLX): does training against the certified reward move stated-reasoning faithfulness? CoT-drift + OOD misalignment probes (`faithfulness_scorer.py`, `cot_drift.py`, `ood_drift.py`) | 🔄 _(pilot done; long run + writeup pending; sycophancy pressure arm → #96)_ |
+| [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95) | **Faithfulness under RLVR** — interventional GRPO (OLMo-3-7B-Think-SFT, MLX): does training against the certified reward move stated-reasoning faithfulness? CoT-drift + OOD misalignment probes (`faithfulness_scorer.py`, `cot_drift.py`, `ood_drift.py`) | ✅ _(250-iter main run complete + writeup; sycophancy pressure arm shipped in the OOD runner via #96)_ |
 
 ## RLVR / training lane — milestones (spec §16)
 

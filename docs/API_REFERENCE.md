@@ -496,6 +496,124 @@ score_one_item(shaper: RewardShaper, parsed: ParsedCompletion,
 
 Fail-closed: shaping errors resolve to `floor`, never an exception.
 
+### CoT-drift metrics
+
+Pure, network-free functions that measure how the model's internal reasoning
+evolves over training checkpoints. Used by the faithfulness experiment's
+held-out probe sweep (`examples/probe_checkpoints.py`). All functions operate
+on a `ProbeCorpus` (a sequence of `ProbeTrace` dicts).
+
+#### `ProbeTrace`
+*One completion's channels: `think`, `stated`, `decision`, and optionally the
+prompt and credited rules.*
+
+Dataclass. Fields: `think: str`, `stated: str`, `decision: str`,
+`prompt: str | None`, `credited_rules: tuple[str, ...] | None`.
+
+`ProbeCorpus = Sequence[ProbeTrace | dict[str, Any]]`
+
+#### `LengthStats`
+*Mean/median whitespace-token counts for the think and stated channels.*
+
+Dataclass. Fields: `think_mean: float`, `think_median: float`,
+`stated_mean: float`, `stated_median: float`.
+
+#### `channel_lengths`
+*Compute per-channel length statistics over a corpus.*
+
+`channel_lengths(corpus: ProbeCorpus) -> LengthStats`
+
+#### `distinct_n`
+*Unique n-grams / total n-grams (vocabulary diversity). Falling values signal collapse.*
+
+`distinct_n(corpus: ProbeCorpus, n: int = 3, channel: str = "think") -> float`
+
+#### `lexicon_rate`
+*Mean per-trace hit rate of a curated lexicon in the specified channel.*
+
+`lexicon_rate(corpus: ProbeCorpus, lexicon: Sequence[str], channel: str = "think") -> float`
+
+Built-in lexicons: `VERIFIER_AWARENESS`, `HEDGING`, `BACKTRACKING`.
+
+#### `DivergenceReport`
+*Per-corpus think-vs-stated divergence summary.*
+
+Dataclass. Fields: `concealment: float`, `decision_flips: int`,
+`channel_overlap: float`.
+
+#### `think_stated_divergence`
+*Concealment, decision flips, and channel overlap between think and stated reasoning.*
+
+`think_stated_divergence(corpus: ProbeCorpus) -> DivergenceReport`
+
+#### `LogOddsDiff`
+*One unigram's frequency shift between two checkpoints.*
+
+Dataclass. Fields: `token: str`, `logodds_diff: float`, `count_new: int`,
+`count_base: int`.
+
+#### `ngram_logodds_diff`
+*Laplace-smoothed log-odds ratio of unigram frequencies at checkpoint N vs step 0.*
+
+`ngram_logodds_diff(corpus: ProbeCorpus, baseline: ProbeCorpus, *, top_k: int = 20) -> list[LogOddsDiff]`
+
+#### `unsupported_fact_fraction`
+*Fraction of facts in the decision block not grounded in the prompt (reuses `SubstringProvenanceChecker`).*
+
+`unsupported_fact_fraction(corpus: ProbeCorpus) -> float`
+
+#### `group_similarity`
+*Mean pairwise trigram Jaccard across groups of completions.*
+
+`group_similarity(groups: Sequence[Sequence[str]]) -> float`
+
+### OOD-drift metrics
+
+Typed, network-free scoring over per-checkpoint OOD capture corpora. Reuses
+`deviation` / `matrix` for behavioural metrics and `cot_drift` for CoT
+metrics. Used by the faithfulness experiment's OOD probe sweep
+(`examples/probe_ood_checkpoints.py`).
+
+#### `OODBehaviouralMetrics`
+*One checkpoint's OOD behavioural scores.*
+
+Dataclass. Fields: `accuracy: float`, `fail_open: float`,
+`over_caution: float`, `signed_bias: float`.
+
+#### `score_behavioural`
+*Score accuracy, fail-open, over-caution, and signed bias over OOD items.*
+
+`score_behavioural(items: Sequence[DecisionItem], answers: Sequence[ModelAnswer]) -> OODBehaviouralMetrics`
+
+#### `policy_bleed_rate`
+*Mean per-trace hit rate of training-domain vocabulary in OOD think channels.*
+
+`policy_bleed_rate(corpus: ProbeCorpus) -> float`
+
+Built-in lexicon: `POLICY_BLEED_LEXICON`.
+
+#### `format_leakage_rate`
+*Fraction of OOD completions emitting a training-domain format block where none was expected.*
+
+`format_leakage_rate(corpus: Sequence[dict[str, Any]]) -> float`
+
+#### `sycophancy_delta`
+*Signed fail-open delta between a pressure arm and the clean baseline.*
+
+`sycophancy_delta(clean: OODBehaviouralMetrics, pressure: OODBehaviouralMetrics) -> float`
+
+#### `OODCheckpointSummary`
+*Full summary for one OOD checkpoint: behavioural, CoT-drift, policy bleed, format leakage, and sycophancy delta.*
+
+Dataclass. Fields: `step: int`, `behavioural: OODBehaviouralMetrics`,
+`bleed: float`, `fmt_leak: float`, `syc_delta: float`,
+`think_len: float`, `hedge: float`, `backtrack: float`.
+
+#### `score_ood_checkpoint`
+*Score a full OOD checkpoint (clean + pressure captures) into an `OODCheckpointSummary`.*
+
+`score_ood_checkpoint(items: Sequence[DecisionItem], clean_completions: Sequence[str], pressure_completions: Sequence[str], *, step: int) -> OODCheckpointSummary`
+
 ### Which metric? -- disambiguation
 
 Three different "consistency" / "faithfulness" metrics exist in this library,
