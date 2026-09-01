@@ -908,3 +908,107 @@ only when called.
 - `score_batch(reward_fn, queries, prompts=None, labels=None, *, floor=-1.0, gold_key='gold')` — map an OpenRLHF request batch to rewards, fail-closed.
 - `build_openrlhf_reward_app(reward_fn, *, api_key=None, floor=-1.0, endpoint='/get_reward', gold_key='gold')` — build a stdlib WSGI app exposing `reward_fn` over OpenRLHF's remote-RM protocol.
 - `serve_openrlhf_reward(reward_fn, *, host='0.0.0.0', port=5000, api_key=None, floor=-1.0, endpoint='/get_reward')` — serve the reward app (blocking).
+
+---
+
+## Eval admission & gap analysis (#103)
+
+Agent-authored certified eval generation: an untrusted generator cannot poison the
+benchmark because every item's label is certified by the oracle. These modules are
+the offline trust core; live certification slots in via `AmberVerifier`.
+
+### `CandidateItem`
+*A proposed eval item pre-certification.*
+
+Frozen dataclass. Fields:
+- `prompt: str` — the prompt shown to a model under evaluation.
+- `facts: dict[str, Any]` — fixed ground-truth inputs the oracle is queried on.
+- `vocabulary: tuple[LabelSpec, ...]` — the decision vocabulary.
+- `intended_oracle: str` — the generator's intended certified verdict.
+- `intended_direction: str` — `"restrictive"` or `"permissive"`.
+- `intended_stratum: str` — difficulty family (e.g. `"ratio"`, `"negation"`).
+- `intended_band: str` — severity band (e.g. `"restrictive"`, `"permissive"`).
+- `provenance: GeneratorProvenance` — generator metadata for audit.
+- `difficulty: dict[str, Any]` — free-form difficulty tags.
+
+### `GeneratorProvenance`
+*Audit metadata for who/what generated a candidate.*
+
+Frozen dataclass. Fields: `generator_id: str`, `seed: int | None`, `created_at: str | None`.
+
+### `AdmissionResult`
+*The outcome of certifying one candidate.*
+
+Frozen dataclass. Fields:
+- `candidate: CandidateItem` — the original proposal.
+- `admitted: bool` — whether the candidate passed all checks.
+- `item: DecisionItem | None` — the admitted item (only when `admitted`).
+- `reasons: tuple[str, ...]` — rejection reasons (empty when admitted).
+- `actual_oracle: str | None` — the oracle's actual verdict (for diagnostics).
+- `actual_direction: str | None` — the actual severity band.
+
+### `certify_candidates`
+*Batch-certify candidates through the oracle with validation.*
+
+```
+certify_candidates(candidates, verifier, *, spec=None,
+                   existing_hashes=frozenset(), registry=None)
+    -> list[AdmissionResult]
+```
+
+Validates: oracle certification, intended-vs-actual property match, prompt sanity,
+content-addressed dedup, registry conflicts. Batch-shaped: chunks through
+`verifier.verify_batch` in groups of 50 (#101).
+
+### `AdmissionRegistry`
+*Train/eval separation ledger.*
+
+Maps content hashes to roles (`"eval"` / `"train-env"`) with optional model
+conditioning for adversarial items. Key methods:
+- `register(content_hash, role, *, model=None, provenance=None)` — register a hash.
+- `check_conflict(content_hash, intended_role) -> str | None` — check for conflicts.
+- `hashes_for_role(role) -> frozenset[str]` — all hashes for a role.
+- `save(path=None) -> Path` / `load(path) -> AdmissionRegistry` — persistence.
+
+### `corpus_content_hashes` / `corpus_prompt_hashes`
+*Content-addressed hash sets for deduplication against an existing corpus.*
+
+```
+corpus_content_hashes(items: Sequence[DecisionItem]) -> frozenset[str]
+corpus_prompt_hashes(items: Sequence[DecisionItem]) -> frozenset[str]
+```
+
+### `GapSpec`
+*One coverage gap: stratum x band x structure with counts and wanted.*
+
+Frozen dataclass. Fields: `stratum`, `band`, `structure`, `count`, `wanted`, `priority`.
+
+### `AdversarialTarget`
+*A cell where a model fails in the unsafe direction.*
+
+Frozen dataclass. Fields: `stratum`, `band`, `structure`, `fail_open_rate`, `model`.
+
+### `coverage_gaps`
+*Identify coverage gaps in an eval corpus.*
+
+```
+coverage_gaps(items, *, target_per_cell=None, strata_key="family",
+              structure_key="structure") -> list[GapSpec]
+```
+
+Returns gaps sorted by descending priority (largest gaps first).
+
+### `adversarial_targets`
+*Identify cells where a model fails in the unsafe direction.*
+
+```
+adversarial_targets(rows, *, min_fail_open=0.0, strata_key="family")
+    -> list[AdversarialTarget]
+```
+
+### `render_gaps`
+*Render a gap list as a markdown table.*
+
+```
+render_gaps(gaps: Sequence[GapSpec]) -> str
+```

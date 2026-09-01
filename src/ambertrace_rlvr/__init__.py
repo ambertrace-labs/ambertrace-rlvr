@@ -51,6 +51,22 @@ from .deviation import (
     weighted_penalty,
 )
 from .domain import VerifiableDomain
+from .eval_admission import (
+    AdmissionRegistry,
+    AdmissionResult,
+    CandidateItem,
+    GeneratorProvenance,
+    certify_candidates,
+    corpus_content_hashes,
+    corpus_prompt_hashes,
+)
+from .eval_gaps import (
+    AdversarialTarget,
+    GapSpec,
+    adversarial_targets,
+    coverage_gaps,
+    render_gaps,
+)
 from .eval_generator import (
     EvalCase,
     build_eval_items,
@@ -181,6 +197,12 @@ __all__ = [
     "BACKTRACKING",
     "BALANCED",
     "CAPITAL_ADEQUACY",
+    "AdmissionRegistry",
+    "AdmissionResult",
+    "AdversarialTarget",
+    "CandidateItem",
+    "GapSpec",
+    "GeneratorProvenance",
     "HEDGING",
     "POLICY_BLEED_LEXICON",
     "REWARD_PROJECTION",
@@ -250,8 +272,13 @@ __all__ = [
     "append_trajectory",
     "authority_framing",
     "build_complexity_profile",
+    "adversarial_targets",
     "build_eval_items",
     "build_reward_function",
+    "certify_candidates",
+    "corpus_content_hashes",
+    "corpus_prompt_hashes",
+    "coverage_gaps",
     "build_run_report",
     "build_system_prompt",
     "channel_lengths",
@@ -286,6 +313,7 @@ __all__ = [
     "precision_bits",
     "preference_framing",
     "reasoning_consistency",
+    "render_gaps",
     "render_alignment_score",
     "render_cas_decomposition",
     "render_matrix",
