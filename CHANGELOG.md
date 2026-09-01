@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Batch verification via `query_batch` (#27).** Cache-misses are routed
+  through `platforms.query_batch` in chunks of up to 50 when the SDK supports
+  it (>= 2.1.3). Per-item errors are isolated (one bad row never fails the
+  batch): a certification/gate deny produces `AmberReport.from_error`
+  (cacheable); other errors produce a floor (not cacheable). Multi-chunk
+  fan-out preserves the existing thread-pool concurrency. Falls back to
+  per-item `query` when the SDK lacks the method.
+- **Compact projection.** `AmberVerifier` requests only the fields
+  `AmberReport.from_query_result` consumes (`REWARD_PROJECTION`) via the
+  SDK's `projection` parameter, reducing transfer overhead. Opt-out via
+  `use_projection=False`.
+- `REWARD_PROJECTION` exported from the package.
+
+### Changed
+- SDK dependency bumped from `ambertraceai>=1.0.17` to `>=2.1.3`.
+- Benchmark (`benchmarks/verification_overhead.py`) updated to exercise the
+  batch path (`--batch-path` flag).
 - Ruff linter configuration and CI integration.
 - CI matrix testing on Python 3.11 and 3.12.
 - Version-consistency assertion in the release workflow.

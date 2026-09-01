@@ -47,7 +47,7 @@ Prerequisite plumbing for a real training loop. **Complete** (#27 unblocked by S
 | [#2](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/2)  | Config → run loader: YAML fully describes a run | §11 |
 | [#3](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/3)  | Verifier resilience: retries, backoff, circuit-breaker → floor | §10 |
 | [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 |
-| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | (follow-up) adopt query_batch + compact projection — **unblocked**: SDK 2.1.3 ships both (needs 2.x migration validation) | — |
+| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | adopt query_batch + compact projection ✅ | — |
 
 ### M1 — Warm-up domain (end-to-end) ✅
 First end-to-end GRPO loop against a platform we author via the SDK; first learning curves. **Complete** — see [Results](docs/RESULTS.md).
