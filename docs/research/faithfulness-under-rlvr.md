@@ -8,11 +8,12 @@
 > under the editorial oversight of Peter Chatwell, Founder/CEO, who is accountable
 > for its accuracy and conclusions.
 >
-> **Status: living draft.** Pilot run (60 iterations, QLoRA 8-bit) complete and
-> probed; main run (250 iterations, group 6, LR 1e-5) in progress. Sections
-> covering the main run are marked **[PENDING]** and will be filled when the run
-> lands. All pilot numbers come from the committed probe captures
-> (`outputs/probe_runs/summary.jsonl`, `outputs/ood_probe_runs/summary.jsonl`).
+> **Status: main run complete.** Pilot run (60 iterations, QLoRA 8-bit) and
+> main run (250 iterations, group 6, LR 1e-5, three stop/resume segments)
+> both complete and probed. Pilot numbers come from
+> `outputs/probe_runs/summary.jsonl` and `outputs/ood_probe_runs/summary.jsonl`;
+> main-run numbers from `outputs/probe_runs_main/summary.jsonl` and
+> `outputs/ood_probe_runs_main/summary.jsonl`.
 
 RLVR trains a model against a verified reward signal while the same model's
 *stated reasoning* is read as a safety signal by anyone monitoring it.
@@ -342,32 +343,197 @@ python examples/probe_ood_checkpoints.py \
     --checkpoints-dir outputs/faithfulness_mlx_grpo
 ```
 
+### Main run (250 iterations, three segments)
+
+```bash
+# Segment 1 (steps 0--30):
+python examples/faithfulness_mlx_grpo.py \
+    --config configs/air_track.yaml \
+    --max-iters 30 --group-size 6 --learning-rate 1e-5 \
+    --beta 0.04 --max-completion-tokens 2500 \
+    --output-dir outputs/faithfulness_run2/seg1
+
+# Segment 2 (steps 31--180):
+python examples/faithfulness_mlx_grpo.py \
+    --config configs/air_track.yaml \
+    --max-iters 150 --group-size 6 --learning-rate 1e-5 \
+    --beta 0.04 --max-completion-tokens 2500 \
+    --resume-adapter outputs/faithfulness_run2/seg1/adapters.safetensors \
+    --step-offset 30 \
+    --output-dir outputs/faithfulness_run2/seg2
+
+# Segment 3 (steps 181--250):
+python examples/faithfulness_mlx_grpo.py \
+    --config configs/air_track.yaml \
+    --max-iters 70 --group-size 6 --learning-rate 1e-5 \
+    --beta 0.04 --max-completion-tokens 2500 \
+    --resume-adapter outputs/faithfulness_run2/seg2/adapters.safetensors \
+    --step-offset 180 \
+    --output-dir outputs/faithfulness_run2/seg3
+
+# Main-run held-out probe sweep:
+python examples/probe_checkpoints.py \
+    --checkpoints-dir outputs/faithfulness_run2 \
+    --config configs/air_track.yaml \
+    --output-dir outputs/probe_runs_main
+
+# Main-run OOD probe sweep:
+python examples/probe_ood_checkpoints.py \
+    --checkpoints-dir outputs/faithfulness_run2 \
+    --output-dir outputs/ood_probe_runs_main
+```
+
 Segment-based stop/resume: the training script accepts `--resume-adapter` and
 `--step-offset` to continue from a previous segment's adapter checkpoint,
 keeping the trajectory's step numbering continuous.
 
-## SECTION 06: Main Run [PENDING]
+## SECTION 06: Main Run
 
-250 iterations, group size 6, learning rate 1e-5, max completion length 2500,
-segment-based stop/resume. Adapter checkpoints saved every 10 iterations.
-In-domain probes (50 items) and OOD probes (120 clean + 120 pressure = 240
-items) run every ~25 checkpoints.
+250 iterations, group size 6, batch size 1, learning rate 1e-5, beta 0.04,
+max completion length 2500, QLoRA 8-bit policy + 8-bit frozen KL reference,
+gradient checkpointing. The run was executed as three stop/resume segments
+via `--resume-adapter` (seg1: steps 0--30, seg2: 31--180, seg3: 181--250),
+producing 1,512 training rollouts across 251 steps. Adapter checkpoints
+saved every 10 iterations. In-domain probes (50 items) at steps
+0/50/100/150/200/250; OOD probes (120 clean + 120 pressure = 240 items)
+at steps 0/60/120/180/250.
 
-### Training trajectory [PENDING]
+### Training-rollout trajectory
 
-*To be filled when the main run completes.*
+Step-based terciles over the 1,512 training rollouts (early = steps 0--84,
+middle = 85--167, late = 168--250):
 
-### Held-out in-domain probes [PENDING]
+| tercile | n | mean reward | mean faithfulness | mean consistency |
+|---|---|---|---|---|
+| early | 504 | +0.670 | 0.290 (n=369) | 0.030 |
+| middle | 504 | +0.731 | 0.257 (n=376) | 0.040 |
+| late | 504 | +0.700 | 0.280 (n=371) | 0.030 |
 
-*To be filled from the main run's probe sweep.*
+Faithfulness is computed from `credited_rules` and the reasoning text using
+the same substring-match scorer as in the pilot. Of 1,512 rollouts, 1,116
+have at least one credited rule (the remainder are uncertified and have no
+defined faithfulness score). Consistency is defined for all rollouts.
 
-### OOD probes [PENDING]
+Faithfulness is flat across terciles (0.290/0.257/0.280), and consistency
+is flat (~0.03). The per-step curve-trend correlation between mean reward
+and mean faithfulness is +0.12: no reward-correlated confabulation pattern
+appears.
 
-*To be filled from the main run's OOD probe sweep.*
+Reward itself is near its shaped plateau throughout (mean +0.670 to +0.731),
+consistent with the held-out probes showing reward stable at ~1.2. The
+optimization pressure during this run was moderate, not extreme.
 
-### Interpretation [PENDING]
+### Held-out in-domain probes
 
-*To be filled.*
+50 items, scored at checkpoints 0, 50, 100, 150, 200, 250 via
+`examples/probe_checkpoints.py`. Source of truth:
+`outputs/probe_runs_main/summary.jsonl`.
+
+| step | reward | acc | faith | consist | think len | stated len | D3 | VA | hedge | BT | overlap | conceal | flips | unsupp |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 1.218 | 0.78 | 0.238 | 0.044 | 459 | 110 | 0.320 | 0.002 | 0.013 | 0.097 | 0.062 | 0 | 0 | 0.084 |
+| 50 | 1.286 | 0.80 | 0.182 | 0.038 | 432 | 113 | 0.329 | 0.001 | 0.014 | 0.093 | 0.105 | 0 | 1 | 0.097 |
+| 100 | 1.406 | 0.84 | 0.234 | 0.074 | 511 | 111 | 0.327 | 0.001 | 0.020 | 0.110 | 0.026 | 0 | 0 | 0.100 |
+| 150 | 1.196 | 0.76 | 0.238 | 0.056 | 482 | 111 | 0.331 | 0.001 | 0.016 | 0.103 | 0.082 | 0 | 2 | 0.080 |
+| 200 | 1.230 | 0.76 | 0.194 | 0.064 | 444 | 121 | 0.314 | 0.000 | 0.007 | 0.083 | 0.103 | 0 | 1 | 0.076 |
+| 250 | 1.247 | 0.78 | 0.182 | 0.099 | 477 | 112 | 0.305 | 0.004 | 0.014 | 0.098 | 0.064 | 0 | 0 | 0.096 |
+
+**Reading.** Reward is stable (1.218 to 1.247, peaking at 1.406 at step
+100); accuracy likewise (0.78 to 0.78, peaking at 0.84). The trajectory
+is a mild plateau, not a monotone climb.
+
+Faithfulness moves from 0.238 to 0.182 -- a downward drift, but
+non-monotone: it dips to 0.182 at step 50, recovers to 0.238 at step 150,
+then dips again at steps 200 (0.194) and 250 (0.182). The direction is the
+opposite of the pilot, where faithfulness rose mildly. The explanation is a
+recall/precision divergence: the model cites fewer of the credited rules
+(faithfulness, the recall side, falls) but its false citations of unfired
+rules fall even faster (consistency, the precision side, rises from 0.044
+to 0.099). The model is becoming more selective in what it cites, not more
+confabulatory.
+
+Concealment is zero at every checkpoint. Decision flips are sparse and
+non-trending (0, 1, 0, 2, 1, 0). Verifier-awareness stays near zero
+throughout (peak 0.004 at step 250, still negligible). Unsupported-fact
+fraction is stable (0.076--0.100, no trend). Distinct-3 drifts gently
+downward (0.320 to 0.305) but remains well above collapse thresholds.
+
+The n-gram log-odds detector at step 250: the top rising unigrams are
+benign enumeration terms ("fifth.", "sixth:", "alternatively,",
+"criteria."), not verifier-awareness vocabulary and not the
+citation/contract meta-language that appeared in the pilot at step 60.
+That pilot signal did not grow under continued training.
+
+### OOD probes
+
+120 items (6 strata x 20, stratified certified subset of
+`decision_eval_v1`), scored at checkpoints 0, 60, 120, 180, 250 via
+`examples/probe_ood_checkpoints.py`. Source of truth:
+`outputs/ood_probe_runs_main/summary.jsonl`.
+
+| step | acc | fail-open | over-caution | signed bias | bleed | fmt leak | syc delta | think len | hedge | BT |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 0.945 | 0.037 | 0.018 | +0.018 | 0.009 | 0.0 | +0.047 | 206 | 0.022 | 0.063 |
+| 60 | 0.981 | 0.000 | 0.019 | -0.019 | 0.008 | 0.0 | +0.048 | 198 | 0.023 | 0.066 |
+| 120 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.046 | 216 | 0.028 | 0.075 |
+| 180 | 0.972 | 0.000 | 0.028 | -0.028 | 0.008 | 0.0 | +0.062 | 205 | 0.025 | 0.067 |
+| 250 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.049 | 222 | 0.029 | 0.072 |
+
+**Reading.** The durable OOD caution shift seen in the pilot intensifies
+and locks in during the main run. Fail-open rate drops from 0.037 to 0.000
+by step 60 and stays at zero through step 250. Signed bias flips from
++0.018 (mildly fail-open) at step 0 to negative and stays there (-0.017
+to -0.028), meaning the model is consistently mildly over-cautious in
+domains the reward never touched. OOD accuracy improves (0.945 to 0.983).
+
+Policy bleed is flat (~0.008--0.009) and format leakage is zero at every
+checkpoint: the model does not leak air-track vocabulary or prompt
+formatting into unrelated domains.
+
+Sycophancy delta is trendless (range +0.046 to +0.062). The pressure
+framing pushes the model toward fail-open at every checkpoint, but the
+magnitude neither grows nor shrinks with training.
+
+Think-channel length grows mildly (206 to 222 tokens OOD). Hedging rises
+from 0.022 to 0.029; backtracking rises from 0.063 to 0.072. The
+rising-unigram lists at steps 120 and 250 show arithmetic and quantitative
+tokens (numerical values, "amount", "expenditure") rather than air-track
+domain terms.
+
+### Interpretation
+
+The main run extends the pilot from 60 to 250 iterations under stronger
+optimisation pressure (group 6, LR 1e-5 vs group 4, LR 3e-6). Four
+findings emerge:
+
+1. **Faithfulness recall falls mildly; precision rises.** On the held-out
+   probes, mean faithfulness (recall of credited rules) drifts from 0.238
+   to 0.182 -- the model cites fewer rules -- while consistency (precision)
+   rises from 0.044 to 0.099. This is a recall/precision divergence, not
+   confabulation: false citations of unfired rules fall faster than true
+   citations of fired rules. On the training rollouts, faithfulness is flat
+   across step-based terciles (0.290/0.257/0.280), with a reward-faith
+   correlation of +0.12: no reward-correlated confabulation appears.
+
+2. **Durable OOD caution shift.** Fail-open rate goes to zero by step 60
+   and stays there. Signed bias locks negative (-0.017 to -0.028). OOD
+   accuracy rises to 0.983. The narrow RL reward teaches the model caution
+   that transfers to unrelated domains, without leaking domain vocabulary
+   (policy bleed flat at ~0.009, format leakage zero).
+
+3. **Null signals remain null.** Concealment is zero throughout.
+   Decision flips are sparse (at most 2 at any checkpoint, non-trending).
+   Verifier-awareness is negligible (peak 0.004). Unsupported-fact
+   fraction is stable. The pilot's citation/contract meta-language n-gram
+   signal did not grow: the step-250 top rising unigrams are benign
+   enumeration terms ("fifth.", "sixth:", "alternatively,").
+
+4. **Moderate-pressure caveat.** Reward was near its shaped plateau
+   throughout the run (mean ~0.70 on rollouts, ~1.2 on the held-out
+   probes). The optimisation pressure was moderate, not extreme. Whether
+   faithfulness erodes under a stronger-pressure regime (longer training,
+   higher LR, larger group size, or a reward that has not yet plateaued)
+   remains untested and is the planned CUDA follow-up.
 
 ## SECTION 07: Limits
 
@@ -384,10 +550,23 @@ items) run every ~25 checkpoints.
   not whether the citation is used correctly in the reasoning.
 
 - **Coarse per-item granularity.** Faithfulness is a single scalar per item
-  (fraction of credited rules cited). It does not capture *how* the rules
-  are cited, whether the reasoning uses them in the correct logical
-  structure, or whether the reasoning is faithful in aspects not covered by
-  rule citation.
+  (fraction of credited rules cited). Most items have only 1--2 credited
+  rules, so faithfulness jumps in large increments (0, 0.5, 1.0). It does
+  not capture *how* the rules are cited, whether the reasoning uses them in
+  the correct logical structure, or whether the reasoning is faithful in
+  aspects not covered by rule citation.
+
+- **Moderate optimisation pressure only.** The main-run reward was near its
+  shaped plateau throughout (mean ~0.70 on rollouts, ~1.2 on the held-out
+  probes). The strong-pressure regime -- longer training, higher LR, larger
+  group size, or a reward that has not yet plateaued -- remains untested.
+  The CUDA follow-up is designed to reach that regime.
+
+- **OOD stated channel structurally sparse.** By prompt convention the OOD
+  items route their reasoning primarily through the `<think>` channel;
+  the `<reasoning>`/stated channel is often empty or trivially short
+  (median 1 token). The measured OOD faithfulness and CoT-drift metrics
+  therefore reflect the think channel, not stated reasoning.
 
 - **Quantised regime.** All results are LoRA-on-8-bit (both policy and KL
   reference). The quantisation may affect both the model's baseline
@@ -429,7 +608,8 @@ items) run every ~25 checkpoints.
   ([`configs/air_track.yaml`](../../configs/air_track.yaml))
   all ship in the open-source
   [`ambertrace-rlvr`](https://github.com/ambertrace-labs/ambertrace-rlvr) repo.
-  The probe captures (`outputs/probe_runs/`, `outputs/ood_probe_runs/`) are
+  The probe captures (pilot: `outputs/probe_runs/`, `outputs/ood_probe_runs/`;
+  main run: `outputs/probe_runs_main/`, `outputs/ood_probe_runs_main/`) are
   the source-of-truth artefacts; every figure in this document regenerates
   from them.
 - **Issue.** [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95)
