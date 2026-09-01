@@ -25,8 +25,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from .corpus import DecisionItem
 from .deviation import (
     BALANCED,
@@ -45,6 +43,8 @@ from .deviation import (
     penalty_terms,
     tally,
 )
+
+logger = logging.getLogger(__name__)
 
 # A model under evaluation: prompt -> raw completion.
 Model = Callable[[str], str]

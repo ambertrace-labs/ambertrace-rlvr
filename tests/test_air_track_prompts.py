@@ -10,14 +10,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "examples"))
 
-from gen_air_track_prompts import (
+from gen_air_track_prompts import (  # noqa: E402
     FACT_FIELDS,
     _parse_row,
     _render_track_report,
     build_system_prompt,
 )
 
-from ambertrace_rlvr.parsers import JSONBlockParser
+from ambertrace_rlvr.parsers import JSONBlockParser  # noqa: E402
 
 # A fixture rules manifest of (name, description) pairs (the real one is
 # written by the author script; descriptions are load-bearing because rule
