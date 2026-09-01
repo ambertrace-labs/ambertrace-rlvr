@@ -129,12 +129,15 @@ def run_level(
     with open(raw_path, "a") as fout:
         for i, it in enumerate(remaining):
             try:
-                raw, finish_reason = provider.complete_full(it.prompt)
+                raw, finish_reason, reasoning_content = provider.complete_full(it.prompt)
             except Exception as e:
                 log(f"  ERROR on {it.id}: {e!r}")
-                raw, finish_reason = "", "error"
+                raw, finish_reason, reasoning_content = "", "error", ""
 
-            bucket, answer = classify_output(raw, finish_reason, list(it.label_space))
+            bucket, answer = classify_output(
+                raw, finish_reason, list(it.label_space),
+                reasoning_content=reasoning_content,
+            )
             rec = ReasoningRecord(
                 item_id=it.id,
                 raw=raw,
@@ -142,7 +145,8 @@ def run_level(
                 bucket=bucket,
                 parsed_value=answer.value,
                 oracle=it.oracle,
-                think_chars=think_char_count(raw),
+                think_chars=think_char_count(raw, reasoning_content),
+                reasoning_content=reasoning_content,
             )
             records.append(rec)
             fout.write(json.dumps(rec.to_dict()) + "\n")

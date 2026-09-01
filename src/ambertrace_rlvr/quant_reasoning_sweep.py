@@ -2,15 +2,25 @@
 
 Same single-publisher imatrix ladder, same 1,350 oracle-certified items, but
 with reasoning ENABLED (no ``reasoning_effort: "none"``).  The model's
-``<think>`` trace is captured alongside its answer, and a new **truncation**
+thinking trace is captured alongside its answer, and a new **truncation**
 bucket isolates runs that hit ``max_tokens`` mid-thought without emitting a
 parseable decision --- a token-budget artefact, not a refusal, excluded from
 signed-error denominators but reported per level so truncation rate itself
 can be compared across precision levels.
 
+The thinking trace may arrive in two forms depending on the serving backend:
+
+1. **Separate field** --- LM Studio (and some OpenAI-compatible servers)
+   return ``reasoning_content`` alongside ``content`` in the message.
+2. **Inline tags** --- some backends fold the trace into ``content`` as
+   ``<think>...</think>`` blocks.
+
+Both are handled: :func:`classify_output` accepts a ``reasoning_content``
+argument for form 1 and falls back to inline-tag detection for form 2.
+
 Output format per level:
 - ``quant_reasoning_raw_<LEVEL>.jsonl`` --- one line per item, raw completion
-  including ``<think>`` channel, finish reason, and parsed classification.
+  including thinking trace, finish reason, and parsed classification.
   Append-and-skip by item id for resume after a kill.
 - ``quant_reasoning_summary_<LEVEL>.json`` --- per-level aggregate matching the
   published no-reasoning sweep's output schema, plus ``truncated`` count.
@@ -32,24 +42,43 @@ _THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
 # Truncation detection
 # ---------------------------------------------------------------------------
 
-def is_truncated_reasoning(raw: str, finish_reason: str) -> bool:
+def is_truncated_reasoning(
+    raw: str, finish_reason: str, *, reasoning_content: str = "",
+) -> bool:
     """Detect a response that was cut short mid-reasoning.
 
     A response is truncated when it hit the token budget (``finish_reason ==
-    "length"``) AND the ``<think>`` tag is opened but never closed, meaning
-    the model was still reasoning when the budget ran out.  If the model
-    finished its ``<think>`` block and then got truncated in the answer, that
-    is a parse-failure, not a truncation --- the model *did* attempt to answer.
+    "length"``) AND the model was reasoning (either via a separate
+    ``reasoning_content`` field or inline ``<think>`` tags) without producing
+    a parseable answer in ``raw``/``content``.
+
+    Two forms of reasoning trace:
+
+    1. **Separate field** (LM Studio): ``reasoning_content`` is non-empty but
+       ``content`` (``raw``) is empty or very short --- the budget was spent
+       on reasoning and the model never got to answer.
+    2. **Inline tags**: ``<think>`` opened but never closed in ``raw``.
+
+    If the model finished its thinking and then got truncated in the answer,
+    that is a parse-failure, not a truncation.
     """
     if finish_reason != "length":
         return False
+    # Form 1: separate reasoning_content field, empty/missing content
+    if reasoning_content and not raw.strip():
+        return True
+    # Form 2: inline <think> tags --- opened but never closed
     opens = len(_THINK_OPEN_RE.findall(raw))
     closes = len(_THINK_CLOSE_RE.findall(raw))
     return opens > closes
 
 
 def classify_output(
-    raw: str, finish_reason: str, label_space: tuple[str, ...] | list[str],
+    raw: str,
+    finish_reason: str,
+    label_space: tuple[str, ...] | list[str],
+    *,
+    reasoning_content: str = "",
 ) -> tuple[str, ModelAnswer]:
     """Classify a single raw completion into one of four buckets.
 
@@ -59,12 +88,16 @@ def classify_output(
     - ``"parse_fail"`` --- answer text produced but uncoercible.
     - ``"refusal"``   --- no answer text at all (empty / pure refusal).
 
+    ``reasoning_content`` is the thinking trace from backends that surface it
+    as a separate API field (e.g. LM Studio's ``reasoning_content``).  Pass
+    ``""`` when the backend folds the trace into ``raw`` as ``<think>`` tags.
+
     The ``ModelAnswer`` for a truncated item has ``answered=False,
     parse_ok=False`` --- the same shape as a refusal, so downstream code that
     only sees the ModelAnswer treats it identically.  The *bucket string* is
     what the sweep uses to route it out of the scoring denominator.
     """
-    if is_truncated_reasoning(raw, finish_reason):
+    if is_truncated_reasoning(raw, finish_reason, reasoning_content=reasoning_content):
         return "truncated", ModelAnswer(answered=False, parse_ok=False)
     answer = parse_model_answer(raw, label_space)
     if not answer.answered:
@@ -88,7 +121,8 @@ class ReasoningRecord:
     bucket: str           # truncated | decision | refusal | parse_fail
     parsed_value: str | None
     oracle: str | None
-    think_chars: int      # length of <think>...</think> block(s)
+    think_chars: int      # length of reasoning trace
+    reasoning_content: str = ""  # separate thinking field (LM Studio)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -99,6 +133,7 @@ class ReasoningRecord:
             "parsed_value": self.parsed_value,
             "oracle": self.oracle,
             "think_chars": self.think_chars,
+            "reasoning_content": self.reasoning_content,
         }
 
     @classmethod
@@ -111,12 +146,20 @@ class ReasoningRecord:
             parsed_value=d.get("parsed_value"),
             oracle=d.get("oracle"),
             think_chars=d.get("think_chars", 0),
+            reasoning_content=d.get("reasoning_content", ""),
         )
 
 
-def think_char_count(raw: str) -> int:
-    """Total characters inside ``<think>...</think>`` blocks (including an
-    unterminated trailing block)."""
+def think_char_count(raw: str, reasoning_content: str = "") -> int:
+    """Total characters of reasoning trace.
+
+    When ``reasoning_content`` is provided (the separate-field form), its
+    length is returned directly.  Otherwise, characters inside inline
+    ``<think>...</think>`` blocks (including an unterminated trailing block)
+    are counted.
+    """
+    if reasoning_content:
+        return len(reasoning_content)
     total = 0
     for m in re.finditer(r"<think>(.*?)</think>", raw, re.DOTALL | re.IGNORECASE):
         total += len(m.group(1))
