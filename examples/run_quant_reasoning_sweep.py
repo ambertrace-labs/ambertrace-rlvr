@@ -221,18 +221,28 @@ def run_all(
         lms("unload", "--all")
         time.sleep(2)
 
-        # Import as symlink + load
+        # Import as symlink, then discover the model key lms assigned — keys
+        # look like "qwen3.6-27b@q6_k"; loading by repo string does not work.
         lms("import", str(gguf), "--user-repo", "bartowski/Qwen_Qwen3.6-27B-GGUF",
             "--symbolic-link", "-y")
         time.sleep(2)
 
-        # Load the model
-        # Try to find it in lms ls
         ls_out = lms("ls")
-        log(f"lms ls output:\n{ls_out}")
+        quant_tag = quant.lower()
+        key = None
+        for line in ls_out.splitlines():
+            token = line.split()[0] if line.split() else ""
+            if "qwen" in token.lower() and "3.6-27b" in token.lower() and (
+                token.lower().endswith(f"@{quant_tag}")
+            ):
+                key = token
+                break
+        if key is None:
+            log(f"ABORT LADDER: no lms model key matching @{quant_tag} in lms ls:\n{ls_out}")
+            return
 
-        lms("load", "bartowski/Qwen_Qwen3.6-27B-GGUF",
-            "--identifier", "qreason", "--gpu", "max", "-y")
+        log(f"{quant}: loading lms key {key}")
+        lms("load", key, "--identifier", "qreason", "--gpu", "max", "-y")
         time.sleep(5)
 
         # Verify loaded — a level must never run against a dead server.
