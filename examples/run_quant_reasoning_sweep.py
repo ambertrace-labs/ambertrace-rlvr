@@ -195,9 +195,10 @@ def run_all(
             log(f"{quant}: no staged GGUF found, downloading...")
             dl_dir = STAGE_DIR / f"{quant}-dl"
             dl_dir.mkdir(parents=True, exist_ok=True)
+            hf_cli = str(Path(sys.executable).parent / "hf")
             subprocess.run(
-                [sys.executable, "-m", "huggingface_hub", "download",
-                 hf_repo, filename, "--local-dir", str(dl_dir)],
+                [hf_cli, "download", hf_repo, filename,
+                 "--local-dir", str(dl_dir)],
                 check=True,
             )
             gguf = dl_dir / filename
