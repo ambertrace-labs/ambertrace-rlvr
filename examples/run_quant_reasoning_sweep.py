@@ -131,12 +131,21 @@ def run_level(
     )
 
     t0 = time.time()
+    consecutive_errors = 0
     with open(raw_path, "a") as fout:
         for i, it in enumerate(remaining):
             try:
                 raw, finish_reason, reasoning_content = provider.complete_full(it.prompt)
+                consecutive_errors = 0
             except Exception as e:
                 log(f"  ERROR on {it.id}: {e!r}")
+                consecutive_errors += 1
+                if consecutive_errors >= 5:
+                    # The model/server is gone, not the items: abort the level
+                    # WITHOUT writing a summary so resume retries these items.
+                    log(f"ABORT {quant}: {consecutive_errors} consecutive "
+                        f"transport errors — model not serving; no summary written")
+                    return None
                 raw, finish_reason, reasoning_content = "", "error", ""
 
             bucket, answer = classify_output(
@@ -226,9 +235,14 @@ def run_all(
             "--identifier", "qreason", "--gpu", "max", "-y")
         time.sleep(5)
 
-        # Verify loaded
+        # Verify loaded — a level must never run against a dead server.
         ps_out = lms("ps")
         log(f"lms ps: {ps_out}")
+        if "qreason" not in ps_out:
+            log(f"ABORT LADDER: model failed to load for {quant} "
+                f"(no 'qreason' in lms ps) — stopping so no level burns "
+                f"through items against a dead endpoint")
+            return
 
         run_level(quant, model_id="qreason", max_tokens=max_tokens,
                   timeout=timeout, limit=limit)
