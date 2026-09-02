@@ -47,11 +47,16 @@ STOP = ["<|im_end|>", "<|endoftext|>", "<|user|>"]
 
 # Bartowski imatrix ladder: quant -> (staged subdir glob, HF repo, filename)
 LADDER = {
-    "Q8_0": ("Qwen3.6-27B-Q8-GGUF", "bartowski/Qwen3.6-27B-Q8_0-GGUF", "Qwen3.6-27B-Q8_0.gguf"),
-    "Q6_K": ("Qwen3.6-27B-Q6-GGUF", "bartowski/Qwen3.6-27B-Q6-GGUF", "Qwen3.6-27B-Q6_K.gguf"),
-    "Q4_K_M": ("Qwen3.6-27B-GGUF", "bartowski/Qwen3.6-27B-GGUF", "Qwen3.6-27B-Q4_K_M.gguf"),
-    "Q3_K_M": ("Qwen3.6-27B-Q3KM-GGUF", "bartowski/Qwen3.6-27B-Q3KM-GGUF", "Qwen3.6-27B-Q3_K_M.gguf"),
-    "Q2_K": ("Qwen3.6-27B-Q2K-GGUF", "bartowski/Qwen3.6-27B-IQ2_M-GGUF", "Qwen3.6-27B-Q2_K.gguf"),
+    # PROVENANCE: Q8_0..Q3_K_M use the August staged files — the exact ladder the
+    # published no-reasoning sweep ran on (bartowski's repo has since been renamed
+    # and re-quantized, so current uploads differ in size). Q2_K was not retained
+    # from August and comes from the refreshed canonical repo — the no-reasoning
+    # arm must be re-run on this Q2_K file for a matched pair (cheap: ~20 min).
+    "Q8_0": ("Qwen3.6-27B-Q8-GGUF", None, "Qwen3.6-27B-Q8_0.gguf"),
+    "Q6_K": ("Qwen3.6-27B-Q6-GGUF", None, "Qwen3.6-27B-Q6_K.gguf"),
+    "Q4_K_M": ("Qwen3.6-27B-GGUF", None, "Qwen3.6-27B-Q4_K_M.gguf"),
+    "Q3_K_M": ("Qwen3.6-27B-Q3KM-GGUF", None, "Qwen3.6-27B-Q3_K_M.gguf"),
+    "Q2_K": ("Qwen_Qwen3.6-27B-Q2_K", "bartowski/Qwen_Qwen3.6-27B-GGUF", "Qwen_Qwen3.6-27B-Q2_K.gguf"),
 }
 LEVEL_ORDER = ["Q8_0", "Q6_K", "Q4_K_M", "Q3_K_M", "Q2_K"]
 
@@ -181,8 +186,13 @@ def run_all(
         # Find or download the GGUF
         gguf = find_staged_gguf(quant)
         if not gguf:
-            log(f"{quant}: no staged GGUF found, downloading...")
             _, hf_repo, filename = LADDER[quant]
+            if hf_repo is None:
+                log(f"ERROR: {quant} must use the August staged file (published-"
+                    f"study provenance) but none was found; refusing to download "
+                    f"a substitute. Restore the staged GGUF and re-run.")
+                continue
+            log(f"{quant}: no staged GGUF found, downloading...")
             dl_dir = STAGE_DIR / f"{quant}-dl"
             dl_dir.mkdir(parents=True, exist_ok=True)
             subprocess.run(
@@ -202,7 +212,7 @@ def run_all(
         time.sleep(2)
 
         # Import as symlink + load
-        lms("import", str(gguf), "--user-repo", "bartowski/Qwen3.6-27B-GGUF",
+        lms("import", str(gguf), "--user-repo", "bartowski/Qwen_Qwen3.6-27B-GGUF",
             "--symbolic-link", "-y")
         time.sleep(2)
 
@@ -211,7 +221,7 @@ def run_all(
         ls_out = lms("ls")
         log(f"lms ls output:\n{ls_out}")
 
-        lms("load", "bartowski/Qwen3.6-27B-GGUF",
+        lms("load", "bartowski/Qwen_Qwen3.6-27B-GGUF",
             "--identifier", "qreason", "--gpu", "max", "-y")
         time.sleep(5)
 
