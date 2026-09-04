@@ -122,7 +122,107 @@ and the precision-insensitivity of the safety direction generalise beyond Qwen3.
 is untested. Every result here is also conditional on the **no-reasoning regime**:
 reasoning was disabled so precision stayed the only variable, so these findings do not
 speak to how the model behaves, or how quantisation affects it, when it is allowed to
-reason. A reasoning-enabled arm is the natural follow-up and the more deployment-realistic one.
+reason. The reasoning-enabled arm below answers that question.
+
+---
+
+## Reasoning-enabled arm
+
+*Same August ladder (Q8_0 through Q2_K, same single-publisher imatrix quants), same
+1,350 oracle-certified items, but with the model's thinking channel active.*
+
+**Provenance note on Q2_K.** Between the no-reasoning and reasoning runs, bartowski
+refreshed the Q2_K upload (same repo, updated GGUF). The reasoning-arm Q2_K was run
+against the refreshed file. The five higher levels are identical uploads across both
+arms. The Q2_K reasoning-arm numbers are therefore not a strict apples-to-apples
+comparison at that level; the refresh is noted inline and the Q2_K point should be
+read with that caveat.
+
+### Finding 4: reasoning lifts accuracy and halves fail-open
+
+| quant | arm | accuracy | fail-open (restr) | truncated | signed bias |
+|---|---|---|---|---|---|
+| Q8_0 | no-reasoning | 90.9% | 5.2% (45/858) | 0 | −0.024 |
+| Q8_0 | reasoning | 94.0% | 3.1% (27/858) | 0 | −0.020 |
+| Q6_K | no-reasoning | 90.9% | 5.2% (45/858) | 0 | −0.024 |
+| Q6_K | reasoning | 94.0% | 3.2% (27/849) | 9 | −0.020 |
+| Q4_K_M | no-reasoning | 90.2% | 6.3% (54/858) | 0 | −0.018 |
+| Q4_K_M | reasoning | 93.8% | 2.5% (21/857) | 0 | −0.031 |
+| Q3_K_M | no-reasoning | 90.2% | 5.2% (45/858) | 0 | −0.031 |
+| Q3_K_M | reasoning | 94.7% | 2.1% (18/858) | 0 | −0.027 |
+| Q2_K | no-reasoning | 89.6% | 6.3% (54/858) | 0 | −0.024 |
+| Q2_K | reasoning | 93.3% | 3.2% (27/855) | 3 | −0.027 |
+
+Reasoning raises accuracy by 3--5 points at every level (90--91% to 93--95%) and
+roughly halves fail-open on the safety-critical band (5--6% to 2--3%). The no-reasoning
+arm's headline story --- flat safety direction across precision --- still holds with
+reasoning on: signed bias stays in the narrow −0.020 to −0.031 band (net over-cautious)
+at every level. Truncation is minimal (0--9 items of 1,350) and confined to Q6_K and
+Q2_K.
+
+### Finding 5: reasoning partially fixes ratio-rule errors
+
+The no-reasoning arm's dominant weakness was ratio rules (threshold on a computed ratio,
+e.g. "monthly payment must not exceed 80% of income"), which carried ~16% fail-open
+while all other structures sat below 5%. Reasoning reduces ratio-rule fail-open but does
+not eliminate it:
+
+| structure | n | Q8_0 nr | Q8_0 r | Q4_K_M nr | Q4_K_M r | Q2_K nr | Q2_K r |
+|---|---|---|---|---|---|---|---|
+| ratio | 171 | 15.8% | 10.5% | 21.1% | 10.6% | 15.8% | 15.8% |
+| baseline | 192 | 4.7% | 4.7% | 4.7% | 1.6% | 9.4% | 0.0% |
+| precedence | 180 | 5.0% | 0.0% | 5.0% | 0.0% | 0.0% | 0.0% |
+| disjunction | 180 | 0.0% | 0.0% | 0.0% | 0.0% | 5.0% | 0.0% |
+| negation | 135 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+
+At Q8_0, reasoning cuts ratio fail-open from 15.8% to 10.5% (27 to 18 items). At
+Q4_K_M the improvement is more dramatic: 21.1% to 10.6% (36 to 18). At Q2_K (caveat:
+refreshed upload) ratio fail-open is unchanged at 15.8%. Reasoning also zeroes out
+precedence and baseline errors at most levels. The residual ~10% ratio-rule fail-open
+with reasoning on is the model's remaining arithmetic weakness --- the think trace shows
+it attempting the computation but sometimes arriving at the wrong number.
+
+### Finding 6: reasoning style shifts at low bit-widths
+
+CoT-drift metrics applied to the thinking channel across the ladder reveal a stylistic
+shift at Q3_K_M and Q2_K, even though decision quality barely moves.
+
+**Think length.** Mean whitespace tokens per trace: Q8_0 = 289, Q6_K = 285, Q4_K_M =
+277, Q3_K_M = 291, Q2_K = 312. The Q2_K mean is ~8% higher than Q8_0; the others are
+within noise.
+
+**Vocabulary diversity.** Distinct-3 (unique trigrams / total trigrams, think channel):
+Q8_0 = 0.060, Q6_K = 0.060, Q4_K_M = 0.062, Q3_K_M = 0.061, Q2_K = 0.065. Mild
+upward drift at Q2_K but no collapse at any level.
+
+**Lexicon rates.** Hedging and backtracking rates (fraction of curated lexicon terms
+present per trace) are stable: hedging ranges 0.022--0.036 and backtracking 0.095--0.113
+across the ladder, with no monotonic trend.
+
+**Unigram log-odds shift.** Comparing each level's unigram distribution against Q8_0:
+
+- Q6_K and Q4_K_M: max unigram log-odds magnitude ~4 (minor surface variation).
+- Q3_K_M and Q2_K: max magnitude jumps to ~6. The rising terms are meta-reasoning
+  tokens --- "\*\*analyze", "\*\*evaluate", "thinking", "process:" --- suggesting that
+  lower-bit models adopt a more explicitly structured self-prompting style. The falling
+  terms are domain-specific tokens from Q8_0's natural phrasing.
+
+The picture: quantisation below 4-bit does not degrade the model's *decisions* (Finding
+4), but it does shift the *style* of its reasoning toward more verbose, self-prompting
+patterns. Whether this is benign scaffolding or a precursor to faithfulness degradation
+under reward pressure is an open question for the training-lane faithfulness experiments.
+
+## Limits
+
+One model, one benchmark, single sample at temperature 0, decidable items only. Six
+precision levels means the regressions in Finding 2 and the redistributions in Finding
+3 are descriptive, not significance-tested; multi-sample runs would put error bars on
+both. The single-publisher ladder isolates bit-width but fixes one calibration method,
+and quantisation-aware training could change the picture. Whether the ratio weakness
+and the precision-insensitivity of the safety direction generalise beyond Qwen3.6-27B
+is untested. The reasoning arm (Findings 4--6) shares these limits, plus the Q2_K
+provenance caveat noted above. The CoT-drift metrics (Finding 6) describe lexical
+surface; they do not measure semantic faithfulness of the reasoning chain.
 
 ## For the Record
 
