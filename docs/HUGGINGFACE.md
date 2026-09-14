@@ -13,7 +13,7 @@ don't have to manufacture anything: the assets HF's discovery loops reward —
 datasets, a cross-model matrix, trained adapters, reproducible research — already
 exist here.
 
-Everything lives under one org, **`ambertrace-labs`**, so datasets, models, and
+Everything lives under one org, **[`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs)**, so datasets, models, and
 Spaces cross-link and carry one brand (Ambertrace-branded, no off-brand assets).
 
 ## The four surfaces, ranked by traction-per-effort
@@ -50,6 +50,15 @@ rule specs) ship as-is; the answer-bearing files (`acmg_train`/`acmg_eval`,
 `air_tracks_holdout`/`air_track_eval`, `decision_eval_v1`, `ood_probe_v1`,
 `prediction_eval_v1`) get a stripped export. Scoring happens live against
 AmberTrace.
+
+The export is mechanised: **`examples/export_hf_datasets.py`** strips the
+certified-answer fields (`gold` / `oracle` / `decision` / `triage_reason` /
+`undecidable`), groups the files into four domain datasets
+(`AmberTraceLabs/{air-track-triage, acmg-variant, grant-eligibility,
+decision-eval}`), and writes each with a dataset card into `dist/hf/`. It fails
+loud if any answer field survives, and `tests/test_hf_export.py` guards the
+invariant. Repo-local `data/` files are never touched. Upload from `dist/hf/` is
+the only remaining manual step.
 
 ### 3 · Model adapters — a second landing surface
 
@@ -93,5 +102,6 @@ will. Keep the house research voice; avoid claudisms.
 
 ## Prerequisites
 
-- Create the `ambertrace-labs` HF org.
-- Decide the safe-to-publish set (runs the guardrail audit above).
+- ✅ HF org created: [`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs).
+- ✅ Safe-to-publish set decided (guardrail audit, [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107)) and mechanised in `examples/export_hf_datasets.py`.
+- ☐ Upload `dist/hf/*` to the org (the one remaining manual step for #107).
