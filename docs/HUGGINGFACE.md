@@ -57,8 +57,10 @@ certified-answer fields (`gold` / `oracle` / `decision` / `triage_reason` /
 (`AmberTraceLabs/{air-track-triage, acmg-variant, grant-eligibility,
 decision-eval}`), and writes each with a dataset card into `dist/hf/`. It fails
 loud if any answer field survives, and `tests/test_hf_export.py` guards the
-invariant. Repo-local `data/` files are never touched. Upload from `dist/hf/` is
-the only remaining manual step.
+invariant. Repo-local `data/` files are never touched. **`examples/upload_hf_datasets.py`**
+then pushes each `dist/hf/<slug>/` to `AmberTraceLabs/<slug>` as a dataset repo
+(dry-run by default; `--push` to publish) — it re-runs the export first so the leak
+guard fires immediately before any upload.
 
 ### 3 · Model adapters — a second landing surface
 
@@ -104,4 +106,4 @@ will. Keep the house research voice; avoid claudisms.
 
 - ✅ HF org created: [`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs).
 - ✅ Safe-to-publish set decided (guardrail audit, [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107)) and mechanised in `examples/export_hf_datasets.py`.
-- ☐ Upload `dist/hf/*` to the org (the one remaining manual step for #107).
+- ☐ Upload to the org: `python examples/upload_hf_datasets.py --push` (the one remaining manual step for #107).

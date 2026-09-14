@@ -92,3 +92,22 @@ def test_check_mode_writes_nothing(tmp_path):
     mod = _load()
     mod.export_all(tmp_path, write=False)
     assert not any(tmp_path.iterdir()), "check/dry-run must not write files"
+
+
+def test_upload_plan_maps_repos(tmp_path):
+    """The upload plan targets AmberTraceLabs/<slug> and lands folders on disk (no network)."""
+    spec = importlib.util.spec_from_file_location(
+        "upload_hf_datasets", REPO / "examples" / "upload_hf_datasets.py")
+    assert spec and spec.loader
+    up = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(up)
+    entries = up.plan(tmp_path)
+    repo_ids = {e["repo_id"] for e in entries}
+    assert repo_ids == {
+        "AmberTraceLabs/air-track-triage",
+        "AmberTraceLabs/acmg-variant",
+        "AmberTraceLabs/grant-eligibility",
+        "AmberTraceLabs/decision-eval",
+    }
+    for e in entries:
+        assert (e["dir"] / "README.md").exists()      # card written, ready to push
