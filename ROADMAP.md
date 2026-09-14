@@ -89,12 +89,12 @@ Generalisation, hosted reward server, docs, release.
 
 ## Distribution / traction lane
 
-Getting the work in front of the people who'd use it. Artifact-led: fracture what the repo already has into discoverable Hugging Face surfaces under one `ambertrace-labs` org, each linking back to the repo + PyPI. Full plan and guardrails in [HUGGINGFACE.md](docs/HUGGINGFACE.md).
+Getting the work in front of the people who'd use it. Artifact-led: fracture what the repo already has into discoverable Hugging Face surfaces under one org — [`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs) — each linking back to the repo + PyPI. Full plan and guardrails in [HUGGINGFACE.md](docs/HUGGINGFACE.md). Guardrail: **AT = gold** — the verifier is the answer, so exports are prompts/features only and scored live (never ship `gold`/`oracle`/`decision`).
 
 | # | Item | State |
 |---|------|-------|
-| [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107) | Publish eval/probe datasets with cards — the discovery on-ramp; feeds the leaderboard | — |
-| [#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106) | Certified Alignment Matrix leaderboard Space — the traction flywheel | — |
+| [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107) | Publish eval/probe datasets with cards — the discovery on-ramp; feeds the leaderboard | ✅ _(4 datasets live: [air-track-triage](https://huggingface.co/datasets/AmberTraceLabs/air-track-triage), [acmg-variant](https://huggingface.co/datasets/AmberTraceLabs/acmg-variant), [grant-eligibility](https://huggingface.co/datasets/AmberTraceLabs/grant-eligibility), [decision-eval](https://huggingface.co/datasets/AmberTraceLabs/decision-eval); export/upload tooling in `examples/*_hf_datasets.py`)_ |
+| [#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106) | Certified Alignment Matrix leaderboard Space — the traction flywheel | — _(next; consumes the published datasets)_ |
 | [#108](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/108) | Publish faithfulness GRPO/QLoRA adapters as HF Models | — |
 | [#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109) | Cross-post the research corpus as HF Articles | — |
 
