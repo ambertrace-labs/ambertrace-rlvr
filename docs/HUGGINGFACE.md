@@ -1,0 +1,78 @@
+# Hugging Face distribution strategy
+
+How `ambertrace-rlvr` uses Hugging Face to reach the people who'd use it — model
+authors, RL practitioners, and alignment researchers — and pull them back to the
+repo and [PyPI](https://pypi.org/project/ambertrace-rlvr/).
+
+## The premise
+
+HF traction is **artifact-led, not repo-led**. People discover a *dataset*, a
+*leaderboard*, or a *model* — then follow it home. The job is to fracture what
+this repo already contains into discoverable HF surfaces that each link back. We
+don't have to manufacture anything: the assets HF's discovery loops reward —
+datasets, a cross-model matrix, trained adapters, reproducible research — already
+exist here.
+
+Everything lives under one org, **`ambertrace-labs`**, so datasets, models, and
+Spaces cross-link and carry one brand (Ambertrace-branded, no off-brand assets).
+
+## The four surfaces, ranked by traction-per-effort
+
+| # | Surface | What it is | Issue |
+|---|---------|-----------|-------|
+| 1 | **Leaderboard Space** | Gradio Space turning the 1,350-item certified alignment matrix into an "add your model" leaderboard | [#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106) |
+| 2 | **Datasets** | The eval/probe suites in `data/` as HF Datasets with real cards | [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107) |
+| 3 | **Model adapters** | The faithfulness GRPO/QLoRA checkpoints as HF Models | [#108](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/108) |
+| 4 | **Research articles** | `docs/research/` cross-posted as HF community Articles | [#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109) |
+
+### 1 · The leaderboard Space — the flywheel
+
+The one move that makes *other people* bring traffic. A leaderboard is HF's
+strongest organic-discovery loop: it gets bookmarked, cited, and gives every model
+author a reason to care, because their model is *on it*. Ours answers a question
+no other leaderboard does — **how faithfully does an open-weight model stay to a
+machine-checked proof as it reasons?** — and it's defensible because the verifier
+is fail-closed, not an LLM judge. Reuses the existing new-model run recipe as the
+"add your model" path. Reads the results dataset from surface #2.
+
+### 2 · Datasets — the on-ramp
+
+Fastest and lowest-risk. `data/` holds genuinely novel, cleanly-scoped suites —
+the matrix items, `air_track_*`, `grant_eligibility_*`, `acmg_*`, the OOD and
+faithfulness probes. Published with real cards, they index in HF *and* web search,
+each linking back to repo + PyPI, and they feed the leaderboard.
+
+### 3 · Model adapters — a second landing surface
+
+The faithfulness checkpoints ([#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95),
+MLX GRPO / QLoRA) as HF Models. A model card is where an ML practitioner actually
+lands, and ours carries a story they haven't seen: trained against a *certified*
+verifier, with the learning curve and W&B run attached.
+
+### 4 · Research articles — community distribution
+
+`docs/research/`, the quant safety-direction study, and the faithfulness writeup
+cross-posted as HF Articles get reach inside the ML community a repo README never
+will. Keep the house research voice; avoid claudisms.
+
+## Guardrails (non-negotiable, audit before every upload)
+
+- **Unsupervised invariant.** AmberTrace learns from features + plain-English
+  rules, *no labels*. No label / decision column may appear in any published
+  *platform* dataset. Eval and probe suites are fine — but audit each file first.
+- **No private-benchmark leakage.** Nothing from the private eval-design reference
+  may appear in any HF artifact. This repo stays SDK-only.
+- **One brand.** Ambertrace-branded assets only; no off-brand visuals.
+- **Every claim links to its capture** — the same ethos the repo already holds.
+
+## Sequencing
+
+1. **Datasets** ([#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107)) — unblocks everything, feeds the Space.
+2. **Leaderboard Space** ([#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106)) — the traction flywheel.
+3. **Model adapters** ([#108](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/108)) — credibility + a second landing surface.
+4. **Article** — tie it together with a "reproduce this" CTA back to the [roadmap](../ROADMAP.md).
+
+## Prerequisites
+
+- Create the `ambertrace-labs` HF org.
+- Decide the safe-to-publish set (runs the guardrail audit above).
