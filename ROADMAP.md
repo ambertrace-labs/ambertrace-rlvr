@@ -87,6 +87,17 @@ Generalisation, hosted reward server, docs, release.
 | [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
 | [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) ✅ | v1.0 release: packaging, versioning, PyPI publish prep — **done: [`ambertrace-rlvr` on PyPI](https://pypi.org/project/ambertrace-rlvr/), `pip install ambertrace-rlvr`, automated releases via Trusted Publishing (first release `v0.1.1`)** | #19 |
 
+## Distribution / traction lane
+
+Getting the work in front of the people who'd use it. Artifact-led: fracture what the repo already has into discoverable Hugging Face surfaces under one `ambertrace-labs` org, each linking back to the repo + PyPI. Full plan and guardrails in [HUGGINGFACE.md](docs/HUGGINGFACE.md).
+
+| # | Item | State |
+|---|------|-------|
+| [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107) | Publish eval/probe datasets with cards — the discovery on-ramp; feeds the leaderboard | — |
+| [#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106) | Certified Alignment Matrix leaderboard Space — the traction flywheel | — |
+| [#108](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/108) | Publish faithfulness GRPO/QLoRA adapters as HF Models | — |
+| [#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109) | Cross-post the research corpus as HF Articles | — |
+
 ---
 
 Guardrails carried through every item (see [CONTRIBUTING](CONTRIBUTING.md)): fail-closed rewards, bounded/monotonic scoring, offline-first tests, no secrets/PII, a read-only reward runtime against AmberTrace, and `pyright` clean after every Python change.
