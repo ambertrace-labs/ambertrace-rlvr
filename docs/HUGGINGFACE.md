@@ -42,6 +42,15 @@ the matrix items, `air_track_*`, `grant_eligibility_*`, `acmg_*`, the OOD and
 faithfulness probes. Published with real cards, they index in HF *and* web search,
 each linking back to repo + PyPI, and they feed the leaderboard.
 
+Every export is **prompts/features only** (see the AT = gold guardrail): the
+certified-answer columns — `gold`, `oracle`, `decision` — are stripped from the
+published copy. Files that already carry no answers (`acmg_variants.csv`,
+`air_tracks.csv`, the `*_train` prompt sets, `grant_eligibility_eval.jsonl`, the
+rule specs) ship as-is; the answer-bearing files (`acmg_train`/`acmg_eval`,
+`air_tracks_holdout`/`air_track_eval`, `decision_eval_v1`, `ood_probe_v1`,
+`prediction_eval_v1`) get a stripped export. Scoring happens live against
+AmberTrace.
+
 ### 3 · Model adapters — a second landing surface
 
 The faithfulness checkpoints ([#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95),
@@ -57,9 +66,19 @@ will. Keep the house research voice; avoid claudisms.
 
 ## Guardrails (non-negotiable, audit before every upload)
 
+- **AT = gold — never export the certificate.** The AmberTrace verifier *is* the
+  answer, so every `gold` / `oracle` / `decision` column is certified verifier
+  output. A public file of `(features → certified decision)` pairs is a
+  distillable map of the platform's decision function — publishing it gives the
+  product away and lets any leaderboard be gamed. **Every HF export is
+  prompts/features only; strip all certified-answer columns.** The leaderboard
+  obtains the certificate *live* by calling AmberTrace at eval time — the verifier
+  is the oracle, not a static key. (Repo-local files keep their answer columns —
+  the RL reward and offline tests need them; the rule is about what we *publish*.)
 - **Unsupervised invariant.** AmberTrace learns from features + plain-English
   rules, *no labels*. No label / decision column may appear in any published
-  *platform* dataset. Eval and probe suites are fine — but audit each file first.
+  *platform* dataset. (Subsumed by the AT = gold rule above, which is stricter:
+  no answer column ships in *any* export, platform or eval.)
 - **No private-benchmark leakage.** Nothing from the private eval-design reference
   may appear in any HF artifact. This repo stays SDK-only.
 - **One brand.** Ambertrace-branded assets only; no off-brand visuals.
