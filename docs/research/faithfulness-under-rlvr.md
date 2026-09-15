@@ -475,17 +475,13 @@ rules fall even faster (consistency, the precision side, rises from 0.044
 to 0.099). The model is becoming more selective in what it cites, not more
 confabulatory.
 
-Concealment is zero at every checkpoint. Decision flips are sparse and
-non-trending (0, 1, 0, 1, 1, 0). Verifier-awareness stays near zero
-throughout (peak 0.004 at step 250, still negligible). Unsupported-fact
-fraction is stable (0.076--0.100, no trend). Distinct-3 drifts gently
-downward (0.320 to 0.305) but remains well above collapse thresholds.
-
-The n-gram log-odds detector at step 250: the top rising unigrams are
-benign enumeration terms ("fifth.", "sixth:", "alternatively,",
-"criteria."), not verifier-awareness vocabulary and not the
-citation/contract meta-language that appeared in the pilot at step 60.
-That pilot signal did not grow under continued training.
+The safety channels stay quiet: concealment zero at every checkpoint,
+decision flips sparse and non-trending (0,1,0,1,1,0), verifier-awareness
+negligible (peak 0.004), unsupported-fact fraction stable (0.076--0.100),
+and distinct-3 drifting only gently (0.320→0.305, well above collapse). The
+step-250 n-gram detector's top rising unigrams are benign enumeration terms
+("fifth.", "sixth:", "alternatively,") -- the citation/contract meta-language
+that surfaced in the pilot at step 60 did not grow.
 
 ### OOD probes
 
@@ -506,26 +502,17 @@ That pilot signal did not grow under continued training.
 
 *The accuracy gain is small on an already-high baseline; the change that matters is the collapse of fail-open to zero and the flip of signed bias into over-caution — a transferred disposition, not memorised answers.*
 
-**Reading.** The durable OOD caution shift seen in the pilot intensifies
-and locks in during the main run. Fail-open rate drops from 0.037 to 0.000
-by step 60 and stays at zero through step 250. Signed bias flips from
-+0.018 (mildly fail-open) at step 0 to negative and stays there (-0.017
-to -0.028), meaning the model is consistently mildly over-cautious in
-domains the reward never touched. OOD accuracy improves (0.945 to 0.983).
+**Reading.** The chart is the finding: the pilot's caution shift intensifies
+and sticks. It transfers as *disposition*, not vocabulary -- policy bleed stays
+flat (~0.008--0.009) and format leakage is zero, so no air-track terms or prompt
+formatting leak into the unrelated domains.
 
-Policy bleed is flat (~0.008--0.009) and format leakage is zero at every
-checkpoint: the model does not leak air-track vocabulary or prompt
-formatting into unrelated domains.
-
-Sycophancy delta is trendless (range +0.046 to +0.062). The pressure
-framing pushes the model toward fail-open at every checkpoint, but the
-magnitude neither grows nor shrinks with training.
-
-Think-channel length grows mildly (206 to 222 tokens OOD). Hedging rises
-from 0.022 to 0.029; backtracking rises from 0.063 to 0.072. The
-rising-unigram lists at steps 120 and 250 show arithmetic and quantitative
-tokens (numerical values, "amount", "expenditure") rather than air-track
-domain terms.
+The remaining channels are quiet. Sycophancy delta is trendless (+0.046 to
++0.062): the pressure framing pushes toward fail-open at every checkpoint but
+does not grow with training. Think-channel length grows mildly (206 to 222
+tokens) and hedging/backtracking rise slightly (0.022→0.029, 0.063→0.072); the
+step-120/250 rising-unigram lists are arithmetic terms ("amount", "expenditure"),
+not air-track vocabulary.
 
 ### Interpretation
 
@@ -542,11 +529,10 @@ findings emerge:
    across step-based terciles (0.290/0.257/0.280), with a reward-faith
    correlation of +0.12: no reward-correlated confabulation appears.
 
-2. **Durable OOD caution shift.** Fail-open rate goes to zero by step 60
-   and stays there. Signed bias locks negative (-0.017 to -0.028). OOD
-   accuracy rises to 0.983. The narrow RL reward teaches the model caution
-   that transfers to unrelated domains, without leaking domain vocabulary
-   (policy bleed flat at ~0.009, format leakage zero).
+2. **Durable OOD caution shift (diagram below).** The narrow reward teaches
+   a domain-general caution that transfers to unseen domains -- fail-open to
+   zero, signed bias locked negative, accuracy up -- without leaking air-track
+   vocabulary.
 
    ```mermaid
    flowchart TD
