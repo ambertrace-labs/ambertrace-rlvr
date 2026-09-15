@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 602" width="760" height="602" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
+<rect x="0.5" y="0.5" width="759" height="601" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AMBERTRACE · FAITHFULNESS</text>
+<text x="40" y="60" class="ti">Cross-domain caution transfer</text>
+<text x="40" y="79" class="sub">Narrow RL on air-track triage, scored on 120 held-out items in domains the reward never touched (main run)</text>
+<text x="40" y="88" class="pt">OOD accuracy</text>
+<line x1="84" y1="226.0" x2="724" y2="226.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="229.5" text-anchor="end" class="tk">0.900</text>
+<line x1="84" y1="165.0" x2="724" y2="165.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="168.5" text-anchor="end" class="tk">0.950</text>
+<line x1="84" y1="104.0" x2="724" y2="104.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="107.5" text-anchor="end" class="tk">1.000</text>
+<path d="M84.0 171.2 L237.6 127.0 L391.2 125.2 L544.8 138.2 L724.0 124.9" fill="none" stroke="#E0982E" stroke-width="2"/>
+<circle cx="84.0" cy="171.2" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="237.6" cy="127.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="391.2" cy="125.2" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="544.8" cy="138.2" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="724.0" cy="124.9" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="93.0" y="186.2" text-anchor="start" class="vl">0.945</text>
+<text x="717.0" y="114.9" text-anchor="end" class="vl">0.983</text>
+<text x="40" y="254" class="pt">Fail-open rate</text>
+<line x1="84" y1="392.0" x2="724" y2="392.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="395.5" text-anchor="end" class="tk">0.000</text>
+<line x1="84" y1="331.0" x2="724" y2="331.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="334.5" text-anchor="end" class="tk">0.020</text>
+<line x1="84" y1="270.0" x2="724" y2="270.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="273.5" text-anchor="end" class="tk">0.040</text>
+<path d="M84.0 280.1 L237.6 392.0 L391.2 392.0 L544.8 392.0 L724.0 392.0" fill="none" stroke="#E0982E" stroke-width="2"/>
+<circle cx="84.0" cy="280.1" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="237.6" cy="392.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="391.2" cy="392.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="544.8" cy="392.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="724.0" cy="392.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="93.0" y="295.1" text-anchor="start" class="vl">0.037</text>
+<text x="717.0" y="382.0" text-anchor="end" class="vl">0.000</text>
+<text x="40" y="420" class="pt">Signed bias  (+ fail-open / − over-caution)</text>
+<line x1="84" y1="558.0" x2="724" y2="558.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="561.5" text-anchor="end" class="tk">-0.030</text>
+<line x1="84" y1="484.8" x2="724" y2="484.8" stroke="#7A776E" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="76" y="488.3" text-anchor="end" class="tk">+0.000</text>
+<line x1="84" y1="436.0" x2="724" y2="436.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="439.5" text-anchor="end" class="tk">+0.020</text>
+<path d="M84.0 440.0 L237.6 530.8 L391.2 527.2 L544.8 553.2 L724.0 526.5" fill="none" stroke="#E0982E" stroke-width="2"/>
+<circle cx="84.0" cy="440.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="237.6" cy="530.8" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="391.2" cy="527.2" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="544.8" cy="553.2" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="724.0" cy="526.5" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="93.0" y="455.0" text-anchor="start" class="vl">+0.018</text>
+<text x="717.0" y="516.5" text-anchor="end" class="vl">-0.017</text>
+<text x="724" y="447.0" text-anchor="end" class="an">← fail-open</text>
+<text x="724" y="554.0" text-anchor="end" class="an">← over-caution</text>
+<text x="84.0" y="578.0" text-anchor="middle" class="ax">0</text>
+<text x="237.6" y="578.0" text-anchor="middle" class="ax">60</text>
+<text x="391.2" y="578.0" text-anchor="middle" class="ax">120</text>
+<text x="544.8" y="578.0" text-anchor="middle" class="ax">180</text>
+<text x="724.0" y="578.0" text-anchor="middle" class="ax">250</text>
+<text x="404.0" y="596.0" text-anchor="middle" class="sub">training step</text>
+</svg>

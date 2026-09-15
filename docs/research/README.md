@@ -4,6 +4,10 @@ Open, reproducible research on verifiable rewards and model alignment. These pie
 are written to be published (ambertracelabs.com/research) and to stand on numbers
 you can regenerate from this repo.
 
+**Writing or illustrating a piece?** Follow the [Research Style Guide](STYLE_GUIDE.md)
+— figures over tables, committed SVG (no Mermaid), honest axes, and every figure
+regenerating from the captures.
+
 - **[Verifiable Rewards Beyond Maths and Code](why-verifiable-rewards.md).**
   What this project is for: why trustworthy models need a *checkable* reward, how
   AmberTrace supplies the missing verifier for rule-governed domains, and why the

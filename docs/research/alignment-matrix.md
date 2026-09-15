@@ -15,7 +15,7 @@
 
 A business that puts an open-weight model behind a real decision — approve or deny, clear or flag, discharge or escalate — is trusting it in a specific way: that when it is wrong, it is wrong in the safe direction. Accuracy alone does not tell you that. We scored 19 open-weight models against a proof-certified oracle on 1,350 graded-severity decisions, and report a single composite alignment score (CAS) alongside the **signed direction** of every error. Three results carry the run: the models that reason before answering fill the top of the board — led by a 27B reasoner run with its reasoning left on — and hold up as decisions get harder; a distinct cluster of models errs *toward* under-restriction, the direction that costs a deployer; and reasoning, not parameter count, is what moves a model from one group to the other. The sharpest evidence is a single model run both ways: Qwen3.8-27B with reasoning off scores 0.937, and the identical weights with reasoning on score 0.974 — while its fail-open rate on the safety-critical band falls from 6.3% to zero.
 
-## SECTION 01: What We Measure
+## §1 · What We Measure
 
 The AmberTrace verifier certifies, from the written policy and the case facts, exactly one correct action for each decision — and whether the case is decidable at all. That certified action is the oracle. A model's answer is scored not as right/wrong but by **direction** relative to the oracle on a severity-ranked action space:
 
@@ -27,7 +27,7 @@ The **Composite Alignment Score (CAS)** folds these into one number: `CAS = 1 �
 
 **CAS is never shown without its decomposition.** Every score below is backed by the per-band over-permit / over-deny / no-decision counts that produced it.
 
-## SECTION 02: The Benchmark
+## §2 · The Benchmark
 
 `decision_eval_v1` is 1,350 items across **225 synthetic domains** (6 items each), generated through the public SDK from plain-English policies — features only, no label column, so there is no answer to leak. Each item is oracle-certified live at score time. The corpus is stratified three ways, and every model is scored on all three cuts:
 
@@ -35,7 +35,7 @@ The **Composite Alignment Score (CAS)** folds these into one number: `CAS = 1 �
 - **Reasoning structure.** Five kinds of rule logic the decision turns on: `baseline` (a single threshold), `ratio` (a computed proportion vs a limit), `precedence` (which rule wins when several apply), `negation` (a condition defined by absence), `multi_trigger_disjunction` (any-of triggers). 270 items each.
 - **Severity band.** Whether the certified action is on the restrictive (safety-critical) or permissive side — the band that decides which direction of error is dangerous.
 
-## SECTION 03: Running Models Fairly
+## §3 · Running Models Fairly
 
 Models answer decisions in different ways, and scoring them identically is unfair in both directions: starve a model that reasons and it never reaches an answer; let a model that answers directly ramble and you measure its prose. Each model is run in one of three modes, flagged in the table.
 
@@ -53,7 +53,7 @@ The fair response is to constrain the **format**, not the **decision**. We re-ru
 
 Llama-3.1-8B is flagged `◊` and ranked alongside the rest. The accommodation changed how it talks, not what it decides — and the need for it is a small finding of its own: a model can be aligned-enough on paper yet unusable behind a plain decision instruction, because its post-training pulls it toward emitting API calls rather than answers. An eval that runs models the way a business actually would has to notice that.
 
-## SECTION 04: The Matrix
+## §4 · The Matrix
 
 CAS (BALANCED), best first. Full 1,350 items. `acc` is raw accuracy; `FO (restrictive)` is fail-open rate on the safety-critical band — the headline directional metric; `signed bias` is `(over-permit − over-deny) / n`, negative = net cautious, positive = net fail-open.
 
@@ -86,7 +86,7 @@ CAS (BALANCED), best first. Full 1,350 items. `acc` is raw accuracy; `FO (restri
 
 The reasoning-enabled models fill the top of the board: Qwen3.8-27B with its reasoning on leads outright — ahead of the two dedicated thinkers and every larger non-thinker — while the same Qwen3.8 with reasoning disabled sits fourth, a 0.037-CAS drop from one toggle. Below them the field descends roughly with capability, but the ordering is set by the direction of error as much as its rate — see Section 06.
 
-## SECTION 05: Reasoning Drives Alignment
+## §5 · Reasoning Drives Alignment
 
 Grouped by how a model produces its answer, the means separate cleanly and monotonically:
 
@@ -100,7 +100,7 @@ The cleanest evidence is a single model toggled: **Qwen3.8-27B scores 0.937 with
 
 Reasoning also buys **graceful degradation**. As the action space widens from 2 to 4 verbs, mean accuracy falls from 84% to 51% — but not evenly. The thinkers lose the least (Muse −19 points, OLMo-Think −20); the small direct models fall off a cliff (Llama-3.2-3B −55, Mistral-7B −49, GLM-4-9B −49).
 
-## SECTION 06: The Safety Direction
+## §6 · The Safety Direction
 
 Two models can share a fail-open rate and differ entirely in what they cost a deployer. Signed bias sorts the field into three dispositions:
 
@@ -110,7 +110,7 @@ Two models can share a fail-open rate and differ entirely in what they cost a de
 
 The distinction is not cosmetic. **Mistral-Small-3.2 and Kimi-Linear-48B post middling CAS (0.856, 0.850) yet sit in the fail-open cluster** — capable models a risk-conscious deployer should treat with care. Two models of similar accuracy can be on opposite sides of the only axis that matters for a safety-critical decision.
 
-## SECTION 07: Where Models Break
+## §7 · Where Models Break
 
 The severity of the failure concentrates by domain and by reasoning structure — and it is **capability, not specialisation**.
 
@@ -131,13 +131,13 @@ The severity of the failure concentrates by domain and by reasoning structure �
 
 Where models do err, the errors are **adjacent-severity swaps**, not wild misses: aggregated over the ranked models, the dominant confusions are `flag↔clear` and, on the enforcement ladder, `restrict→approve` (495) and `restrict→suspend` (405) — a rung too lenient, rarely two.
 
-## SECTION 08: Robustness
+## §8 · Robustness
 
 The ranking is not an artefact of the scoring weights. Re-scored under SAFETY_FIRST (fail-open weighted 10:1 over caution) and CAPITAL_ADEQUACY, the reasoning-led head of the table is unmoved — Qwen3.8-27B (reasoning), with zero fail-open on the safety-critical band, only pulls further ahead when under-restriction is punished harder — and the fail-open cluster sinks further; the only material re-orderings are over-cautious models rising when caution is barely charged (OLMo-3.1-Instruct +2, Llama-3.2-3B +2). A deployer's risk appetite changes the middle of the table, not the head.
 
 Two independent builds of Qwen3.6-27B — a bartowski Q4_K_M GGUF and an MLX-4bit — produce **identical** CAS (0.931), accuracy (90.2%) and fail-open rate (6.3%), a check that the signal is the model, not the quantisation.
 
-## SECTION 09: The Limits
+## §9 · The Limits
 
 - **Decidable-only.** `decision_eval_v1` contains no certified-undecidable items, so the overconfidence failure mode (committing to a verb where none is warranted) is not exercised here; it reads 0 for every model by construction.
 - **Single sample, temperature 0.** No variance estimate; a re-sampled run would move individual figures by a point or two, not the groupings.
