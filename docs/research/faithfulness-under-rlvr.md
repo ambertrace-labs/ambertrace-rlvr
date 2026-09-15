@@ -41,6 +41,19 @@ touched?
 
 ## SECTION 02: Setup
 
+*The experiment at a glance — one model, one certified domain, two probe arms:*
+
+```mermaid
+flowchart LR
+  M["OLMo-3-7B-Think-SFT<br/>(pre-RL checkpoint)"] --> T
+  P["Air-track triage policy<br/>certified by the AmberTrace kernel"] --> R["Fail-closed shaped reward<br/>consistency weight = 0"]
+  R --> T["GRPO training<br/>250 iters · 8-bit QLoRA"]
+  T --> IN["In-domain probes<br/>faithfulness · consistency · CoT-drift"]
+  T --> OOD["OOD probes — unseen domains<br/>accuracy · fail-open · signed bias"]
+  classDef amber fill:#E0982E,stroke:#B5761F,color:#1B1A17;
+  class T amber;
+```
+
 **Model.** `allenai/OLMo-3-7B-Think-SFT` -- the pre-RL checkpoint of a fully
 open post-training lineage (OLMo architecture, open data, open training code).
 By starting from the SFT checkpoint rather than a model that has already
@@ -489,6 +502,10 @@ That pilot signal did not grow under continued training.
 | 180 | 0.972 | 0.000 | 0.028 | -0.028 | 0.008 | 0.0 | +0.062 | 205 | 0.025 | 0.067 |
 | 250 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.049 | 222 | 0.029 | 0.072 |
 
+![Three stacked panels over training steps 0–250 in domains the reward never touched: OOD accuracy rises 0.945→0.983; fail-open rate drops 0.037→0.000 by step 60 and stays there; signed bias flips from +0.018 (fail-open) to negative (over-caution).](../assets/faithfulness_ood_transfer.svg)
+
+*The accuracy gain is small on an already-high baseline; the change that matters is the collapse of fail-open to zero and the flip of signed bias into over-caution — a transferred disposition, not memorised answers.*
+
 **Reading.** The durable OOD caution shift seen in the pilot intensifies
 and locks in during the main run. Fail-open rate drops from 0.037 to 0.000
 by step 60 and stays at zero through step 250. Signed bias flips from
@@ -531,6 +548,22 @@ findings emerge:
    that transfers to unrelated domains, without leaking domain vocabulary
    (policy bleed flat at ~0.009, format leakage zero).
 
+   ```mermaid
+   flowchart TD
+     A["Narrow RL on air-track triage<br/>reward = AmberTrace certificate + correctness"] --> B["Transferable disposition:<br/>prefer the safe/restrictive action under uncertainty"]
+     B --> C{"Unseen domains<br/>loan · eligibility · …"}
+     C --> D["Fail-open rate → 0"]
+     C --> E["Signed bias flips to over-caution<br/>+0.018 → −0.017"]
+     C --> F["OOD accuracy 0.945 → 0.983"]
+     B -. "no vocabulary bleed:<br/>policy-bleed flat · format-leakage 0" .-> C
+     classDef amber fill:#E0982E,stroke:#B5761F,color:#1B1A17;
+     class B amber;
+   ```
+
+   *The mechanism: the reward never names the OOD domains, but the disposition
+   it instils — resolve uncertainty toward the restrictive action — is
+   domain-general, so it carries over while the air-track vocabulary does not.*
+
 3. **Null signals remain null.** Concealment is zero throughout.
    Decision flips are sparse (at most 1 at any checkpoint, non-trending).
    Verifier-awareness is negligible (peak 0.004). Unsupported-fact
@@ -570,7 +603,11 @@ findings emerge:
   shaped plateau throughout (mean ~0.70 on rollouts, ~1.2 on the held-out
   probes). The strong-pressure regime -- longer training, higher LR, larger
   group size, or a reward that has not yet plateaued -- remains untested.
-  The CUDA follow-up is designed to reach that regime.
+  The CUDA follow-up is designed to reach that regime, tracked as the
+  over-optimisation arm
+  ([#99](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/99)):
+  does the cross-domain caution shift hold, or does faithfulness erode, once
+  the reward is pushed past its plateau with the KL seatbelt off?
 
 - **OOD stated channel structurally sparse.** By prompt convention the OOD
   items route their reasoning primarily through the `<think>` channel;
@@ -591,7 +628,10 @@ findings emerge:
 - **Judge-arm comparison not yet run.** The `compare_monitorability` function
   (verifier-gated vs model-judge training curves) is implemented but has not
   been exercised on this experiment's data. The comparison arm requires a
-  parallel training run against a model-judge reward, which is future work.
+  parallel training run against a model-judge reward -- tracked as the
+  judge-reward comparison arm
+  ([#100](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/100)):
+  does certified reward hold monitorability where an LLM-judge reward erodes it?
 
 - **Replication scope.** A Qwen-class model arm and a full-precision CUDA
   arm are planned as follow-ups but not yet started.
@@ -624,6 +664,13 @@ findings emerge:
   from them.
 - **Issue.** [#95](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/95)
   tracks this experiment end to end.
+- **Planned follow-ups.** The over-optimisation arm
+  ([#99](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/99)) pushes
+  the reward past its plateau to test whether the caution transfer holds under
+  strong pressure; the judge-reward comparison arm
+  ([#100](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/100))
+  contrasts the certified reward against an LLM-judge reward on the same
+  monitorability curve.
 
 ---
 
