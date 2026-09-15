@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 536" width="760" height="536" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
+<rect x="0.5" y="0.5" width="759" height="535" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AMBERTRACE · FAITHFULNESS</text>
+<text x="40" y="60" class="ti">Main run · training-rollout terciles</text>
+<text x="40" y="79" class="sub">Faithfulness and consistency flat across training; reward at its shaped plateau</text>
+<text x="40" y="88" class="pt">Mean reward</text>
+<line x1="84" y1="204.0" x2="724" y2="204.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="207.5" text-anchor="end" class="tk">0.600</text>
+<line x1="84" y1="154.0" x2="724" y2="154.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="157.5" text-anchor="end" class="tk">0.700</text>
+<line x1="84" y1="104.0" x2="724" y2="104.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="107.5" text-anchor="end" class="tk">0.800</text>
+<path d="M190.7 169.0 L404.0 138.5 L617.3 154.0" fill="none" stroke="#E0982E" stroke-width="2"/>
+<circle cx="190.7" cy="169.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="404.0" cy="138.5" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="617.3" cy="154.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="199.7" y="184.0" text-anchor="start" class="vl">0.670</text>
+<text x="610.3" y="144.0" text-anchor="end" class="vl">0.700</text>
+<text x="40" y="232" class="pt">Mean faithfulness</text>
+<line x1="84" y1="348.0" x2="724" y2="348.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="351.5" text-anchor="end" class="tk">0.200</text>
+<line x1="84" y1="314.7" x2="724" y2="314.7" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="318.2" text-anchor="end" class="tk">0.250</text>
+<line x1="84" y1="281.3" x2="724" y2="281.3" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="284.8" text-anchor="end" class="tk">0.300</text>
+<line x1="84" y1="248.0" x2="724" y2="248.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="251.5" text-anchor="end" class="tk">0.350</text>
+<path d="M190.7 288.0 L404.0 310.0 L617.3 294.7" fill="none" stroke="#E0982E" stroke-width="2"/>
+<circle cx="190.7" cy="288.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="404.0" cy="310.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="617.3" cy="294.7" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="199.7" y="303.0" text-anchor="start" class="vl">0.290</text>
+<text x="610.3" y="284.7" text-anchor="end" class="vl">0.280</text>
+<text x="40" y="376" class="pt">Mean consistency</text>
+<line x1="84" y1="492.0" x2="724" y2="492.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="495.5" text-anchor="end" class="tk">0.000</text>
+<line x1="84" y1="442.0" x2="724" y2="442.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="445.5" text-anchor="end" class="tk">0.030</text>
+<line x1="84" y1="392.0" x2="724" y2="392.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="395.5" text-anchor="end" class="tk">0.060</text>
+<path d="M190.7 442.0 L404.0 425.3 L617.3 442.0" fill="none" stroke="#E0982E" stroke-width="2"/>
+<circle cx="190.7" cy="442.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="404.0" cy="425.3" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="617.3" cy="442.0" r="4" fill="#E0982E" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="199.7" y="457.0" text-anchor="start" class="vl">0.030</text>
+<text x="610.3" y="432.0" text-anchor="end" class="vl">0.030</text>
+<text x="190.7" y="512.0" text-anchor="middle" class="ax">early</text>
+<text x="404.0" y="512.0" text-anchor="middle" class="ax">middle</text>
+<text x="617.3" y="512.0" text-anchor="middle" class="ax">late</text>
+<text x="404.0" y="530.0" text-anchor="middle" class="sub">training progress (terciles)</text>
+</svg>

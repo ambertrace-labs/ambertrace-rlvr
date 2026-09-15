@@ -30,7 +30,7 @@ the rules the verifier credited for each decision (`credited_rules`), giving a
 per-item, per-step ground truth for what correct reasoning must reference. This
 experiment uses that certificate to track faithfulness over training.
 
-## SECTION 01: Question
+## §1 · Question
 
 Does RL against a proof-certified verifier reward erode, preserve, or improve
 the faithfulness of a model's stated reasoning?
@@ -39,20 +39,9 @@ A secondary question: does narrow RL (a single triage domain) change the
 model's behaviour or chain-of-thought patterns in domains the reward never
 touched?
 
-## SECTION 02: Setup
+## §2 · Setup
 
-*The experiment at a glance — one model, one certified domain, two probe arms:*
-
-```mermaid
-flowchart LR
-  M["OLMo-3-7B-Think-SFT<br/>(pre-RL checkpoint)"] --> T
-  P["Air-track triage policy<br/>certified by the AmberTrace kernel"] --> R["Fail-closed shaped reward<br/>consistency weight = 0"]
-  R --> T["GRPO training<br/>250 iters · 8-bit QLoRA"]
-  T --> IN["In-domain probes<br/>faithfulness · consistency · CoT-drift"]
-  T --> OOD["OOD probes — unseen domains<br/>accuracy · fail-open · signed bias"]
-  classDef amber fill:#E0982E,stroke:#B5761F,color:#1B1A17;
-  class T amber;
-```
+![Experiment at a glance: OLMo-3-7B-Think-SFT and an AmberTrace-certified air-track triage policy feed a fail-closed shaped reward into GRPO training, which is then read by two probe arms — in-domain and OOD (unseen domains).](../assets/faithfulness_overview.svg)
 
 **Model.** `allenai/OLMo-3-7B-Think-SFT` -- the pre-RL checkpoint of a fully
 open post-training lineage (OLMo architecture, open data, open training code).
@@ -72,17 +61,9 @@ per-policy-branch probe suite. Early builds of the platform failed this gate and
 were rejected; only the passing build was used.
 
 **Reward.** The standard fail-closed shaped reward from `DefaultRewardShaper`,
-with component weights from `configs/air_track.yaml`:
+with component weights from `configs/air_track.yaml` ([full weights in Appendix A](#appendix-a--full-metric-tables)):
 
-| component | weight |
-|---|---|
-| format | 0.1 |
-| certified | 0.5 |
-| correctness | 1.0 |
-| graded | 0.3 |
-| rejected_penalty | 0.2 (subtracted) |
-| unsupported_penalty | 0.3 (subtracted) |
-| consistency | **0.0** |
+![The shaped reward's component weights: correctness +1.0, certified +0.5, graded +0.3, format +0.1, consistency 0.0 (measured but not optimised), and two subtracted penalties (rejected −0.2, unsupported −0.3).](../assets/faithfulness_reward_shape.svg)
 
 `consistency` is weighted zero: reasoning-vs-certificate agreement is
 *measured* at every step but *never optimised*, so any movement in
@@ -104,7 +85,7 @@ ambiguous. The shipped prompt therefore always pairs names with descriptions.
 Hardware: Apple Silicon MPS, 128 GB unified memory (shared with other
 workloads), peak observed ~26 GB for the training process.
 
-## SECTION 03: Metrics
+## §3 · Metrics
 
 Every metric is defined precisely and derived from the code; the raw captures
 are the primary artefact, and the metrics are views over them.
@@ -195,20 +176,16 @@ From `ood_drift.py`, scored on a 120-item stratified certified subset of
   The metric is the signed fail-open delta (pressure minus clean): positive =
   the pressure pushed the model toward under-restriction.
 
-## SECTION 04: Pilot Results
+## §4 · Pilot Results
 
 60 iterations, 4 rollouts per prompt, QLoRA 8-bit policy + 8-bit KL
 reference, LR 3e-6.
 
 ### Training-rollout trajectory
 
-Half-split over the training rollouts (certified rollouts only):
-
-| | start | end |
-|---|---|---|
-| faithfulness | 0.216 | 0.351 |
-| consistency | 0.033 | 0.048 |
-| reward-faithfulness correlation | | +0.15 |
+Half-split over the training rollouts (certified rollouts only): faithfulness
+rises 0.216 → 0.351 and consistency 0.033 → 0.048 start-to-end, with a
+reward-faithfulness correlation of +0.15 ([full table in Appendix A](#appendix-a--full-metric-tables)).
 
 The correlation carries a selection-effect caveat: it is conditioned on
 certified rollouts (uncertified rollouts have no credited rules and therefore
@@ -218,19 +195,10 @@ more rollouts certify.
 ### Held-out in-domain probes
 
 50 items, scored at checkpoints 0, 5, 10, 20, 30, 40, 50, 60 via
-`examples/probe_checkpoints.py`. Source of truth:
-`outputs/probe_runs/summary.jsonl`.
+`examples/probe_checkpoints.py` (source: `outputs/probe_runs/summary.jsonl`;
+[full metrics in Appendix A](#appendix-a--full-metric-tables)).
 
-| step | reward | acc | faith | consist | think len | stated len | D3 | VA | hedge | BT | overlap | conceal | flips | unsupp |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 1.218 | 0.78 | 0.238 | 0.044 | 459 | 110 | 0.320 | 0.002 | 0.013 | 0.097 | 0.062 | 0 | 0 | 0.084 |
-| 5 | 1.342 | 0.84 | 0.261 | 0.059 | 472 | 114 | 0.329 | 0.001 | 0.010 | 0.100 | 0.065 | 0 | 0 | 0.088 |
-| 10 | 1.066 | 0.68 | 0.207 | 0.053 | 424 | 104 | 0.337 | 0.001 | 0.013 | 0.082 | 0.123 | 0 | 1 | 0.084 |
-| 20 | 0.932 | 0.66 | 0.203 | 0.065 | 429 | 98 | 0.338 | 0.001 | 0.014 | 0.087 | 0.121 | 0 | 0 | 0.084 |
-| 30 | 1.191 | 0.74 | 0.256 | 0.035 | 455 | 115 | 0.333 | 0.001 | 0.020 | 0.105 | 0.045 | 0 | 0 | 0.088 |
-| 40 | 1.340 | 0.82 | 0.227 | 0.089 | 437 | 122 | 0.334 | 0.001 | 0.016 | 0.087 | 0.066 | 0 | 0 | 0.107 |
-| 50 | 1.126 | 0.74 | 0.244 | 0.083 | 414 | 103 | 0.316 | 0.004 | 0.011 | 0.090 | 0.084 | 0 | 0 | 0.092 |
-| 60 | 1.197 | 0.76 | 0.262 | 0.068 | 505 | 113 | 0.329 | 0.000 | 0.023 | 0.103 | 0.044 | 0 | 0 | 0.084 |
+![Pilot in-domain probe trajectory over steps 0–60: reward and accuracy roughly flat, faithfulness drifting up mildly, consistency rising.](../assets/faithfulness_pilot_indomain.svg)
 
 **Reading.** Reward is roughly flat (1.218 to 1.197, with a dip at steps
 10--20 and recovery); accuracy likewise (0.78 to 0.76). Faithfulness moves
@@ -251,14 +219,11 @@ to talk about the *mechanism* of citation rather than performing it.
 ### OOD probes
 
 120 items (6 strata x 20, stratified certified subset of `decision_eval_v1`),
-scored at checkpoints 0, 30, 60 via `examples/probe_ood_checkpoints.py`.
-Source of truth: `outputs/ood_probe_runs/summary.jsonl`.
+scored at checkpoints 0, 30, 60 via `examples/probe_ood_checkpoints.py`
+(source: `outputs/ood_probe_runs/summary.jsonl`;
+[full metrics in Appendix A](#appendix-a--full-metric-tables)).
 
-| step | acc | fail-open | over-caution | signed bias | bleed | fmt leak | syc delta | think len | hedge | BT |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 0.945 | 0.037 | 0.018 | +0.018 | 0.009 | 0.0 | +0.047 | 206 | 0.022 | 0.063 |
-| 30 | 0.982 | 0.000 | 0.018 | -0.018 | 0.008 | 0.0 | +0.075 | 209 | 0.027 | 0.075 |
-| 60 | 0.965 | 0.009 | 0.026 | -0.017 | 0.009 | 0.0 | +0.039 | 263 | 0.036 | 0.088 |
+![Pilot OOD probe trajectory over steps 0/30/60: accuracy edges up, fail-open falls, signed bias flips from fail-open to over-caution.](../assets/faithfulness_pilot_ood.svg)
 
 **Reading.** OOD accuracy improves slightly (0.945 to 0.965). Fail-open
 falls from 0.037 to 0.009; over-caution rises from 0.018 to 0.026. Signed
@@ -298,7 +263,7 @@ short horizon. Within that regime:
    the drift toward over-caution. Neither is alarming at this scale, but
    both warrant monitoring as training continues.
 
-## SECTION 05: Hardware and Reproduction
+## §5 · Hardware and Reproduction
 
 ### Apple Silicon (this experiment)
 
@@ -410,7 +375,7 @@ Segment-based stop/resume: the training script accepts `--resume-adapter` and
 `--step-offset` to continue from a previous segment's adapter checkpoint,
 keeping the trajectory's step numbering continuous.
 
-## SECTION 06: Main Run
+## §6 · Main Run
 
 250 iterations, group size 6, batch size 1, learning rate 1e-5, beta 0.04,
 max completion length 2500, QLoRA 8-bit policy + 8-bit frozen KL reference,
@@ -424,13 +389,10 @@ at steps 0/60/120/180/250.
 ### Training-rollout trajectory
 
 Step-based terciles over the 1,512 training rollouts (early = steps 0--84,
-middle = 85--167, late = 168--250):
+middle = 85--167, late = 168--250; [full table with per-tercile n in
+Appendix A](#appendix-a--full-metric-tables)):
 
-| tercile | n | mean reward | mean faithfulness | mean consistency |
-|---|---|---|---|---|
-| early | 504 | +0.670 | 0.290 (n=369) | 0.030 |
-| middle | 504 | +0.731 | 0.257 (n=376) | 0.040 |
-| late | 504 | +0.700 | 0.280 (n=371) | 0.030 |
+![Main-run training-rollout terciles: mean reward, faithfulness, and consistency are all flat across early/middle/late.](../assets/faithfulness_main_rollouts.svg)
 
 Faithfulness is computed from `credited_rules` and the reasoning text using
 the same substring-match scorer as in the pilot. Of 1,512 rollouts, 1,116
@@ -449,17 +411,10 @@ optimization pressure during this run was moderate, not extreme.
 ### Held-out in-domain probes
 
 50 items, scored at checkpoints 0, 50, 100, 150, 200, 250 via
-`examples/probe_checkpoints.py`. Source of truth:
-`outputs/probe_runs_main/summary.jsonl`.
+`examples/probe_checkpoints.py` (source: `outputs/probe_runs_main/summary.jsonl`;
+[full metrics in Appendix A](#appendix-a--full-metric-tables)).
 
-| step | reward | acc | faith | consist | think len | stated len | D3 | VA | hedge | BT | overlap | conceal | flips | unsupp |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 1.218 | 0.78 | 0.238 | 0.044 | 459 | 110 | 0.320 | 0.002 | 0.013 | 0.097 | 0.062 | 0 | 0 | 0.084 |
-| 50 | 1.286 | 0.80 | 0.182 | 0.038 | 432 | 113 | 0.329 | 0.001 | 0.014 | 0.093 | 0.105 | 0 | 1 | 0.097 |
-| 100 | 1.406 | 0.84 | 0.234 | 0.074 | 511 | 111 | 0.327 | 0.001 | 0.020 | 0.110 | 0.026 | 0 | 0 | 0.100 |
-| 150 | 1.196 | 0.76 | 0.238 | 0.056 | 482 | 111 | 0.331 | 0.001 | 0.016 | 0.103 | 0.082 | 0 | 1 | 0.080 |
-| 200 | 1.230 | 0.76 | 0.194 | 0.064 | 444 | 121 | 0.314 | 0.000 | 0.007 | 0.083 | 0.103 | 0 | 1 | 0.076 |
-| 250 | 1.247 | 0.78 | 0.182 | 0.099 | 477 | 112 | 0.305 | 0.004 | 0.014 | 0.098 | 0.064 | 0 | 0 | 0.096 |
+![Main-run in-domain probes over steps 0–250: faithfulness (recall) drifts down while consistency (precision) rises — a recall/precision divergence — with accuracy and reward stable.](../assets/faithfulness_main_indomain.svg)
 
 **Reading.** Reward is stable (1.218 to 1.247, peaking at 1.406 at step
 100); accuracy likewise (0.78 to 0.78, peaking at 0.84). The trajectory
@@ -487,16 +442,9 @@ that surfaced in the pilot at step 60 did not grow.
 
 120 items (6 strata x 20, stratified certified subset of
 `decision_eval_v1`), scored at checkpoints 0, 60, 120, 180, 250 via
-`examples/probe_ood_checkpoints.py`. Source of truth:
-`outputs/ood_probe_runs_main/summary.jsonl`.
-
-| step | acc | fail-open | over-caution | signed bias | bleed | fmt leak | syc delta | think len | hedge | BT |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 0.945 | 0.037 | 0.018 | +0.018 | 0.009 | 0.0 | +0.047 | 206 | 0.022 | 0.063 |
-| 60 | 0.981 | 0.000 | 0.019 | -0.019 | 0.008 | 0.0 | +0.048 | 198 | 0.023 | 0.066 |
-| 120 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.046 | 216 | 0.028 | 0.075 |
-| 180 | 0.972 | 0.000 | 0.028 | -0.028 | 0.008 | 0.0 | +0.062 | 205 | 0.025 | 0.067 |
-| 250 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.049 | 222 | 0.029 | 0.072 |
+`examples/probe_ood_checkpoints.py` (source:
+`outputs/ood_probe_runs_main/summary.jsonl`;
+[full metrics in Appendix A](#appendix-a--full-metric-tables)).
 
 ![Three stacked panels over training steps 0–250 in domains the reward never touched: OOD accuracy rises 0.945→0.983; fail-open rate drops 0.037→0.000 by step 60 and stays there; signed bias flips from +0.018 (fail-open) to negative (over-caution).](../assets/faithfulness_ood_transfer.svg)
 
@@ -534,17 +482,7 @@ findings emerge:
    zero, signed bias locked negative, accuracy up -- without leaking air-track
    vocabulary.
 
-   ```mermaid
-   flowchart TD
-     A["Narrow RL on air-track triage<br/>reward = AmberTrace certificate + correctness"] --> B["Transferable disposition:<br/>prefer the safe/restrictive action under uncertainty"]
-     B --> C{"Unseen domains<br/>loan · eligibility · …"}
-     C --> D["Fail-open rate → 0"]
-     C --> E["Signed bias flips to over-caution<br/>+0.018 → −0.017"]
-     C --> F["OOD accuracy 0.945 → 0.983"]
-     B -. "no vocabulary bleed:<br/>policy-bleed flat · format-leakage 0" .-> C
-     classDef amber fill:#E0982E,stroke:#B5761F,color:#1B1A17;
-     class B amber;
-   ```
+   ![The caution-transfer mechanism: narrow RL on air-track triage instils a transferable disposition — resolve uncertainty toward the restrictive action — which in unseen domains drives fail-open to zero, flips signed bias to over-caution, and raises accuracy, while no air-track vocabulary bleeds across.](../assets/faithfulness_mechanism.svg)
 
    *The mechanism: the reward never names the OOD domains, but the disposition
    it instils — resolve uncertainty toward the restrictive action — is
@@ -564,7 +502,7 @@ findings emerge:
    higher LR, larger group size, or a reward that has not yet plateaued)
    remains untested and is the planned CUDA follow-up.
 
-## SECTION 07: Limits
+## §7 · Limits
 
 - **Single model, single domain.** OLMo-3-7B-Think-SFT on air-track triage.
   Whether the faithfulness trajectory generalises to other architectures
@@ -621,6 +559,83 @@ findings emerge:
 
 - **Replication scope.** A Qwen-class model arm and a full-precision CUDA
   arm are planned as follow-ups but not yet started.
+
+## Appendix A — Full metric tables
+
+The figures above are the reading; these are the exact numbers behind them. Every
+data figure regenerates from the same probe captures via
+[`examples/plot_faithfulness_figures.py`](../../examples/plot_faithfulness_figures.py),
+so figure and table cannot drift.
+
+**Reward component weights** (§2; `configs/air_track.yaml` + `DefaultRewardShaper` defaults):
+
+| component | weight |
+|---|---|
+| format | 0.1 |
+| certified | 0.5 |
+| correctness | 1.0 |
+| graded | 0.3 |
+| rejected_penalty | 0.2 (subtracted) |
+| unsupported_penalty | 0.3 (subtracted) |
+| consistency | **0.0** |
+
+**Pilot training-rollout half-split** (certified rollouts only):
+
+| | start | end |
+|---|---|---|
+| faithfulness | 0.216 | 0.351 |
+| consistency | 0.033 | 0.048 |
+| reward-faithfulness correlation | | +0.15 |
+
+**Pilot held-out in-domain probes** (`outputs/probe_runs/summary.jsonl`):
+
+| step | reward | acc | faith | consist | think len | stated len | D3 | VA | hedge | BT | overlap | conceal | flips | unsupp |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 1.218 | 0.78 | 0.238 | 0.044 | 459 | 110 | 0.320 | 0.002 | 0.013 | 0.097 | 0.062 | 0 | 0 | 0.084 |
+| 5 | 1.342 | 0.84 | 0.261 | 0.059 | 472 | 114 | 0.329 | 0.001 | 0.010 | 0.100 | 0.065 | 0 | 0 | 0.088 |
+| 10 | 1.066 | 0.68 | 0.207 | 0.053 | 424 | 104 | 0.337 | 0.001 | 0.013 | 0.082 | 0.123 | 0 | 1 | 0.084 |
+| 20 | 0.932 | 0.66 | 0.203 | 0.065 | 429 | 98 | 0.338 | 0.001 | 0.014 | 0.087 | 0.121 | 0 | 0 | 0.084 |
+| 30 | 1.191 | 0.74 | 0.256 | 0.035 | 455 | 115 | 0.333 | 0.001 | 0.020 | 0.105 | 0.045 | 0 | 0 | 0.088 |
+| 40 | 1.340 | 0.82 | 0.227 | 0.089 | 437 | 122 | 0.334 | 0.001 | 0.016 | 0.087 | 0.066 | 0 | 0 | 0.107 |
+| 50 | 1.126 | 0.74 | 0.244 | 0.083 | 414 | 103 | 0.316 | 0.004 | 0.011 | 0.090 | 0.084 | 0 | 0 | 0.092 |
+| 60 | 1.197 | 0.76 | 0.262 | 0.068 | 505 | 113 | 0.329 | 0.000 | 0.023 | 0.103 | 0.044 | 0 | 0 | 0.084 |
+
+**Pilot OOD probes** (`outputs/ood_probe_runs/summary.jsonl`):
+
+| step | acc | fail-open | over-caution | signed bias | bleed | fmt leak | syc delta | think len | hedge | BT |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 0.945 | 0.037 | 0.018 | +0.018 | 0.009 | 0.0 | +0.047 | 206 | 0.022 | 0.063 |
+| 30 | 0.982 | 0.000 | 0.018 | -0.018 | 0.008 | 0.0 | +0.075 | 209 | 0.027 | 0.075 |
+| 60 | 0.965 | 0.009 | 0.026 | -0.017 | 0.009 | 0.0 | +0.039 | 263 | 0.036 | 0.088 |
+
+**Main-run training-rollout terciles** (1,512 rollouts; early = steps 0--84, middle = 85--167, late = 168--250):
+
+| tercile | n | mean reward | mean faithfulness | mean consistency |
+|---|---|---|---|---|
+| early | 504 | +0.670 | 0.290 (n=369) | 0.030 |
+| middle | 504 | +0.731 | 0.257 (n=376) | 0.040 |
+| late | 504 | +0.700 | 0.280 (n=371) | 0.030 |
+
+**Main-run held-out in-domain probes** (`outputs/probe_runs_main/summary.jsonl`):
+
+| step | reward | acc | faith | consist | think len | stated len | D3 | VA | hedge | BT | overlap | conceal | flips | unsupp |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 1.218 | 0.78 | 0.238 | 0.044 | 459 | 110 | 0.320 | 0.002 | 0.013 | 0.097 | 0.062 | 0 | 0 | 0.084 |
+| 50 | 1.286 | 0.80 | 0.182 | 0.038 | 432 | 113 | 0.329 | 0.001 | 0.014 | 0.093 | 0.105 | 0 | 1 | 0.097 |
+| 100 | 1.406 | 0.84 | 0.234 | 0.074 | 511 | 111 | 0.327 | 0.001 | 0.020 | 0.110 | 0.026 | 0 | 0 | 0.100 |
+| 150 | 1.196 | 0.76 | 0.238 | 0.056 | 482 | 111 | 0.331 | 0.001 | 0.016 | 0.103 | 0.082 | 0 | 1 | 0.080 |
+| 200 | 1.230 | 0.76 | 0.194 | 0.064 | 444 | 121 | 0.314 | 0.000 | 0.007 | 0.083 | 0.103 | 0 | 1 | 0.076 |
+| 250 | 1.247 | 0.78 | 0.182 | 0.099 | 477 | 112 | 0.305 | 0.004 | 0.014 | 0.098 | 0.064 | 0 | 0 | 0.096 |
+
+**Main-run OOD probes** (`outputs/ood_probe_runs_main/summary.jsonl`):
+
+| step | acc | fail-open | over-caution | signed bias | bleed | fmt leak | syc delta | think len | hedge | BT |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 0.945 | 0.037 | 0.018 | +0.018 | 0.009 | 0.0 | +0.047 | 206 | 0.022 | 0.063 |
+| 60 | 0.981 | 0.000 | 0.019 | -0.019 | 0.008 | 0.0 | +0.048 | 198 | 0.023 | 0.066 |
+| 120 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.046 | 216 | 0.028 | 0.075 |
+| 180 | 0.972 | 0.000 | 0.028 | -0.028 | 0.008 | 0.0 | +0.062 | 205 | 0.025 | 0.067 |
+| 250 | 0.983 | 0.000 | 0.017 | -0.017 | 0.009 | 0.0 | +0.049 | 222 | 0.029 | 0.072 |
 
 ## For the Record
 

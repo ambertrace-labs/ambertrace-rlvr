@@ -23,7 +23,7 @@ truth, a result you cannot reach by gaming the scorer. This note is about supply
 that check for the decisions that never had one, and about why the machinery is open
 source.
 
-## SECTION 01: A Model Is Only As Aligned As Its Reward
+## §1 · A Model Is Only As Aligned As Its Reward
 
 Reinforcement learning from human feedback made models helpful by rewarding them
 against a learned model of human preference. That was the right tool for open-ended
@@ -39,7 +39,7 @@ pays the policy only when its output is *verified* correct. In mathematics the a
 either matches or it does not; in code the tests either pass or they do not. The
 reward is ground truth, and no amount of fluency can flatter its way to it.
 
-## SECTION 02: The Domains That Lack a Verifier
+## §2 · The Domains That Lack a Verifier
 
 Everything turns on the word *verifiable*. Mathematics and code arrive with cheap,
 ready-made verifiers; almost none of the decisions a business actually needs a model
@@ -60,7 +60,7 @@ against the same learned preference models RLVR was invented to escape. The fron
 learned to reason towards *checkable* answers; the regulated world kept optimising
 towards *persuasive* ones. **Closing that gap is the reason this project exists.**
 
-## SECTION 03: The Verifier, and What It Rewards
+## §3 · The Verifier, and What It Rewards
 
 [AmberTrace](https://ambertrace.ai) produces a machine-checkable proof for every
 decision. You describe your rules in plain English and hand it a features-only
@@ -82,7 +82,7 @@ hack: a policy cannot win by smuggling an unsupported fact past the gate or by
 producing a confident but uncertified decision, because the certificate, not the
 prose, carries the credit.
 
-## SECTION 04: Open by Design
+## §4 · Open by Design
 
 `ambertrace-rlvr` is MIT-licensed and public. The verification *platform* is a
 product; the **bridge from a proof certificate to an RL reward** is infrastructure,
@@ -102,7 +102,7 @@ trust it. Three reasons the work is done in the open:
   Provable*](alignment-matrix.md)) is published for the same reason: a result you can
   reproduce is the only kind worth publishing.
 
-## SECTION 05: Where the Guarantee Stops
+## §5 · Where the Guarantee Stops
 
 Two limits, stated plainly.
 

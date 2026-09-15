@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 412" width="760" height="412" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
+<rect x="0.5" y="0.5" width="759" height="411" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AMBERTRACE · FAITHFULNESS</text>
+<text x="40" y="60" class="ti">The shaped reward</text>
+<text x="40" y="79" class="sub">Fail-closed; certification gates credit. Consistency is measured every step but never optimised.</text>
+<line x1="398.1" y1="102" x2="398.1" y2="378.0" stroke="#7A776E" stroke-width="1"/>
+<text x="238" y="122.0" text-anchor="end" class="pt">correctness</text>
+<rect x="398.1" y="110.0" width="296.2" height="14" rx="3" fill="#E0982E"/>
+<text x="700.4" y="121.0" text-anchor="start" class="vl">+1.0</text>
+<text x="238" y="162.0" text-anchor="end" class="pt">certified</text>
+<rect x="398.1" y="150.0" width="148.1" height="14" rx="3" fill="#E0982E"/>
+<text x="552.2" y="161.0" text-anchor="start" class="vl">+0.5</text>
+<text x="238" y="202.0" text-anchor="end" class="pt">graded</text>
+<rect x="398.1" y="190.0" width="88.9" height="14" rx="3" fill="#E0982E"/>
+<text x="493.0" y="201.0" text-anchor="start" class="vl">+0.3</text>
+<text x="238" y="242.0" text-anchor="end" class="pt">format</text>
+<rect x="398.1" y="230.0" width="29.6" height="14" rx="3" fill="#E0982E"/>
+<text x="433.8" y="241.0" text-anchor="start" class="vl">+0.1</text>
+<text x="238" y="282.0" text-anchor="end" class="pt">consistency (measured, not optimised)</text>
+<circle cx="398.1" cy="277.0" r="3" fill="#7A776E"/>
+<text x="404.1" y="281.0" text-anchor="start" class="vl">+0.0</text>
+<text x="238" y="322.0" text-anchor="end" class="pt">rejected_penalty</text>
+<rect x="338.9" y="310.0" width="59.2" height="14" rx="3" fill="#7A776E"/>
+<text x="332.9" y="321.0" text-anchor="end" class="vl">-0.2</text>
+<text x="238" y="362.0" text-anchor="end" class="pt">unsupported_penalty</text>
+<rect x="309.2" y="350.0" width="88.9" height="14" rx="3" fill="#7A776E"/>
+<text x="303.2" y="361.0" text-anchor="end" class="vl">-0.3</text>
+<text x="250.0" y="394.0" text-anchor="middle" class="tk">-0.5</text>
+<text x="398.1" y="394.0" text-anchor="middle" class="tk">+0.0</text>
+<text x="546.2" y="394.0" text-anchor="middle" class="tk">+0.5</text>
+<text x="694.4" y="394.0" text-anchor="middle" class="tk">+1.0</text>
+</svg>
