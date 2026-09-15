@@ -70,6 +70,29 @@ slice and an accuracy-only check both mislead here, and only the full oracle-anc
 signed-error run gives the correct (null) answer. Decidable-only for now
 (`decision_eval_v1` v1), so overconfidence-on-the-undecidable is not exercised.
 
+## Result — reasoning-enabled arm, Q8 → Q2
+
+Same ladder, same 1,350 items, but with the model's thinking channel active. Q2_K
+caveat: bartowski refreshed the Q2_K upload between the two arms; higher levels are
+identical uploads.
+
+| quant | ~bits | accuracy | Δacc vs ref | fail-open (restr) | Δfail-open vs ref | flagged |
+|---|---|---|---|---|---|---|
+| Q8_0 (ref) | 8 | 94.0% | — | 3.1% (27/858) | — | no |
+| Q6_K | 6 | 94.0% | +0.0% | 3.2% (27/849) | +0.1% | no |
+| Q4_K_M | 4 | 93.8% | −0.2% | 2.5% (21/857) | −0.6% | no |
+| Q3_K_M | 3 | 94.7% | +0.7% | 2.1% (18/858) | −1.0% | no |
+| Q2_K* | 2 | 93.3% | −0.7% | 3.2% (27/855) | +0.1% | no |
+
+*Q2_K from refreshed bartowski upload; see provenance note in the research writeup.*
+
+**Still no safety tax.** Reasoning lifts accuracy ~3 points and roughly halves
+fail-open vs the no-reasoning arm. The safety direction remains flat across precision
+levels. Truncation is minimal (≤9 items at any level). The ratio-rule concentration
+from Finding 1 persists but is reduced: ratio fail-open drops from ~16% to ~10% at
+most levels. See the [research writeup](research/quantisation-safety-direction.md) for
+the full per-structure breakdown and CoT-drift analysis.
+
 ## Reproduce / limits
 
 - Oracle-anchored: every correct action is certified independently of the models, so

@@ -136,6 +136,15 @@ from .parsers import (
     RegexBlockParser,
 )
 from .prompts import build_system_prompt, has_decision_block
+from .quant_reasoning_sweep import (
+    ReasoningLevelSummary,
+    ReasoningRecord,
+    classify_output,
+    is_truncated_reasoning,
+    render_reasoning_comparison,
+    summarise_level,
+    think_char_count,
+)
 from .quant_sweep import (
     QuantPoint,
     QuantSweep,
@@ -231,6 +240,8 @@ __all__ = [
     "ProbeTrace",
     "QuantPoint",
     "QuantSweep",
+    "ReasoningLevelSummary",
+    "ReasoningRecord",
     "RegexBlockParser",
     "RejectedFact",
     "RewardBreakdown",
@@ -249,6 +260,7 @@ __all__ = [
     "__version__",
     "append_trajectory",
     "authority_framing",
+    "classify_output",
     "build_complexity_profile",
     "build_eval_items",
     "build_reward_function",
@@ -272,6 +284,7 @@ __all__ = [
     "format_leakage_rate",
     "group_similarity",
     "has_decision_block",
+    "is_truncated_reasoning",
     "judgments_for",
     "lexicon_rate",
     "load_decision_corpus",
@@ -287,6 +300,7 @@ __all__ = [
     "preference_framing",
     "reasoning_consistency",
     "render_alignment_score",
+    "render_reasoning_comparison",
     "render_cas_decomposition",
     "render_matrix",
     "render_profile",
@@ -308,7 +322,9 @@ __all__ = [
     "score_one_item",
     "score_ood_checkpoint",
     "score_strata",
+    "summarise_level",
     "sycophancy_delta",
+    "think_char_count",
     "think_stated_divergence",
     "unsupported_fact_fraction",
     "user_assertion_framing",

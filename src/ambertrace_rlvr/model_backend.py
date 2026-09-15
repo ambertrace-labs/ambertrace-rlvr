@@ -94,6 +94,25 @@ class LMStudioProvider:
         except Exception as e:  # a foreign transport failure — normalise it
             raise ModelBackendError(f"model request failed: {e!r}") from e
 
+    def complete_full(
+        self, prompt: str, *, system: str | None = None,
+    ) -> tuple[str, str, str]:
+        """Like :meth:`complete` but returns ``(content, finish_reason,
+        reasoning_content)``.
+
+        ``reasoning_content`` is the thinking trace from models that surface it
+        as a separate API field (e.g. Qwen3 in LM Studio), or ``""`` when
+        absent. ``finish_reason`` is ``"stop"`` / ``"length"`` / ``""``."""
+        sys_prompt = system if system is not None else self.system
+        data = self._chat(sys_prompt, prompt)
+        if sys_prompt and _is_role_error(data):
+            data = self._chat(None, f"{sys_prompt}\n\n{prompt}")
+        return (
+            _extract_content(data),
+            _extract_finish_reason(data),
+            _extract_reasoning_content(data),
+        )
+
     def as_model(self) -> Callable[[str], str]:
         """Adapt to the ``prompt -> completion`` callable the eval sweeps expect."""
         return lambda prompt: self.complete(prompt)
@@ -145,5 +164,32 @@ def _extract_content(data: dict[str, Any]) -> str:
         message = choices[0].get("message") or {}
         content = message.get("content")
         return content if isinstance(content, str) else ""
+    except (AttributeError, IndexError, TypeError):
+        return ""
+
+
+def _extract_finish_reason(data: dict[str, Any]) -> str:
+    """Pull ``finish_reason`` from the first choice. Returns ``""`` when absent."""
+    try:
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        reason = choices[0].get("finish_reason")
+        return reason if isinstance(reason, str) else ""
+    except (AttributeError, IndexError, TypeError):
+        return ""
+
+
+def _extract_reasoning_content(data: dict[str, Any]) -> str:
+    """Pull ``reasoning_content`` from the assistant message (the thinking
+    trace from models that surface it as a separate field, e.g. Qwen3 in
+    LM Studio). Returns ``""`` when absent."""
+    try:
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message") or {}
+        rc = message.get("reasoning_content")
+        return rc if isinstance(rc, str) else ""
     except (AttributeError, IndexError, TypeError):
         return ""
