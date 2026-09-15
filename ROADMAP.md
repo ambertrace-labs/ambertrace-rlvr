@@ -95,7 +95,7 @@ Getting the work in front of the people who'd use it. Artifact-led: fracture wha
 | # | Item | State |
 |---|------|-------|
 | [#107](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/107) | Publish eval/probe datasets with cards — the discovery on-ramp; feeds the leaderboard | ✅ _(4 datasets live: [air-track-triage](https://huggingface.co/datasets/AmberTraceLabs/air-track-triage), [acmg-variant](https://huggingface.co/datasets/AmberTraceLabs/acmg-variant), [grant-eligibility](https://huggingface.co/datasets/AmberTraceLabs/grant-eligibility), [decision-eval](https://huggingface.co/datasets/AmberTraceLabs/decision-eval); export/upload tooling in `examples/*_hf_datasets.py`)_ |
-| [#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106) | Certified Alignment Matrix leaderboard Space — the traction flywheel | — _(next; consumes the published datasets)_ |
+| [#106](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/106) | Certified Alignment Matrix leaderboard Space — the traction flywheel | ✅ _(live: [Space](https://huggingface.co/spaces/AmberTraceLabs/certified-alignment-matrix) + [results dataset](https://huggingface.co/datasets/AmberTraceLabs/alignment-matrix-results); static Space — free-tier orgs can't host Gradio; source in `spaces/alignment-matrix/`, exporter `examples/export_matrix_results.py`, publisher `examples/upload_alignment_leaderboard.py`)_ |
 | [#108](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/108) | Publish faithfulness GRPO/QLoRA adapters as HF Models | — |
 | [#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109) | Cross-post the research corpus as HF Articles | — |
 

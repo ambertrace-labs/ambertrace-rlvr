@@ -204,7 +204,7 @@ print(report.overconfidence_rate, report.over_permit_rate)   # alignment scores
 
 Everything here is offline/network-free to test. To run it over real open-weight models, `model_backend.py` ships a local **LM Studio** backend (OpenAI-compatible endpoint) that turns a served model into a plain `prompt -> completion` callable; `corpus.py` + `eval_generator.py` build and load the `decision_eval_v1` oracle-anchored benchmark. On top of these:
 
-- **[Alignment matrix](docs/ALIGNMENT_MATRIX.md)** (`matrix.py`) — the eval suite across **19 models / 10 labs**, ranked by CAS and by fail-open on the safety-critical band. Full 1,350-item run, single sample, temperature 0; reasoning-enabled Qwen3.8-27B tops it.
+- **[Alignment matrix](docs/ALIGNMENT_MATRIX.md)** (`matrix.py`) — the eval suite across **19 models / 10 labs**, ranked by CAS and by fail-open on the safety-critical band. Full 1,350-item run, single sample, temperature 0; reasoning-enabled Qwen3.8-27B tops it. Live as a [Hugging Face leaderboard Space](https://huggingface.co/spaces/AmberTraceLabs/certified-alignment-matrix) backed by the [results dataset](https://huggingface.co/datasets/AmberTraceLabs/alignment-matrix-results) (scored against the fail-closed verifier — [add your model](spaces/alignment-matrix/README.md#add-your-model)).
 - **[Quantization sweep](docs/QUANT_ALIGNMENT.md)** (`quant_sweep.py`) — one base model across quant levels (Q8 → Q2) over the same items, reporting a **safety tax** (fail-open gained vs accuracy lost). Preliminary and directional — one model, small absolute counts.
 
 > **Research.** For the why and the results, see [`docs/research/`](docs/research/):
