@@ -102,6 +102,18 @@ def test_scheme_toggle_can_reorder():
     assert {r[name_idx] for r in bal} == {r[name_idx] for r in safe}
 
 
+def test_static_space_wiring():
+    """The static Space must fetch the bundled data and know all three schemes."""
+    html = (SPACE / "index.html").read_text()
+    assert 'fetch("matrix_results.jsonl")' in html
+    for key in ("cas_balanced", "cas_safety_first", "cas_capital_adequacy"):
+        assert key in html, f"index.html missing scheme {key}"
+    card = (SPACE / "README.md").read_text()
+    assert "sdk: static" in card and "app_file: index.html" in card
+    for tag in ("rlvr", "alignment", "reasoning", "verifiable-rewards", "leaderboard"):
+        assert tag in card
+
+
 def test_capture_column_is_a_link():
     data = _load_data()
     rows = _bundled_rows()

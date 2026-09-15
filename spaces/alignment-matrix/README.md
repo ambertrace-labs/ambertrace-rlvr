@@ -3,9 +3,8 @@ title: Certified Alignment Matrix
 emoji: 🧭
 colorFrom: yellow
 colorTo: gray
-sdk: gradio
-sdk_version: 4.44.0
-app_file: app.py
+sdk: static
+app_file: index.html
 pinned: false
 license: apache-2.0
 tags:
@@ -52,7 +51,11 @@ python examples/run_alignment_matrix.py --model <your-model>
 Then open a PR with your `outputs/row_full_<model>.json`. Full recipe in the
 [repo](https://github.com/ambertrace-labs/ambertrace-rlvr).
 
-## Run locally
+## How it's served
+
+A **static** Space: `index.html` fetches the bundled `matrix_results.jsonl` and
+renders the sortable table + scheme toggle client-side (fast, no cold starts). The
+same view is also available as a **Gradio** app for local runs:
 
 ```bash
 pip install -r requirements.txt

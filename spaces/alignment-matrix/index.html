@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AmberTrace — Certified Alignment Matrix</title>
+<style>
+  :root {
+    --amber:#E0982E; --ink:#1B1A17; --muted:#7A776E; --paper:#F7F6F3;
+    --line:#E7E4DC; --card:#FFFFFF; --good:#2E7D46; --bad:#B4432B;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height:1.5;
+  }
+  .wrap { max-width:1060px; margin:0 auto; padding:32px 20px 64px; }
+  .eyebrow { color:var(--amber); font-size:12px; font-weight:700; letter-spacing:1.6px; }
+  h1 { font-size:30px; margin:4px 0 2px; letter-spacing:-0.5px; }
+  .lede { color:var(--muted); font-size:15.5px; max-width:74ch; margin:8px 0 0; }
+  .lede b { color:var(--ink); }
+  a { color:#B27417; text-decoration:none; } a:hover { text-decoration:underline; }
+  .controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:22px 0 6px; }
+  .controls .label { font-size:13px; font-weight:700; color:var(--muted); margin-right:2px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; background:var(--card); }
+  .seg button {
+    border:0; background:transparent; padding:8px 13px; font-size:13.5px; font-weight:600;
+    color:var(--muted); cursor:pointer;
+  }
+  .seg button[aria-pressed="true"] { background:var(--amber); color:#fff; }
+  .note { color:var(--muted); font-size:13px; margin:8px 0 14px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  th, td { padding:9px 12px; text-align:left; font-size:13.5px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font-size:11.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); cursor:pointer; user-select:none; background:#FBFAF7; }
+  th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  th[aria-sort] .arrow { color:var(--amber); }
+  tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover { background:#FBFAF7; }
+  td.model { font-weight:650; }
+  td.rank { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .cas { font-weight:700; }
+  .pos { color:var(--bad); } .neg { color:var(--good); }
+  .pill { font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:1px 8px; }
+  details { margin-top:26px; border:1px solid var(--line); border-radius:12px; background:var(--card); padding:4px 16px; }
+  summary { cursor:pointer; font-weight:700; padding:10px 0; }
+  pre { background:#F2F0EA; border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow:auto; font-size:13px; }
+  code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+  footer { color:var(--muted); font-size:13px; margin-top:26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">AMBERTRACE · ALIGNMENT</div>
+  <h1>Certified Alignment Matrix</h1>
+  <p class="lede">
+    How faithfully do open-weight models stay to a <b>machine-checked</b> decision policy as they reason?
+    Every score is from the fail-closed <a href="https://github.com/ambertrace-labs/ambertrace-rlvr">AmberTrace</a>
+    verifier — not an LLM judge — over the 1,350-item <code>decision_eval_v1</code> corpus (single sample, temperature 0).
+    The headline isn't accuracy but the <b>direction</b> of error: <i>fail-open</i> (under-restriction) on the
+    safety-critical band is the failure a plain accuracy number hides.
+  </p>
+
+  <div class="controls">
+    <span class="label">Penalty scheme</span>
+    <div class="seg" id="schemes" role="group" aria-label="Penalty scheme">
+      <button data-scheme="cas_balanced" aria-pressed="true">Balanced</button>
+      <button data-scheme="cas_safety_first" aria-pressed="false">Safety-first</button>
+      <button data-scheme="cas_capital_adequacy" aria-pressed="false">Capital-adequacy</button>
+    </div>
+  </div>
+  <p class="note" id="scheme-note"></p>
+
+  <table id="board" aria-label="Alignment leaderboard">
+    <thead><tr id="head"></tr></thead>
+    <tbody id="body"></tbody>
+  </table>
+
+  <details>
+    <summary>Add your model</summary>
+    <p>The leaderboard scores <b>live</b> against AmberTrace, so a row can't be gamed by memorising a key:</p>
+    <pre><code>pip install ambertrace-rlvr
+python examples/run_alignment_matrix.py --model &lt;your-model&gt;</code></pre>
+    <p>Then open a PR with your <code>outputs/row_full_&lt;model&gt;.json</code>;
+      <code>examples/export_matrix_results.py</code> folds it into the dataset this Space reads.
+      Full recipe in the <a href="https://github.com/ambertrace-labs/ambertrace-rlvr">repo</a>.</p>
+  </details>
+
+  <footer>
+    CAS (composite alignment score) = 1 − severity-weighted deviation from the certified oracle; higher is more aligned.
+    Signed bias &lt; 0 = net cautious, &gt; 0 = net fail-open.
+    · <a href="https://github.com/ambertrace-labs/ambertrace-rlvr">Repo</a>
+    · <a href="https://pypi.org/project/ambertrace-rlvr/">PyPI</a>
+    · <a href="https://huggingface.co/datasets/AmberTraceLabs/alignment-matrix-results">Dataset</a>
+  </footer>
+</div>
+
+<script>
+const SCHEME_NOTE = {
+  cas_balanced: "Balanced scheme · over-permit penalised 2× over-deny — the default reading.",
+  cas_safety_first: "Safety-first scheme · over-permit penalised 10× over-deny — fail-open is the cardinal sin.",
+  cas_capital_adequacy: "Capital-adequacy scheme · over-permit penalised ~7× over-deny — a regulator's asymmetry.",
+};
+// column: key, label, kind, numeric?
+const COLS = [
+  ["model", "Model", "model", false],
+  ["lab", "Lab", "text", false],
+  ["params", "Params", "text", false],
+  ["reasoning", "Reasoning", "pill", false],
+  ["__cas", "CAS", "cas", true],
+  ["accuracy", "Accuracy", "pct", true],
+  ["fail_open_restrictive", "Fail-open (safety band)", "pct", true],
+  ["signed_bias", "Signed bias", "signed", true],
+  ["refusal_rate", "Refusal", "pct", true],
+  ["capture", "Capture", "link", false],
+];
+let ROWS = [], scheme = "cas_balanced", sortKey = "__cas", sortDir = -1;
+
+const pct = x => x == null ? "—" : (x * 100).toFixed(1) + "%";
+const signed = x => x == null ? "—" : (x >= 0 ? "+" : "") + x.toFixed(2);
+const cas = x => x == null ? "—" : x.toFixed(3);
+
+function valFor(r, key) { return key === "__cas" ? r[scheme] : r[key]; }
+
+function render() {
+  document.getElementById("scheme-note").textContent = SCHEME_NOTE[scheme];
+  const rows = [...ROWS].sort((a, b) => {
+    const va = valFor(a, sortKey), vb = valFor(b, sortKey);
+    if (va == null) return 1; if (vb == null) return -1;
+    if (typeof va === "number") return (va - vb) * sortDir;
+    return String(va).localeCompare(String(vb)) * sortDir;
+  });
+  // header
+  const head = document.getElementById("head");
+  head.innerHTML = '<th class="num">#</th>' + COLS.map(([key,label,,numeric]) => {
+    const active = key === sortKey;
+    const arrow = active ? (sortDir < 0 ? " <span class='arrow'>▾</span>" : " <span class='arrow'>▴</span>") : "";
+    return `<th data-key="${key}" class="${numeric?'num':''}" ${active?`aria-sort="${sortDir<0?'descending':'ascending'}"`:''}>${label}${arrow}</th>`;
+  }).join("");
+  head.querySelectorAll("th[data-key]").forEach(th => th.onclick = () => {
+    const k = th.dataset.key;
+    if (k === sortKey) sortDir = -sortDir;
+    else { sortKey = k; sortDir = (k === "model" || k === "lab") ? 1 : -1; }
+    render();
+  });
+  // body
+  document.getElementById("body").innerHTML = rows.map((r, i) => {
+    const cells = COLS.map(([key,,kind]) => {
+      let v = valFor(r, key), cls = "", out;
+      if (kind === "cas") { out = `<span class="cas">${cas(v)}</span>`; cls = "num"; }
+      else if (kind === "pct") { out = pct(v); cls = "num"; }
+      else if (kind === "signed") { out = `<span class="${v>0?'pos':(v<0?'neg':'')}">${signed(v)}</span>`; cls = "num"; }
+      else if (kind === "pill") { out = `<span class="pill">${v ?? "—"}</span>`; }
+      else if (kind === "link") { out = v ? `<a href="${v}" target="_blank" rel="noopener">capture ↗</a>` : "—"; }
+      else if (kind === "model") { out = `<span class="model">${v ?? "—"}</span>`; cls = "model"; }
+      else { out = v ?? "—"; }
+      return `<td class="${cls}">${out}</td>`;
+    }).join("");
+    return `<tr><td class="rank">${i+1}</td>${cells}</tr>`;
+  }).join("");
+}
+
+document.getElementById("schemes").querySelectorAll("button").forEach(btn => btn.onclick = () => {
+  document.querySelectorAll("#schemes button").forEach(b => b.setAttribute("aria-pressed", b === btn));
+  scheme = btn.dataset.scheme;
+  if (sortKey === "__cas") sortDir = -1;   // re-rank by the new scheme's CAS
+  render();
+});
+
+fetch("matrix_results.jsonl")
+  .then(r => r.text())
+  .then(t => { ROWS = t.trim().split("\n").filter(Boolean).map(JSON.parse); render(); })
+  .catch(e => { document.getElementById("body").innerHTML =
+    `<tr><td colspan="11">Could not load results: ${e}</td></tr>`; });
+</script>
+</body>
+</html>
