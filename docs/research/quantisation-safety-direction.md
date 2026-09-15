@@ -22,15 +22,9 @@ The model's fail-open errors (choosing a less restrictive action than the rules
 require) are not spread across rule types. They sit almost entirely on **ratio**
 rules, a threshold on a computed ratio such as "the monthly payment must not exceed
 80% of income". Fail-open rate on the safety-critical band, by rule structure, at each
-precision level:
+precision level ([full table in Appendix A](#appendix-a--full-tables)):
 
-| rule structure | n | 8-bit | 6-bit | 5-bit | 4-bit | 3-bit | 2-bit |
-|---|---|---|---|---|---|---|---|
-| **ratio** | 171 | 15.8% | 15.8% | 15.8% | **21.1%** | 15.8% | 15.8% |
-| precedence | 180 | 5.0% | 5.0% | 5.0% | 5.0% | 5.0% | 0.0% |
-| baseline threshold | 192 | 4.7% | 4.7% | 1.6% | 4.7% | 4.7% | 9.4% |
-| multi-trigger disjunction | 180 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 5.0% |
-| negation | 135 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+![Heatmap of fail-open rate by rule structure across the 8-bit→2-bit ladder: the ratio row is ~16% at every precision (21.1% at 4-bit), while precedence/baseline stay low and multi-trigger/negation are near zero until 2-bit redistribution.](../assets/quant_structure_heatmap.svg)
 
 Ratio rules draw roughly three times the fail-open of any other structure and about
 16% in absolute terms, at every precision including full 8-bit. Logical composition is
@@ -42,26 +36,7 @@ quantisation neither creates nor removes.
 ## Finding 2: the aggregate safety direction does not track precision
 
 Across the ladder, the net direction of the errors is flat while accuracy declines
-slightly:
-
-| bits | accuracy | fail-open (safety-critical) | over-caution | signed bias |
-|---|---|---|---|---|
-| 8 | 90.9% | 5.2% | 5.8% | −0.024 |
-| 6 | 90.9% | 5.2% | 5.8% | −0.024 |
-| 5 | 91.3% | 4.5% | 5.8% | −0.029 |
-| 4 | 90.2% | 6.3% | 5.8% | −0.018 |
-| 3 | 90.2% | 5.2% | 6.4% | −0.031 |
-| 2 | 89.6% | 6.3% | 6.4% | −0.024 |
-
-Regressing each column on bit-width (signed bias = `(over-permit − over-deny)/n`,
-negative = net over-cautious):
-
-| metric | R² | slope per bit |
-|---|---|---|
-| signed bias | 0.01 | +0.0002 |
-| fail-open (safety-critical) | 0.25 | −0.16 pt |
-| accuracy | 0.58 | +0.23 pt |
-| over-caution | 0.60 | −0.12 pt |
+slightly ([per-bit metrics and the regression fits in Appendix A](#appendix-a--full-tables)):
 
 ![Precision (bits) against each metric for Qwen3.6-27B, with linear fit and R²: signed bias and fail-open flat, accuracy and over-caution drift mildly.](../assets/quant_precision_scatter.svg)
 
@@ -123,6 +98,42 @@ is untested. Every result here is also conditional on the **no-reasoning regime*
 reasoning was disabled so precision stayed the only variable, so these findings do not
 speak to how the model behaves, or how quantisation affects it, when it is allowed to
 reason. A reasoning-enabled arm is the natural follow-up and the more deployment-realistic one.
+
+## Appendix A — Full tables
+
+The figures above are the reading; these are the exact numbers, all from
+`outputs/quant_full_qwen36_27b.json` (fail-open figure via
+[`examples/plot_quant_figures.py`](../../examples/plot_quant_figures.py)).
+
+**Fail-open rate on the safety-critical band, by rule structure × precision:**
+
+| rule structure | n | 8-bit | 6-bit | 5-bit | 4-bit | 3-bit | 2-bit |
+|---|---|---|---|---|---|---|---|
+| **ratio** | 171 | 15.8% | 15.8% | 15.8% | **21.1%** | 15.8% | 15.8% |
+| precedence | 180 | 5.0% | 5.0% | 5.0% | 5.0% | 5.0% | 0.0% |
+| baseline threshold | 192 | 4.7% | 4.7% | 1.6% | 4.7% | 4.7% | 9.4% |
+| multi-trigger disjunction | 180 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 5.0% |
+| negation | 135 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+
+**Aggregate metrics by precision:**
+
+| bits | accuracy | fail-open (safety-critical) | over-caution | signed bias |
+|---|---|---|---|---|
+| 8 | 90.9% | 5.2% | 5.8% | −0.024 |
+| 6 | 90.9% | 5.2% | 5.8% | −0.024 |
+| 5 | 91.3% | 4.5% | 5.8% | −0.029 |
+| 4 | 90.2% | 6.3% | 5.8% | −0.018 |
+| 3 | 90.2% | 5.2% | 6.4% | −0.031 |
+| 2 | 89.6% | 6.3% | 6.4% | −0.024 |
+
+**Each metric regressed on bit-width** (signed bias = `(over-permit − over-deny)/n`, negative = net over-cautious):
+
+| metric | R² | slope per bit |
+|---|---|---|
+| signed bias | 0.01 | +0.0002 |
+| fail-open (safety-critical) | 0.25 | −0.16 pt |
+| accuracy | 0.58 | +0.23 pt |
+| over-caution | 0.60 | −0.12 pt |
 
 ## For the Record
 

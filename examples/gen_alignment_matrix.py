@@ -168,6 +168,149 @@ def render_svg(rows: dict[str, dict]) -> str:
 '''
 
 
+def _svg_shell(w: int, h: int, eyebrow: str, title: str, sub: str, body: str, extra_css: str = "") -> str:
+    C = PALETTE
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .ti {{ fill: {C["INK"]}; font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }}
+    .sub {{ fill: {C["MUTED"]}; font-size: 12px; }} .eb {{ fill: {C["AMBER"]}; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }}
+    .md {{ fill: {C["INK"]}; font-size: 12.5px; font-weight: 600; }} .lb {{ fill: {C["MUTED"]}; font-size: 10.5px; }}
+    .vl {{ font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }} .tk {{ fill: {C["MUTED"]}; font-size: 10.5px; font-variant-numeric: tabular-nums; }}
+    .cell {{ font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }} .col {{ fill: {C["MUTED"]}; font-size: 10.5px; }}{extra_css}
+  </style>
+  <rect x="0.5" y="0.5" width="{w-1}" height="{h-1}" rx="14" fill="{C["PAPER"]}" stroke="{C["CARD_LINE"]}"/>
+  <text x="40" y="30" class="eb">{eyebrow}</text>
+  <text x="40" y="52" class="ti">{title}</text>
+  <text x="40" y="72" class="sub">{sub}</text>
+  {body}
+</svg>
+'''
+
+
+def render_bar_svg(rows: dict[str, dict], value_key: str, *, title: str, sub: str,
+                   vmin: float, vmax: float, fmt, diverging: bool = False) -> str:
+    """Horizontal per-model bar chart (CAS / fail-open / signed bias), sorted worst-adjacent."""
+    C = PALETTE
+
+    def val(r):
+        return r["cas"]["value"] if value_key == "cas" else r[value_key]
+    items = sorted(((meta_for(k)[0] + (f" {meta_for(k)[3]}" if meta_for(k)[3] else ""),
+                     meta_for(k)[1], val(r)) for k, r in rows.items()),
+                   key=lambda t: -(t[2] if t[2] is not None else -9))
+    W, x0, x1, top, row_h = 760, 250, 712, 108, 30
+    bot = top + row_h * len(items)
+    H = bot + 66
+
+    def bx(v):
+        return x0 + (v - vmin) / (vmax - vmin) * (x1 - x0)
+    zero_x = bx(0.0) if diverging else x0
+    body = []
+    ticks_at = [vmin, (vmin + vmax) / 2, vmax] if diverging else [vmin, (vmin + vmax) / 2, vmax]
+    for t in ticks_at:
+        x = bx(t)
+        body.append(f'<line x1="{x:.1f}" y1="{top}" x2="{x:.1f}" y2="{bot:.1f}" stroke="{C["CARD_LINE"]}" stroke-width="1"/>')
+        body.append(f'<text x="{x:.1f}" y="{bot+16:.1f}" text-anchor="middle" class="tk">{fmt(t)}</text>')
+    if diverging:
+        body.append(f'<line x1="{zero_x:.1f}" y1="{top}" x2="{zero_x:.1f}" y2="{bot:.1f}" stroke="{C["MUTED"]}" stroke-width="1"/>')
+    for i, (name, lab, v) in enumerate(items):
+        cy = top + i * row_h + row_h / 2
+        vv = v if v is not None else 0.0
+        body.append(f'<text x="{x0-12}" y="{cy-2:.1f}" text-anchor="end" class="md">{name}</text>')
+        body.append(f'<text x="{x0-12}" y="{cy+11:.1f}" text-anchor="end" class="lb">{lab}</text>')
+        x = bx(vv)
+        if diverging and vv < 0:
+            body.append(f'<rect x="{x:.1f}" y="{cy-7:.1f}" width="{zero_x-x:.1f}" height="14" rx="3" fill="{C["MUTED"]}"/>')
+            body.append(f'<text x="{x-7:.1f}" y="{cy+4:.1f}" text-anchor="end" class="vl" fill="{C["INK"]}">{fmt(vv)}</text>')
+        else:
+            body.append(f'<rect x="{zero_x:.1f}" y="{cy-7:.1f}" width="{x-zero_x:.1f}" height="14" rx="3" fill="{C["AMBER"]}"/>')
+            body.append(f'<text x="{x+7:.1f}" y="{cy+4:.1f}" class="vl" fill="{C["INK"]}">{fmt(vv)}</text>')
+    return _svg_shell(W, H, "AMBERTRACE · ALIGNMENT", title, sub, "".join(body))
+
+
+def render_group_svg(rows: dict[str, dict]) -> str:
+    """Mean CAS by reasoning group (thinking ‡ / reasoner † / direct)."""
+    C = PALETTE
+    groups = {"‡": ("thinking-enabled", []), "†": ("reasoner (disabled)", []), "": ("direct (no reasoning)", [])}
+    for k, r in rows.items():
+        groups[meta_for(k)[3]][1].append(r["cas"]["value"])
+    order = ["‡", "†", ""]
+    W, x0, x1, top, row_h = 760, 250, 712, 112, 60
+    H = top + row_h * len(order) + 40
+
+    def bx(v):
+        return x0 + v * (x1 - x0)
+    body = []
+    for t in (0.0, 0.25, 0.5, 0.75, 1.0):
+        x = bx(t)
+        body.append(f'<line x1="{x:.1f}" y1="{top}" x2="{x:.1f}" y2="{top+row_h*len(order):.1f}" stroke="{C["CARD_LINE"]}" stroke-width="1"/>')
+        body.append(f'<text x="{x:.1f}" y="{top+row_h*len(order)+16:.1f}" text-anchor="middle" class="tk">{t:.2f}</text>')
+    for i, g in enumerate(order):
+        label, vals = groups[g]
+        mean = sum(vals) / len(vals)
+        cy = top + i * row_h + row_h / 2
+        body.append(f'<text x="{x0-12}" y="{cy-2:.1f}" text-anchor="end" class="md">{label}</text>')
+        body.append(f'<text x="{x0-12}" y="{cy+12:.1f}" text-anchor="end" class="lb">n={len(vals)} · range {min(vals):.3f}–{max(vals):.3f}</text>')
+        body.append(f'<rect x="{x0}" y="{cy-8:.1f}" width="{bx(mean)-x0:.1f}" height="16" rx="3" fill="{C["AMBER"]}"/>')
+        body.append(f'<text x="{bx(mean)+7:.1f}" y="{cy+4:.1f}" class="vl" fill="{C["INK"]}">{mean:.3f}</text>')
+    return _svg_shell(W, H, "AMBERTRACE · ALIGNMENT", "Reasoning drives alignment",
+                      "Mean composite alignment score by reasoning group · full 1,350-item run.", "".join(body))
+
+
+def render_structure_svg(rows: dict[str, dict]) -> str:
+    """Heatmap: accuracy by decision structure (model x structure), sequential amber."""
+    C = PALETTE
+    ranked = sorted(rows.items(), key=lambda kv: -(kv[1]["cas"]["value"] or -1))
+    labels = ["baseline", "ratio", "precedence", "negation", "multi-trigger"]
+    W, x0, top, cw, ch = 760, 250, 128, 88, 26
+    H = top + ch * len(ranked) + 54
+
+    def shade(acc):
+        # sequential single hue: white -> amber as accuracy rises (0.4..1.0 clamped)
+        t = max(0.0, min(1.0, (acc - 0.4) / 0.6))
+        r0, g0, b0 = 247, 246, 243   # paper
+        r1, g1, b1 = 224, 152, 46    # amber
+        return f'#{int(r0+(r1-r0)*t):02X}{int(g0+(g1-g0)*t):02X}{int(b0+(b1-b0)*t):02X}'
+    body = []
+    for j, lab in enumerate(labels):
+        body.append(f'<text x="{x0+cw*j+cw/2:.1f}" y="{top-8:.1f}" text-anchor="middle" class="col">{lab}</text>')
+    for i, (k, r) in enumerate(ranked):
+        y = top + i * ch
+        body.append(f'<text x="{x0-12}" y="{y+ch/2+4:.1f}" text-anchor="end" class="md">{meta_for(k)[0]}</text>')
+        for j, sk in enumerate(STRUCTS):
+            sub = r["by_structure"].get(sk)
+            acc = sub["accuracy"] if sub and sub["accuracy"] is not None else None
+            x = x0 + cw * j
+            fill = shade(acc) if acc is not None else C["PAPER"]
+            body.append(f'<rect x="{x+1:.1f}" y="{y+1:.1f}" width="{cw-2}" height="{ch-2}" rx="3" fill="{fill}" stroke="{C["CARD_LINE"]}"/>')
+            txt = f'{acc:.0%}' if acc is not None else '—'
+            ink = C["INK"] if (acc is None or acc < 0.85) else "#FFFFFF"
+            body.append(f'<text x="{x+cw/2:.1f}" y="{y+ch/2+4:.1f}" text-anchor="middle" class="cell" fill="{ink}">{txt}</text>')
+    return _svg_shell(W, H, "AMBERTRACE · ALIGNMENT", "Where models break",
+                      "Accuracy by decision structure · ranked by CAS · darker = higher accuracy.", "".join(body))
+
+
+def _write_charts(ranked: dict[str, dict]) -> list[Path]:
+    A = REPO / "docs" / "assets"
+    written = [SVG_OUT]
+    SVG_OUT.write_text(render_svg(ranked))
+    figs = {
+        "alignment_fail_open.svg": render_bar_svg(
+            ranked, "fail_open_restrictive", title="Fail-open on safety-critical decisions",
+            sub="Rate of choosing an unsafe permissive action where the policy is restrictive · lower is safer.",
+            vmin=0.0, vmax=0.4, fmt=lambda v: f"{v:.0%}"),
+        "alignment_signed_bias.svg": render_bar_svg(
+            ranked, "signed_bias", title="Net direction of misalignment",
+            sub="Signed bias: positive = fail-open (permissive), negative = over-cautious.",
+            vmin=-0.15, vmax=0.15, fmt=lambda v: f"{v:+.2f}", diverging=True),
+        "alignment_reasoning_group.svg": render_group_svg(ranked),
+        "alignment_structure_heatmap.svg": render_structure_svg(ranked),
+    }
+    for name, svg in figs.items():
+        (A / name).write_text(svg)
+        written.append(A / name)
+    return written
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--svg-only", action="store_true")
@@ -175,9 +318,9 @@ def main() -> None:
     rows = load_rows()
     ranked = {k: r for k, r in rows.items() if (r["parse_rate"] or 0) >= PARSE_FLOOR}
     excluded = {k: r for k, r in rows.items() if (r["parse_rate"] or 0) < PARSE_FLOOR}
-    SVG_OUT.write_text(render_svg(ranked))
+    written = _write_charts(ranked)
     if args.svg_only:
-        print(f"wrote {SVG_OUT} ({len(ranked)} models)")
+        print(f"wrote {len(written)} SVGs ({len(ranked)} models): " + ", ".join(p.name for p in written))
         return
     print(f"## Results — {len(ranked)} models (full 1,350-item run)\n")
     print(cas_table(ranked))
