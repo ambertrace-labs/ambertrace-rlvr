@@ -14,6 +14,11 @@
 > `outputs/probe_runs/summary.jsonl` and `outputs/ood_probe_runs/summary.jsonl`;
 > main-run numbers from `outputs/probe_runs_main/summary.jsonl` and
 > `outputs/ood_probe_runs_main/summary.jsonl`.
+>
+> **Checkpoints.** The final adapter, the probed checkpoint ladder, and the
+> captured learning curve are published as a Hugging Face Model:
+> [`AmberTraceLabs/olmo-3-7b-air-track-faithfulness`](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness)
+> — a research artifact, not a product model.
 
 RLVR trains a model against a verified reward signal while the same model's
 *stated reasoning* is read as a safety signal by anyone monitoring it.
