@@ -214,6 +214,8 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > (the open-weight alignment matrix), and
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
 > (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift).
+>
+> The corpus is also cross-posted as [Hugging Face Articles](docs/hf-articles/PUBLISHING.md) — built paste-ready by `examples/build_hf_articles.py`.
 
 ## Design principles
 

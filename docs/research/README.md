@@ -8,6 +8,14 @@ you can regenerate from this repo.
 — figures over tables, committed SVG (no Mermaid), honest axes, and every figure
 regenerating from the captures.
 
+**On Hugging Face.** This corpus is cross-posted as HF Blog Articles (the last surface
+of the [distribution lane](../HUGGINGFACE.md), [#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109)).
+`examples/build_hf_articles.py` turns each piece below into a paste-ready article
+(absolute images + a "reproduce this" CTA to the [datasets](https://huggingface.co/AmberTraceLabs),
+[leaderboard Space](https://huggingface.co/spaces/AmberTraceLabs/certified-alignment-matrix),
+and [faithfulness Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness));
+the (manual, plan-gated) publish steps are in [hf-articles/PUBLISHING.md](../hf-articles/PUBLISHING.md).
+
 - **[Verifiable Rewards Beyond Maths and Code](why-verifiable-rewards.md).**
   What this project is for: why trustworthy models need a *checkable* reward, how
   AmberTrace supplies the missing verifier for rule-governed domains, and why the
