@@ -7,31 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-18
+
+The eval / alignment lane: a full oracle-as-judge track built on the same
+certificate as the reward path, plus more trainers and reward components. All
+additive and backward-compatible with 0.1.x.
+
 ### Added
-- **Batch verification via `query_batch` (#27).** Cache-misses are routed
-  through `platforms.query_batch` in chunks of up to 50 when the SDK supports
-  it (>= 2.1.3). Per-item errors are isolated (one bad row never fails the
-  batch): a certification/gate deny produces `AmberReport.from_error`
-  (cacheable); other errors produce a floor (not cacheable). Multi-chunk
-  fan-out preserves the existing thread-pool concurrency. Falls back to
-  per-item `query` when the SDK lacks the method.
+- **Eval / alignment lane (oracle-as-judge).** The certificate as a ground-truth
+  judge, independent of any training run:
+  - `eval_oracle` seam — `OracleJudgment` + per-domain `JudgmentSpec`
+    (direction/severity) (#53); evaluation harness + metrics + baselines (#14).
+  - Three-bucket deviation scorer + overconfidence rate on the
+    certified-undecidable (`deviation.py`, #51).
+  - Sycophancy-into-error: signed fail-open Δ under social-pressure framings
+    (`sycophancy.py`, #52).
+  - Faithfulness-vs-reward monitorability harness (`faithfulness.py`, #50).
+  - Composite Alignment Score (CAS) + reasoning-complexity profile and
+    failure-mode decomposition (`matrix.py`, #84, #89).
+  - Open-weight alignment matrix runner over the decision corpus (#60); the
+    quantization-impact sweep and its reasoning-enabled arm (`quant_sweep.py`,
+    `quant_reasoning_sweep.py`, #61, #87); prediction-conditioned decisions (#75).
+  - `decision_eval_v1` dataset + loader + SDK eval-set generator (`corpus.py`,
+    `eval_generator.py`, #59); reward-hacking probes (#11).
+  - Local **LM Studio** model backend (OpenAI-compatible) (`model_backend.py`, #58).
+- **Faithfulness-under-RLVR experiment lane.** Rich per-completion scorer
+  (`faithfulness_scorer.py`) plus CoT-drift and OOD-misalignment suites
+  (`cot_drift.py`, `ood_drift.py`), and the MLX GRPO example (#95).
+- **More trainers / reward path.** TRL **RLOO** trainer builder
+  (`build_rloo_trainer`, #18); **OpenRLHF** HTTP reward-server shim (#17);
+  rule-checked **consistency** reward component (#12).
+- **Batch verification via `query_batch` (#27).** Cache-misses are routed through
+  `platforms.query_batch` in chunks of up to 50 when the SDK supports it
+  (>= 2.1.3). Per-item errors are isolated (one bad row never fails the batch):
+  a certification/gate deny produces `AmberReport.from_error` (cacheable); other
+  errors produce a floor (not cacheable). Falls back to per-item `query`.
 - **Compact projection.** `AmberVerifier` requests only the fields
-  `AmberReport.from_query_result` consumes (`REWARD_PROJECTION`) via the
-  SDK's `projection` parameter, reducing transfer overhead. Opt-out via
-  `use_projection=False`.
-- `REWARD_PROJECTION` exported from the package.
+  `AmberReport.from_query_result` consumes (`REWARD_PROJECTION`, also exported)
+  via the SDK's `projection` parameter. Opt-out via `use_projection=False`.
 
 ### Changed
 - SDK dependency bumped from `ambertraceai>=1.0.17` to `>=2.1.3`.
-- Benchmark (`benchmarks/verification_overhead.py`) updated to exercise the
-  batch path (`--batch-path` flag).
-- Ruff linter configuration and CI integration.
-- CI matrix testing on Python 3.11 and 3.12.
-- Version-consistency assertion in the release workflow.
-- `py.typed` marker (PEP 561) for downstream type checkers.
-- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1).
-- `AGENTS.md` for coding-agent onboarding.
-- `CHANGELOG.md` (this file).
+- Benchmark (`benchmarks/verification_overhead.py`) exercises the batch path
+  (`--batch-path` flag).
+- Ruff linting + CI matrix (Python 3.11 and 3.12); release-workflow
+  version-consistency assertion; `py.typed` marker (PEP 561).
+- Project docs: `CODE_OF_CONDUCT.md`, `AGENTS.md`, `CHANGELOG.md`.
 
 ## [0.1.1] - 2026-07-15
 
@@ -58,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run report writer with learning-curve output.
 - User guide, design spec, and results writeup.
 
-[Unreleased]: https://github.com/ambertrace-labs/ambertrace-rlvr/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ambertrace-labs/ambertrace-rlvr/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ambertrace-labs/ambertrace-rlvr/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ambertrace-labs/ambertrace-rlvr/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ambertrace-labs/ambertrace-rlvr/releases/tag/v0.1.0
