@@ -44,14 +44,19 @@ title/slug/thumbnail/authors as **fields on the right**, and only the body in th
 markdown pane. So:
 
 1. **Owner** — pick `AmberTraceLabs` (needs the org on Team/Enterprise; see above).
+   This is the org byline: the article is authored *by the org*, and HF backlinks it
+   from the org's models/datasets/Spaces it mentions.
 2. **Title** — from `PUBLISH.md` (type it; it's the large field at the top of the pane).
 3. **Slug** — the `<slug>` from `PUBLISH.md` (e.g. `direction-of-error-open-weight-decision-models`).
 4. **Blog thumbnail** — click *Add a thumbnail* and upload `thumbnails/<slug>.png`
    (it's an **upload**, not a URL; 1200×648 is exactly HF's recommended size).
-5. **Body** — paste the whole of `<slug>.md` into the markdown pane (no front-matter
+5. **Authors** — for **org attribution**, remove the auto-added personal handle so the
+   byline is `AmberTraceLabs` alone. Edit rights are unaffected — under an org
+   namespace every member with `write`/`admin` can edit regardless of the Authors list.
+6. **Body** — paste the whole of `<slug>.md` into the markdown pane (no front-matter
    to skip — the file is body-only).
-6. **Preview** to confirm the figures render and the CTA links resolve, then **Publish**.
-7. Copy the published URL back into this repo: the README + `docs/research/README.md`
+7. **Preview** to confirm the figures render and the CTA links resolve, then **Publish**.
+8. Copy the published URL back into this repo: the README + `docs/research/README.md`
    carry an "On Hugging Face" pointer — fill in the real URL there and below.
 
 ## Articles

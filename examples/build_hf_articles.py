@@ -263,10 +263,13 @@ def _validate(built: dict) -> list[str]:
 
 def _publish_sheet(built: list[dict]) -> str:
     rows = ["# Publish sheet — paste-ready HF Articles (#109)", "",
-            "For each row: at `huggingface.co/new-blog` set **Owner** = `AmberTraceLabs`, "
-            "the **Title**, **Slug**, upload the **thumbnail** PNG, then paste the "
-            "**body** file into the markdown pane (no front-matter to skip — the file "
-            "is body-only). Authors: your HF handle.", "",
+            "For each row: at `huggingface.co/new-blog` set **Owner** = `AmberTraceLabs` "
+            "(this is the org byline — it's what makes the article org-authored and "
+            "backlinks it from the org's repos), the **Title**, **Slug**, upload the "
+            "**thumbnail** PNG, then paste the **body** file into the markdown pane "
+            "(no front-matter to skip — the file is body-only). **Authors:** remove the "
+            "personal handle so attribution reads as the org (all `AmberTraceLabs` "
+            "members keep edit rights via the namespace).", "",
             "| Title | Slug | Thumbnail (upload) | Body (paste) |",
             "|---|---|---|---|"]
     for b in built:
