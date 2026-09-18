@@ -7,10 +7,9 @@ so this script does the reproducible part: it transforms each source doc into a
 self-contained, paste-ready article and leaves the (manual) publish to a human.
 
 Per source doc it:
-  * lifts the H1 into front-matter `title` and drops it from the body (HF renders
-    the title itself);
-  * rewrites every repo-relative image to an absolute **jsDelivr** URL pinned to a
-    commit SHA (GitHub-raw SVGs render, but a pinned CDN URL never rots), and every
+  * drops the H1 (HF's editor has a separate title field) and rewrites every
+    repo-relative image to an absolute **jsDelivr** URL pinned to a commit SHA
+    (GitHub-raw SVGs render, but a pinned CDN URL never rots), and every
     repo-relative link to an absolute GitHub `blob/<sha>` URL — an article on
     huggingface.co has no repo context, so nothing relative may survive;
   * appends the house **"Reproduce this"** CTA linking the repo, the roadmap, and
@@ -18,8 +17,15 @@ Per source doc it:
   * fails loud if any relative link survives or the CTA lost its repo/roadmap links,
     and warns on claudisms.
 
-Writes to ``dist/hf/articles/<slug>.md`` (git-ignored). See ``docs/hf-articles/
-PUBLISHING.md`` for the manual publish playbook.
+The `huggingface.co/new-blog` editor takes title / slug / thumbnail / authors as
+**separate fields** and only the **body** in the markdown pane, so this writes:
+  * ``dist/hf/articles/<slug>.md`` — the paste-ready **body** (no front-matter);
+  * ``dist/hf/articles/thumbnails/<slug>.png`` — a branded 1200×648 cover to upload
+    (the editor's thumbnail is an upload, not a URL); needs Pillow, skipped with a
+    warning if absent;
+  * ``dist/hf/articles/PUBLISH.md`` — a per-article sheet of the field values.
+
+See ``docs/hf-articles/PUBLISHING.md`` for the manual publish playbook.
 
 Run:  ``python examples/build_hf_articles.py``          (writes dist/hf/articles/)
       ``python examples/build_hf_articles.py --check``  (dry-run: transform + assert)
@@ -160,15 +166,84 @@ def _cta(article: dict) -> str:
 def build_one(article: dict, sha: str) -> dict:
     src = (DOCS / article["src"]).read_text()
     lines = src.splitlines()
-    # Lift the H1 into the title; drop it from the body.
+    # The H1 becomes the editor's title field; drop it from the body. The italic
+    # line under it is the subtitle (used on the cover).
     title = next((l[2:].strip() for l in lines if l.startswith("# ")), article["slug"])
     body = "\n".join(l for l in lines if not l.startswith("# ")).lstrip("\n")
-    body = _rewrite_links(body, sha)
+    subtitle = next((l.strip("* ").strip() for l in body.splitlines()
+                     if l.startswith("*") and l.rstrip().endswith("*")), "")
+    body = _rewrite_links(body, sha) + _cta(article)
+    # A front-matter block is kept only as a reference view for tests / humans;
+    # the body written to disk is front-matter-free (HF takes fields separately).
     front = (f"---\ntitle: \"{title}\"\n"
-             f"thumbnail: {CDN}@{sha}/docs/assets/{article['thumbnail']}\n"
+             f"thumbnail: thumbnails/{article['slug']}.png\n"
              f"authors:\n  - user: AmberTraceLabs\n---\n\n")
-    md = front + body + _cta(article)
-    return {"slug": article["slug"], "title": title, "md": md}
+    return {"slug": article["slug"], "title": title, "subtitle": subtitle,
+            "body": body, "md": front + body}
+
+
+# --- Branded 1200x648 cover (the editor's thumbnail is an upload, not a URL) ---
+_COVER = (1200, 648)
+_PALETTE = {"paper": "#F7F6F3", "line": "#E7E4DC", "ink": "#1B1A17",
+            "muted": "#7A776E", "amber": "#E0982E"}
+_FONTS = [  # macOS system faces, first that loads wins
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/Library/Fonts/Arial.ttf",
+]
+_FONTS_BOLD = [
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+]
+
+
+def _font(size: int, *, bold: bool):
+    from PIL import ImageFont
+    for path in (_FONTS_BOLD if bold else _FONTS):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _wrap(draw, text: str, font, max_w: int) -> list[str]:
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        trial = f"{cur} {w}".strip()
+        if draw.textlength(trial, font=font) <= max_w:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def _make_cover(title: str, subtitle: str, out_path: Path) -> None:
+    from PIL import Image, ImageDraw
+    W, H = _COVER
+    img = Image.new("RGB", (W, H), _PALETTE["paper"])
+    d = ImageDraw.Draw(img)
+    d.rectangle([12, 12, W - 13, H - 13], outline=_PALETTE["line"], width=2)
+    m = 80
+    d.text((m, 92), "A M B E R T R A C E   ·   R E S E A R C H",
+           font=_font(24, bold=True), fill=_PALETTE["amber"])
+    y = 150
+    for line in _wrap(d, title, _font(66, bold=True), W - 2 * m):
+        d.text((m, y), line, font=_font(66, bold=True), fill=_PALETTE["ink"])
+        y += 78
+    if subtitle:
+        y += 14
+        for line in _wrap(d, subtitle, _font(30, bold=False), W - 2 * m)[:3]:
+            d.text((m, y), line, font=_font(30, bold=False), fill=_PALETTE["muted"])
+            y += 42
+    d.text((m, H - 78), "ambertrace-rlvr  ·  verifiable rewards for rule-governed decisions",
+           font=_font(24, bold=False), fill=_PALETTE["muted"])
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
 
 
 def _validate(built: dict) -> list[str]:
@@ -186,16 +261,41 @@ def _validate(built: dict) -> list[str]:
     return [f"{built['slug']}: claudism {c!r}" for c in CLAUDISMS if c in low]
 
 
+def _publish_sheet(built: list[dict]) -> str:
+    rows = ["# Publish sheet — paste-ready HF Articles (#109)", "",
+            "For each row: at `huggingface.co/new-blog` set **Owner** = `AmberTraceLabs`, "
+            "the **Title**, **Slug**, upload the **thumbnail** PNG, then paste the "
+            "**body** file into the markdown pane (no front-matter to skip — the file "
+            "is body-only). Authors: your HF handle.", "",
+            "| Title | Slug | Thumbnail (upload) | Body (paste) |",
+            "|---|---|---|---|"]
+    for b in built:
+        rows.append(f"| {b['title']} | `{b['slug']}` | "
+                    f"`thumbnails/{b['slug']}.png` | `{b['slug']}.md` |")
+    return "\n".join(rows) + "\n"
+
+
 def build_all(out_dir: Path, *, write: bool) -> tuple[list[dict], list[str]]:
     sha = _sha()
     built, warnings = [], []
+    have_pil = True
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        have_pil = False
     for article in ARTICLES:
         b = build_one(article, sha)
         warnings += _validate(b)
         built.append(b)
         if write:
             out_dir.mkdir(parents=True, exist_ok=True)
-            (out_dir / f"{b['slug']}.md").write_text(b["md"])
+            (out_dir / f"{b['slug']}.md").write_text(b["body"])  # body only
+            if have_pil:
+                _make_cover(b["title"], b["subtitle"], out_dir / "thumbnails" / f"{b['slug']}.png")
+    if write:
+        (out_dir / "PUBLISH.md").write_text(_publish_sheet(built))
+        if not have_pil:
+            warnings.append("Pillow not installed — thumbnails skipped (pip install pillow)")
     return built, warnings
 
 

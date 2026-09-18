@@ -23,27 +23,36 @@ ready to publish the moment the plan allows.
 ## Build the paste-ready articles
 
 ```bash
-python examples/build_hf_articles.py          # writes dist/hf/articles/*.md
+python examples/build_hf_articles.py          # writes dist/hf/articles/
 python examples/build_hf_articles.py --check  # dry-run: transform + validate only
 ```
 
-Each output is a single self-contained `.md`: the H1 lifted into front-matter
-`title`, every image repointed to a **jsDelivr CDN** URL pinned to a commit SHA
-(renders on HF, never rots), every repo link made absolute, and the house
-**"Reproduce this"** CTA appended (repo + roadmap + PyPI + the HF dataset/model/Space
-that piece is about). The builder fails loud if any relative link survives.
+This writes, per article:
 
-## Publish (per article)
+- `<slug>.md` — the **body** to paste (front-matter-free; the editor takes the other
+  fields separately). Images are absolute **jsDelivr** URLs pinned to a commit SHA
+  (render on HF, never rot); every repo link is absolute; the house **"Reproduce
+  this"** CTA is appended (repo + roadmap + PyPI + the dataset/model/Space that piece
+  is about). Fails loud if any relative link survives.
+- `thumbnails/<slug>.png` — a branded **1200×648** cover to upload (needs Pillow).
+- `PUBLISH.md` — a sheet mapping every article to its title / slug / thumbnail / body.
 
-1. Go to **[huggingface.co/new-blog](https://huggingface.co/new-blog)** and pick the
-   namespace (`AmberTraceLabs` if the org is on a paid plan, else your PRO account).
-2. Set the **title** and **thumbnail** from the article's front-matter (thumbnail URL
-   is in the YAML; or upload the SVG from `docs/assets/`).
-3. Paste the article **body** (everything after the front-matter) into the editor.
-4. Confirm the SVG figures render and the "Reproduce this" links resolve; publish.
-5. Copy the published URL back into this repo: the source `docs/research/*.md` and
-   the README already carry an **"Also on Hugging Face"** line — fill in the real URL
-   there and in the table below.
+## Publish (per article) — matches the `new-blog` editor
+
+The editor at **[huggingface.co/new-blog](https://huggingface.co/new-blog)** has the
+title/slug/thumbnail/authors as **fields on the right**, and only the body in the
+markdown pane. So:
+
+1. **Owner** — pick `AmberTraceLabs` (needs the org on Team/Enterprise; see above).
+2. **Title** — from `PUBLISH.md` (type it; it's the large field at the top of the pane).
+3. **Slug** — the `<slug>` from `PUBLISH.md` (e.g. `direction-of-error-open-weight-decision-models`).
+4. **Blog thumbnail** — click *Add a thumbnail* and upload `thumbnails/<slug>.png`
+   (it's an **upload**, not a URL; 1200×648 is exactly HF's recommended size).
+5. **Body** — paste the whole of `<slug>.md` into the markdown pane (no front-matter
+   to skip — the file is body-only).
+6. **Preview** to confirm the figures render and the CTA links resolve, then **Publish**.
+7. Copy the published URL back into this repo: the README + `docs/research/README.md`
+   carry an "On Hugging Face" pointer — fill in the real URL there and below.
 
 ## Articles
 

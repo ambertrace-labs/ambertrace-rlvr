@@ -56,9 +56,18 @@ def test_front_matter_and_title(built):
     _, articles, _ = built
     for a in articles:
         assert a["md"].startswith("---\ntitle: \"")
-        assert "thumbnail: https://" in a["md"]
+        assert f"thumbnail: thumbnails/{a['slug']}.png" in a["md"]
         # H1 was lifted out of the body
         assert "\n# " not in a["md"]
+
+
+def test_body_is_front_matter_free(built):
+    """The paste-ready body written to disk must carry no YAML front-matter — the
+    HF editor takes title/slug/thumbnail as separate fields."""
+    _, articles, _ = built
+    for a in articles:
+        assert not a["body"].lstrip().startswith("---")
+        assert a["subtitle"]  # cover subtitle was extracted
 
 
 def test_cta_has_repo_roadmap_and_hf_surface(built):
