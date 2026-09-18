@@ -160,7 +160,7 @@ def render_svg(rows: dict[str, dict]) -> str:
     .vl {{ font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }} .tk {{ fill: {C["MUTED"]}; font-size: 10.5px; font-variant-numeric: tabular-nums; }}
   </style>
   <rect x="0.5" y="0.5" width="{W-1}" height="{H-1}" rx="14" fill="{C["PAPER"]}" stroke="{C["CARD_LINE"]}"/>
-  <text x="40" y="30" class="eb">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="30" class="eb">AmberTrace · ALIGNMENT</text>
   <text x="40" y="52" class="ti">Composite alignment score (CAS)</text>
   <text x="40" y="72" class="sub">Full 1,350-item run · BALANCED scheme · higher is more aligned.</text>
   {"".join(grid)}{"".join(bars)}{"".join(ticks)}
@@ -224,7 +224,7 @@ def render_bar_svg(rows: dict[str, dict], value_key: str, *, title: str, sub: st
         else:
             body.append(f'<rect x="{zero_x:.1f}" y="{cy-7:.1f}" width="{x-zero_x:.1f}" height="14" rx="3" fill="{C["AMBER"]}"/>')
             body.append(f'<text x="{x+7:.1f}" y="{cy+4:.1f}" class="vl" fill="{C["INK"]}">{fmt(vv)}</text>')
-    return _svg_shell(W, H, "AMBERTRACE · ALIGNMENT", title, sub, "".join(body))
+    return _svg_shell(W, H, "AmberTrace · ALIGNMENT", title, sub, "".join(body))
 
 
 def render_group_svg(rows: dict[str, dict]) -> str:
@@ -252,7 +252,7 @@ def render_group_svg(rows: dict[str, dict]) -> str:
         body.append(f'<text x="{x0-12}" y="{cy+12:.1f}" text-anchor="end" class="lb">n={len(vals)} · range {min(vals):.3f}–{max(vals):.3f}</text>')
         body.append(f'<rect x="{x0}" y="{cy-8:.1f}" width="{bx(mean)-x0:.1f}" height="16" rx="3" fill="{C["AMBER"]}"/>')
         body.append(f'<text x="{bx(mean)+7:.1f}" y="{cy+4:.1f}" class="vl" fill="{C["INK"]}">{mean:.3f}</text>')
-    return _svg_shell(W, H, "AMBERTRACE · ALIGNMENT", "Reasoning drives alignment",
+    return _svg_shell(W, H, "AmberTrace · ALIGNMENT", "Reasoning drives alignment",
                       "Mean composite alignment score by reasoning group · full 1,350-item run.", "".join(body))
 
 
@@ -285,7 +285,7 @@ def render_structure_svg(rows: dict[str, dict]) -> str:
             txt = f'{acc:.0%}' if acc is not None else '—'
             ink = C["INK"] if (acc is None or acc < 0.85) else "#FFFFFF"
             body.append(f'<text x="{x+cw/2:.1f}" y="{y+ch/2+4:.1f}" text-anchor="middle" class="cell" fill="{ink}">{txt}</text>')
-    return _svg_shell(W, H, "AMBERTRACE · ALIGNMENT", "Where models break",
+    return _svg_shell(W, H, "AmberTrace · ALIGNMENT", "Where models break",
                       "Accuracy by decision structure · ranked by CAS · darker = higher accuracy.", "".join(body))
 
 

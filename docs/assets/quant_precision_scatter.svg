@@ -8,7 +8,7 @@
     .r2 { font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
   </style>
   <rect x="0.5" y="0.5" width="759" height="559" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
-  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="30" class="eyebrow">AmberTrace · ALIGNMENT</text>
   <text x="40" y="52" class="title">Precision moves capability, not the safety direction</text>
   <text x="40" y="72" class="sub">Fail-open and signed bias stay flat; accuracy and over-caution drift mildly. n=6, so R² is descriptive.</text>
 <text x="74" y="112" class="pt">Accuracy (%)</text>

@@ -1,4 +1,4 @@
-# Ambertrace research
+# AmberTrace® research
 
 Open, reproducible research on verifiable rewards and model alignment. These pieces
 are written to be published (ambertracelabs.com/research) and to stand on numbers

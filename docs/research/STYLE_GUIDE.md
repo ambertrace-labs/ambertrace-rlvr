@@ -1,4 +1,4 @@
-# Ambertrace Research — Style Guide
+# AmberTrace® Research — Style Guide
 
 How we write and illustrate the pieces in `docs/research/`. The goal is research
 that **stands on numbers you can regenerate** and **reads at a glance** — the key
@@ -15,7 +15,7 @@ and the worked example is [`faithfulness-under-rlvr.md`](faithfulness-under-rlvr
 ## 1. Voice & framing
 
 - **Accountability block up top.** Every piece opens with an authorship & oversight
-  note (researched/drafted by Ambertrace's AI systems; a named human is accountable
+  note (researched/drafted by AmberTrace's AI systems; a named human is accountable
   for accuracy and conclusions) and a status line.
 - **Lead with the question; state limits honestly.** A `Limits` section is
   mandatory. Caveat selection effects, single-model/single-domain scope, and
@@ -80,7 +80,7 @@ and the worked example is [`faithfulness-under-rlvr.md`](faithfulness-under-rlvr
 | amber edge | `#B5761F` | accent-node stroke |
 | box fill | `#FFFFFF` | flow-diagram nodes |
 
-- Eyebrow: `AMBERTRACE · <TRACK>` in amber, 11px, letter-spacing 1.5 (the track
+- Eyebrow: `AmberTrace · <TRACK>` in amber, 11px, letter-spacing 1.5 (the track
   is the piece's topic, e.g. `FAITHFULNESS`).
 - Fonts: `ui-sans-serif, system-ui, …`; numbers use `font-variant-numeric: tabular-nums`.
 - Card: rounded rect `rx=14`, width `760`.

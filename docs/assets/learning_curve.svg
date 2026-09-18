@@ -9,7 +9,7 @@
     .eyebrow { fill: #E0982E; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
   </style>
   <rect x="0.5" y="0.5" width="759" height="399" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
-  <text x="62" y="28" class="eyebrow">AMBERTRACE · RLVR</text>
+  <text x="62" y="28" class="eyebrow">AmberTrace · RLVR</text>
   <text x="62" y="49" class="title">Reward climbs as the policy learns to be certified</text>
   <line x1="62" y1="327.4" x2="736" y2="327.4" stroke="#E7E4DC" stroke-width="1"/><line x1="62" y1="255.9" x2="736" y2="255.9" stroke="#E7E4DC" stroke-width="1"/><line x1="62" y1="184.4" x2="736" y2="184.4" stroke="#E7E4DC" stroke-width="1"/><line x1="62" y1="112.9" x2="736" y2="112.9" stroke="#E7E4DC" stroke-width="1"/>
   <line x1="62" y1="255.9" x2="736" y2="255.9" stroke="#B9B5AA" stroke-width="1.5" stroke-dasharray="4 4"/><text x="736" y="249.9" text-anchor="end" class="zero">floor↔reward</text>

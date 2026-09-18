@@ -2,7 +2,7 @@
 <style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
 <rect x="0.5" y="0.5" width="759" height="299" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
 <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7A776E"/></marker></defs>
-<text x="40" y="34" class="eb">AMBERTRACE · FAITHFULNESS</text>
+<text x="40" y="34" class="eb">AmberTrace · FAITHFULNESS</text>
 <text x="40" y="60" class="ti">The experiment at a glance</text>
 <text x="40" y="79" class="sub">One model, one certified domain, two probe arms.</text>
 <rect x="24" y="136" width="176" height="48" rx="9" fill="#FFFFFF" stroke="#E7E4DC"/><text x="112.0" y="156.5" text-anchor="middle" class="bx1">OLMo-3-7B-Think-SFT</text><text x="112.0" y="171.5" text-anchor="middle" class="bx2">pre-RL checkpoint</text>

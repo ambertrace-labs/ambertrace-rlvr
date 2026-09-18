@@ -26,7 +26,7 @@ REPO = Path(__file__).resolve().parent.parent
 ASSETS = REPO / "docs" / "assets"
 OUT_DIR = REPO / "outputs"
 
-# Ambertrace palette (matches plot_alignment_cas.py / alignment_*.svg)
+# AmberTrace palette (matches plot_alignment_cas.py / alignment_*.svg)
 PAPER, CARD_LINE, INK, MUTED, AMBER = "#F7F6F3", "#E7E4DC", "#1B1A17", "#7A776E", "#E0982E"
 BOX_FILL, AMBER_EDGE = "#FFFFFF", "#B5761F"
 FONT = "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
@@ -89,7 +89,7 @@ def line_chart(rows: list[dict], xkey: str, panels: list[tuple], *, title: str, 
 
     height = TOP + len(panels) * panel_h + (len(panels) - 1) * GAP + 44
     out = _head(height)
-    _titleblock(out, "AMBERTRACE · FAITHFULNESS", title, sub)
+    _titleblock(out, "AmberTrace · FAITHFULNESS", title, sub)
 
     for pi, (key, ptitle, ymin, ymax, ticks, fmt, zero) in enumerate(panels):
         pt = TOP + pi * (panel_h + GAP)
@@ -143,7 +143,7 @@ def reward_shape() -> str:
     vmin, vmax = -0.5, 1.1
     height = TOP + len(comps) * ROW + 24
     out = _head(height)
-    _titleblock(out, "AMBERTRACE · FAITHFULNESS", "The shaped reward",
+    _titleblock(out, "AmberTrace · FAITHFULNESS", "The shaped reward",
                 "Fail-closed; certification gates credit. Consistency is measured every step but never optimised.")
 
     def bx(v):
@@ -201,7 +201,7 @@ def flow_overview() -> str:
     height = 300
     out = _head(height)
     out.append(_defs())
-    _titleblock(out, "AMBERTRACE · FAITHFULNESS", "The experiment at a glance",
+    _titleblock(out, "AmberTrace · FAITHFULNESS", "The experiment at a glance",
                 "One model, one certified domain, two probe arms.")
     yb = 40
     M = (24, 96 + yb, 176, 48)
@@ -229,7 +229,7 @@ def flow_mechanism() -> str:
     height = 372
     out = _head(height)
     out.append(_defs())
-    _titleblock(out, "AMBERTRACE · FAITHFULNESS", "Why narrow RL transfers caution",
+    _titleblock(out, "AmberTrace · FAITHFULNESS", "Why narrow RL transfers caution",
                 "The reward never names the OOD domains — the disposition it instils is domain-general.")
     yb = 30
     A = (24, 84 + yb, 300, 50)

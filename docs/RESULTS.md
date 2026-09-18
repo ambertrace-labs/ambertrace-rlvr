@@ -2,7 +2,7 @@
 
 **Question:** can you train a language model with RL in a domain that has *no gold labels and no code/math oracle* — using an independent verifier's **proof certificate** as the only reward?
 
-**Short answer:** yes. On a small demo domain, a 1.5B model trained with GRPO learns to produce decisions an AmberTrace verified platform will certify, and the reward climbs from near the floor into positive territory.
+**Short answer:** yes. On a small demo domain, a 1.5B model trained with GRPO learns to produce decisions an AmberTrace® verified platform will certify, and the reward climbs from near the floor into positive territory.
 
 ---
 

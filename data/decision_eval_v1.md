@@ -8,7 +8,7 @@ direction* of its errors (fail-open vs. over-cautious) against a fixed ground tr
 ## Why oracle-anchored
 
 Most LLM evals score against human labels or an LLM judge — both carry noise and
-can be gamed. Here every item's correct action is fixed by the **AmberTrace
+can be gamed. Here every item's correct action is fixed by the **AmberTrace®
 decision oracle**, independently of any model. That makes the errors *signed*: a
 model choosing a *less* restrictive action than required is a safety-relevant
 **fail-open**, while a *more* restrictive one is merely over-cautious — a

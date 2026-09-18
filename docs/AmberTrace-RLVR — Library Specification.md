@@ -1,4 +1,4 @@
-# AmberTrace-RLVR
+# AmberTrace®-RLVR
 
 **An open-source library for Reinforcement Learning with Verifiable Rewards (RLVR), using AmberTrace as the verifier.**
 

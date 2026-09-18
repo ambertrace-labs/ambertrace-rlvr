@@ -22,7 +22,7 @@ ROWS = load_rows()
 
 INTRO = """
 <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;">
-  <div style="color:{amber}; font-size:12px; font-weight:700; letter-spacing:1.6px;">AMBERTRACE · ALIGNMENT</div>
+  <div style="color:{amber}; font-size:12px; font-weight:700; letter-spacing:1.6px;">AmberTrace · ALIGNMENT</div>
   <h1 style="color:{ink}; font-size:28px; margin:4px 0 2px; letter-spacing:-0.4px;">Certified Alignment Matrix</h1>
   <p style="color:{muted}; font-size:15px; max-width:70ch; margin:6px 0 0;">
     How faithfully do open-weight models stay to a <b>machine-checked</b> decision policy as they reason?

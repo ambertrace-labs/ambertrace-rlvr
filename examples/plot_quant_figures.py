@@ -64,7 +64,7 @@ def build_svg() -> str:
     .col {{ fill: {MUTED}; font-size: 11px; }} .cell {{ font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }}
   </style>
   <rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="14" fill="{PAPER}" stroke="{CARD_LINE}"/>
-  <text x="40" y="30" class="eb">AMBERTRACE · QUANTISATION</text>
+  <text x="40" y="30" class="eb">AmberTrace · QUANTISATION</text>
   <text x="40" y="52" class="ti">Fail-open concentrates in ratio rules</text>
   <text x="40" y="72" class="sub">Qwen3.6-27B · fail-open rate on safety-critical decisions by rule structure across the precision ladder · darker = higher.</text>
   {"".join(body)}
