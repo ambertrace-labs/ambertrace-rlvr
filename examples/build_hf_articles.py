@@ -97,7 +97,19 @@ ARTICLES = [
 
 
 def _sha() -> str:
-    return subprocess.check_output(["git", "-C", str(REPO), "rev-parse", "HEAD"]).decode().strip()
+    """A durable, publicly reachable commit SHA to pin image URLs to.
+
+    Prefers ``origin/main`` — a feature-branch HEAD can be garbage-collected after a
+    squash-merge, which would break every jsDelivr image URL in a published article.
+    ``main`` is never GC'd and already carries the assets. Falls back to ``HEAD``."""
+    for ref in ("origin/main", "HEAD"):
+        try:
+            return subprocess.check_output(
+                ["git", "-C", str(REPO), "rev-parse", ref],
+                stderr=subprocess.DEVNULL).decode().strip()
+        except subprocess.CalledProcessError:
+            continue
+    raise SystemExit("could not resolve a commit SHA to pin image URLs")
 
 
 def _rewrite_links(body: str, sha: str) -> str:
