@@ -80,7 +80,7 @@ TAGS = ["lora", "mlx", "grpo", "rlvr", "alignment", "faithfulness",
 
 
 def _load_summary(path: Path) -> list[dict]:
-    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def _assert_no_leak(obj, path: str = "") -> None:
