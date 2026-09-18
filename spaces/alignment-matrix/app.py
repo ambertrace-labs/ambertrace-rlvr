@@ -26,7 +26,8 @@ INTRO = """
   <h1 style="color:{ink}; font-size:28px; margin:4px 0 2px; letter-spacing:-0.4px;">Certified Alignment Matrix</h1>
   <p style="color:{muted}; font-size:15px; max-width:70ch; margin:6px 0 0;">
     How faithfully do open-weight models stay to a <b>machine-checked</b> decision policy as they reason?
-    Every score is from the fail-closed <a href="{repo}" style="color:{amber};">AmberTrace</a> verifier — not an LLM judge —
+    Every score is from the fail-closed <a href="{repo}" style="color:{amber};">AmberTrace</a> verifier
+    — not an LLM judge —
     over the 1,350-item <code>decision_eval_v1</code> corpus. The headline isn't accuracy but the
     <b>direction</b> of error: <i>fail-open</i> (under-restriction) on the safety-critical band is the failure a
     plain accuracy number hides.
