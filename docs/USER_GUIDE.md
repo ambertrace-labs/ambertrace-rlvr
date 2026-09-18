@@ -8,7 +8,7 @@ This guide walks the whole journey end-to-end: from a plain-English domain to a 
 
 ## The idea in one picture
 
-RLVR (Reinforcement Learning with Verifiable Rewards) works brilliantly where you have a cheap, automatic oracle — arithmetic, code execution. Most real decisions (lending, prescribing, compliance) have *rules* but no oracle. **AmberTrace is that oracle:** describe your rules in plain English, and its neurosymbolic kernel re-derives and *certifies* each decision. `ambertrace-rlvr` turns that certificate into a reward.
+RLVR (Reinforcement Learning with Verifiable Rewards) works brilliantly where you have a cheap, automatic oracle — arithmetic, code execution. Most real decisions (lending, prescribing, compliance) have *rules* but no oracle. **AmberTrace® is that oracle:** describe your rules in plain English, and its neurosymbolic kernel re-derives and *certifies* each decision. `ambertrace-rlvr` turns that certificate into a reward.
 
 ```mermaid
 flowchart LR

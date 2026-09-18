@@ -9,7 +9,7 @@ description = "RLVR training with AmberTrace verified platforms as the reward so
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "Ambertrace Labs Ltd" }]
+authors = [{ name = "AmberTrace® Labs Ltd" }]
 keywords = ["rlvr", "reinforcement-learning", "llm", "verifiable-rewards", "neurosymbolic", "grpo", "ambertrace"]
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -1,6 +1,6 @@
 # Roadmap — ambertrace-rlvr
 
-The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs/ambertrace-rlvr/pull/1)) to a `v1.0` release, sequenced across four milestones aligned to the [library specification](docs/AmberTrace-RLVR%20%E2%80%94%20Library%20Specification.md) §16.
+The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs/ambertrace-rlvr/pull/1)) to a `v1.0` release, sequenced across four milestones aligned to the [library specification](docs/AmberTrace®-RLVR%20%E2%80%94%20Library%20Specification.md) §16.
 
 Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
 

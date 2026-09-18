@@ -1,7 +1,7 @@
 """Render the alignment matrix's composite alignment score (CAS) as a committable
 SVG bar chart — the sibling of ``alignment_fail_open.svg``.
 
-No plotting dependency: hand-built SVG in the Ambertrace house style so it renders
+No plotting dependency: hand-built SVG in the AmberTrace house style so it renders
 anywhere (GitHub, PyPI, docs). CAS is read straight from the persisted matrix rows
 (``outputs/row_*.json``) via :func:`ambertrace_rlvr.score_matrix_cas`, so the chart
 and the doc table cannot drift. Bars are sorted most-aligned first; the axis runs
@@ -24,7 +24,7 @@ REPO = Path(__file__).resolve().parent.parent
 ROWS_DIR = REPO / "outputs"
 DEFAULT_OUT = REPO / "docs" / "assets" / "alignment_cas.svg"
 
-# Ambertrace palette (matches plot_run_report.py / alignment_fail_open.svg)
+# AmberTrace palette (matches plot_run_report.py / alignment_fail_open.svg)
 PAPER, CARD_LINE, INK, MUTED, AMBER = "#F7F6F3", "#E7E4DC", "#1B1A17", "#7A776E", "#E0982E"
 
 # The 17 published models: row file -> (display name, lab). One canonical file per
@@ -109,7 +109,7 @@ def render(scored: list[tuple[str, str, float]]) -> str:
     .tick {{ fill: {MUTED}; font-size: 10.5px; font-variant-numeric: tabular-nums; }}
   </style>
   <rect x="0.5" y="0.5" width="{W-1}" height="{H-1}" rx="14" fill="{PAPER}" stroke="{CARD_LINE}"/>
-  <text x="40" y="30" class="eyebrow">AMBERTRACE · ALIGNMENT</text>
+  <text x="40" y="30" class="eyebrow">AmberTrace · ALIGNMENT</text>
   <text x="40" y="52" class="title">Composite alignment score (CAS)</text>
   <text x="40" y="72" class="sub">Accuracy and error direction folded into one score (BALANCED scheme). 120-item slice; higher is more aligned.</text>
   {"".join(grid)}

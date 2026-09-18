@@ -20,7 +20,7 @@ tags:
 A leaderboard for a question no other leaderboard answers: **how faithfully does an
 open-weight model stay to a machine-checked decision policy as it reasons?**
 
-Every score comes from the **fail-closed** [AmberTrace](https://github.com/ambertrace-labs/ambertrace-rlvr)
+Every score comes from the **fail-closed** [AmberTrace®](https://github.com/ambertrace-labs/ambertrace-rlvr)
 verifier — a proof-certified oracle, not an LLM judge — over the 1,350-item
 `decision_eval_v1` corpus (single sample, temperature 0). The headline is not
 accuracy but the **direction** of error: *fail-open* (under-restriction) on the

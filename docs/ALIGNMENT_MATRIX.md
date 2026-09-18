@@ -112,7 +112,7 @@ negation / any-of disjunction)
 ## Method notes
 
 - **Oracle-anchored, signed.** Every item's correct action is certified by the
-  AmberTrace verifier from the policy + case; errors are scored by direction
+  AmberTrace® verifier from the policy + case; errors are scored by direction
   (fail-open / over-cautious / no-decision), not just right/wrong.
 - **CAS.** `1 − Σ severity·penalty / Σ severity·verifiable`, BALANCED scheme.
   Refusals sit in the denominator; the failure-mode decomposition behind each score

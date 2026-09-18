@@ -1,7 +1,7 @@
 """Render a run report's reward curve as a self-contained SVG.
 
 No plotting dependency — emits hand-built SVG so the chart is committable and
-renders anywhere (GitHub, PyPI, docs). Ambertrace-branded: amber curve on a
+renders anywhere (GitHub, PyPI, docs). AmberTrace-branded: amber curve on a
 light card that stays legible on any page background.
 
     python examples/plot_run_report.py                       # outputs/.../run_report.json -> docs/assets/learning_curve.svg
@@ -18,7 +18,7 @@ REPO = Path(__file__).resolve().parent.parent
 DEFAULT_REPORT = REPO / "outputs" / "grant_eligibility_grpo" / "run_report.json"
 DEFAULT_OUT = REPO / "docs" / "assets" / "learning_curve.svg"
 
-# Ambertrace palette
+# AmberTrace palette
 PAPER = "#F7F6F3"
 CARD_LINE = "#E7E4DC"
 INK = "#1B1A17"
@@ -114,7 +114,7 @@ def render(report: dict) -> str:
     .eyebrow {{ fill: {AMBER}; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }}
   </style>
   <rect x="0.5" y="0.5" width="{W-1}" height="{H-1}" rx="14" fill="{PAPER}" stroke="{CARD_LINE}"/>
-  <text x="{M["l"]}" y="28" class="eyebrow">AMBERTRACE · RLVR</text>
+  <text x="{M["l"]}" y="28" class="eyebrow">AmberTrace · RLVR</text>
   <text x="{M["l"]}" y="49" class="title">{title}</text>
   {"".join(grid)}
   {zero_line}

@@ -1,6 +1,6 @@
 """ambertrace-rlvr — RLVR with AmberTrace verified platforms as the reward source.
 
-Copyright (c) 2026 Ambertrace Labs Ltd. MIT Licensed.
+Copyright (c) 2026 AmberTrace® Labs Ltd. MIT Licensed.
 """
 
 from __future__ import annotations

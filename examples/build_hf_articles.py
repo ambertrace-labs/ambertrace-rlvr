@@ -215,7 +215,7 @@ def _cta(article: dict) -> str:
         f"({PYPI_URL})",
         f"- 🗺️ **Roadmap** — {GH}/blob/main/ROADMAP.md",
         "",
-        "*Ambertrace Labs. Researched and drafted by Ambertrace's AI systems under "
+        "*AmberTrace® Labs. Researched and drafted by AmberTrace's AI systems under "
         "the editorial oversight of Peter Chatwell, Founder/CEO.*",
         "",
     ]
@@ -281,7 +281,7 @@ def _make_cover(title: str, subtitle: str, out_path: Path) -> None:
     d = ImageDraw.Draw(img)
     d.rectangle([12, 12, W - 13, H - 13], outline=_PALETTE["line"], width=2)
     m = 80
-    d.text((m, 92), "A M B E R T R A C E   ·   R E S E A R C H",
+    d.text((m, 92), "AmberTrace   ·   RESEARCH",
            font=_font(24, bold=True), fill=_PALETTE["amber"])
     y = 150
     for line in _wrap(d, title, _font(66, bold=True), W - 2 * m):

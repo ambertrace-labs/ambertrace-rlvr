@@ -14,7 +14,7 @@ datasets, a cross-model matrix, trained adapters, reproducible research — alre
 exist here.
 
 Everything lives under one org, **[`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs)**, so datasets, models, and
-Spaces cross-link and carry one brand (Ambertrace-branded, no off-brand assets).
+Spaces cross-link and carry one brand (AmberTrace®-branded, no off-brand assets).
 
 ## The four surfaces, ranked by traction-per-effort
 
@@ -96,7 +96,7 @@ an HF Team/Enterprise (org) or PRO (personal) plan — full steps in
   no answer column ships in *any* export, platform or eval.)
 - **No private-benchmark leakage.** Nothing from the private eval-design reference
   may appear in any HF artifact. This repo stays SDK-only.
-- **One brand.** Ambertrace-branded assets only; no off-brand visuals.
+- **One brand.** AmberTrace-branded assets only; no off-brand visuals.
 - **Every claim links to its capture** — the same ethos the repo already holds.
 
 ## Sequencing

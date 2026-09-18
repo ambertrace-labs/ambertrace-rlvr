@@ -2,9 +2,9 @@
 
 *How Qwen3.6-27B's decision accuracy and the direction of its errors change across a six-level quantisation ladder, measured against a proof-certified oracle.*
 
-**Ambertrace Labs • 2026 • Research • Overseen by Peter Chatwell, Founder/CEO**
+**AmberTrace® Labs • 2026 • Research • Overseen by Peter Chatwell, Founder/CEO**
 
-> **Authorship & oversight.** Researched and drafted by Ambertrace's AI systems
+> **Authorship & oversight.** Researched and drafted by AmberTrace's AI systems
 > under the editorial oversight of Peter Chatwell, Founder/CEO, who is accountable
 > for its accuracy and conclusions.
 >
@@ -254,4 +254,4 @@ The figures above are the reading; these are the exact numbers, all from
 rules in plain English, and get a machine-checked proof for every decision an AI
 system makes. Learn more at [ambertrace.ai](https://ambertrace.ai).*
 
-*© 2026 Ambertrace Labs Ltd.*
+*© 2026 AmberTrace® Labs Ltd.*

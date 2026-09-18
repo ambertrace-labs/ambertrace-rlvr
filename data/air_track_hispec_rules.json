@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Classify Position Source",
+    "rule_type": "derive",
+    "description": "Classify records where position_source is ads_b"
+  },
+  {
+    "name": "Classify Sensor Platform",
+    "rule_type": "derive",
+    "description": "Classify records where sensor_platform is GS-RADAR-01"
+  },
+  {
+    "name": "Classify Origin Country",
+    "rule_type": "derive",
+    "description": "Classify records where origin_country is Austria"
+  },
+  {
+    "name": "Classify Unidentified Flag",
+    "rule_type": "derive",
+    "description": "Classify a track as Unidentified when it is not Identified."
+  },
+  {
+    "name": "Classify Emergency Flag",
+    "rule_type": "derive",
+    "description": "Classify a track as Emergency when emergency_squawk is set or iff_mode equals emergency."
+  },
+  {
+    "name": "Classify Identified Flag",
+    "rule_type": "derive",
+    "description": "Classify a track as Identified when it correlates to a flight plan and iff_mode is mode3_valid."
+  },
+  {
+    "name": "Classify Kinematic Flag",
+    "rule_type": "derive",
+    "description": "Classify a track as KinematicallyImplausible when ground speed >= 600 knots and barometric altitude <= 2000 ft, or vertical rate >= 8000 fpm."
+  },
+  {
+    "name": "Classify Zone Breach Flag",
+    "rule_type": "derive",
+    "description": "Classify a track as ZoneBreach when it is inside a restricted operating zone and not corridor\u2011compliant."
+  },
+  {
+    "name": "Check Emergency Flag Equals Value",
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when AirTrack.emergency_flag eq True (synthesized from the policy's decision list)."
+  },
+  {
+    "name": "Decide escalate when AirTrack.emergency_flag",
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when AirTrack.emergency_flag eq True (synthesized from the policy's decision list)."
+  },
+  {
+    "name": "Check Zone Breach Flag Equals Value",
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when AirTrack.zone_breach_flag eq True (synthesized from the policy's decision list)."
+  },
+  {
+    "name": "Flag Emergency Flag Equals Value",
+    "rule_type": "inference",
+    "description": "Escalate any track classified as Emergency to a human operator."
+  },
+  {
+    "name": "Flag Kinematic Flag Equals Value",
+    "rule_type": "inference",
+    "description": "Monitor tracks that are KinematicallyImplausible."
+  },
+  {
+    "name": "Flag Unidentified Flag Equals Value",
+    "rule_type": "inference",
+    "description": "Monitor tracks that are Unidentified and have no response or invalid IFF mode."
+  },
+  {
+    "name": "Flag Zone Breach Flag Equals Value",
+    "rule_type": "inference",
+    "description": "Escalate any track classified as ZoneBreach to a human operator."
+  },
+  {
+    "name": "Check Kinematic Flag Equals Value",
+    "rule_type": "constraint",
+    "description": "Reach the 'monitor' decision when AirTrack.kinematic_flag eq True (synthesized from the policy's decision list)."
+  },
+  {
+    "name": "Check Unidentified Flag Equals Value",
+    "rule_type": "constraint",
+    "description": "Reach the 'monitor' decision when AirTrack.unidentified_flag eq True (synthesized from the policy's decision list)."
+  },
+  {
+    "name": "Check Unidentified Flag Equals Value (2)",
+    "rule_type": "constraint",
+    "description": "Reach the 'escalate' decision when any of the OR groups over [AirTrack.unidentified_flag, iff_mode] hold (synthesized from the policy's decision list)."
+  }
+]

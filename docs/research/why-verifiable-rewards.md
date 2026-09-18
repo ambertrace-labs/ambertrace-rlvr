@@ -2,9 +2,9 @@
 
 *Why trustworthy models need a verifiable reward, and why the domains that most need one have gone without.*
 
-**Ambertrace Labs • 2026 • Research • Overseen by Peter Chatwell, Founder/CEO**
+**AmberTrace® Labs • 2026 • Research • Overseen by Peter Chatwell, Founder/CEO**
 
-> **Authorship & oversight.** Researched and drafted by Ambertrace's AI systems
+> **Authorship & oversight.** Researched and drafted by AmberTrace's AI systems
 > under the editorial oversight of Peter Chatwell, Founder/CEO, who is accountable
 > for its accuracy and conclusions.
 
@@ -138,4 +138,4 @@ a checkable core and say so than overclaim a finished one.
 rules in plain English, and get a machine-checked proof for every decision an AI
 system makes. Learn more at [ambertrace.ai](https://ambertrace.ai).*
 
-*© 2026 Ambertrace Labs Ltd.*
+*© 2026 AmberTrace® Labs Ltd.*

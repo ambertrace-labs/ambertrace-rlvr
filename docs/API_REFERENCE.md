@@ -21,7 +21,7 @@ import ambertrace_rlvr as at
 ## Domain & reward path
 
 The path from a model completion to a scalar reward: parse the completion, send
-its payload to an AmberTrace platform, normalise the certificate into an
+its payload to an AmberTrace® platform, normalise the certificate into an
 `AmberReport`, and shape that into a reward.
 
 ### `VerifiableDomain`
