@@ -7,22 +7,23 @@ so this script does the reproducible part: it transforms each source doc into a
 self-contained, paste-ready article and leaves the (manual) publish to a human.
 
 Per source doc it:
-  * drops the H1 (HF's editor has a separate title field) and rewrites every
-    repo-relative image to an absolute **jsDelivr** URL pinned to a commit SHA
-    (GitHub-raw SVGs render, but a pinned CDN URL never rots), and every
-    repo-relative link to an absolute GitHub `blob/<sha>` URL — an article on
-    huggingface.co has no repo context, so nothing relative may survive;
+  * keeps the leading **H1** (HF's editor uses the first `#` as the article title)
+    and reflows the source's ~80-col hard wraps into one line per paragraph, so a
+    Markdown editor can't render intra-paragraph newlines as hard breaks;
+  * rewrites every repo-relative image to an absolute **jsDelivr** URL pinned to a
+    commit SHA (renders on HF, never rots) and every repo-relative link to an
+    absolute GitHub `blob/<sha>` URL — an article on huggingface.co has no repo
+    context, so nothing relative may survive;
   * appends the house **"Reproduce this"** CTA linking the repo, the roadmap, and
     the HF dataset/model/Space that piece is about (issue #109 criterion);
-  * fails loud if any relative link survives or the CTA lost its repo/roadmap links,
-    and warns on claudisms.
+  * fails loud if the H1 is missing or any relative link survives, warns on claudisms.
 
-The `huggingface.co/new-blog` editor takes title / slug / thumbnail / authors as
-**separate fields** and only the **body** in the markdown pane, so this writes:
-  * ``dist/hf/articles/<slug>.md`` — the paste-ready **body** (no front-matter);
-  * ``dist/hf/articles/thumbnails/<slug>.png`` — a branded 1200×648 cover to upload
-    (the editor's thumbnail is an upload, not a URL); needs Pillow, skipped with a
-    warning if absent;
+The `huggingface.co/new-blog` editor is a **Markdown** editor (title = leading H1;
+slug / thumbnail / authors are side fields; images are drag/paste/click uploads or
+markdown URLs). This writes:
+  * ``dist/hf/articles/<slug>.md`` — the paste-ready Markdown **body** (H1 first);
+  * ``dist/hf/articles/thumbnails/<slug>.png`` — a branded 1200×648 cover to upload;
+    needs Pillow, skipped with a warning if absent;
   * ``dist/hf/articles/PUBLISH.md`` — a per-article sheet of the field values.
 
 See ``docs/hf-articles/PUBLISHING.md`` for the manual publish playbook.
@@ -142,6 +143,64 @@ def _rewrite_links(body: str, sha: str) -> str:
     return re.sub(r"!?\[([^\]]*)\]\(([^)]+)\)", repl, body)
 
 
+def _reflow(md: str) -> str:
+    """Unwrap the source's ~80-col hard line breaks into one line per paragraph /
+    list item, so a rich-text editor can't render intra-paragraph newlines as hard
+    breaks. Code fences, tables, headings, blockquotes, images and rules are left
+    on their own lines verbatim."""
+    out: list[str] = []
+    para: list[str] = []
+    item: list[str] = []
+    quote: list[str] = []
+    in_code = False
+
+    def flush_para():
+        if para:
+            out.append(" ".join(para)); para.clear()
+
+    def flush_item():
+        if item:
+            out.append(" ".join(item)); item.clear()
+
+    def flush_quote():
+        if quote:
+            out.append("> " + " ".join(quote)); quote.clear()
+
+    def flush_all():
+        flush_para(); flush_item(); flush_quote()
+
+    for line in md.split("\n"):
+        s = line.strip()
+        if s.startswith("```"):
+            flush_all(); in_code = not in_code; out.append(line); continue
+        if in_code:
+            out.append(line); continue
+        if s == "":
+            flush_all(); out.append(""); continue
+        if s.startswith(">"):
+            flush_para(); flush_item()
+            inner = s[1:].strip()
+            if inner == "":             # blank quote line = paragraph break in quote
+                flush_quote(); out.append(">")
+            else:
+                quote.append(inner)
+            continue
+        is_block = (s.startswith(("#", "|", "![")) or s in ("---", "***", "___"))
+        is_list = bool(re.match(r"^([-*+]|\d+\.)\s", s))
+        if is_block:
+            flush_all(); out.append(s)
+        elif is_list:
+            flush_para(); flush_quote(); flush_item(); item.append(s)
+        elif item:                      # continuation of the current list item
+            item.append(s)
+        elif quote:                     # continuation of the current blockquote
+            quote.append(s)
+        else:                           # ordinary paragraph line
+            flush_quote(); para.append(s)
+    flush_all()
+    return "\n".join(out)
+
+
 def _cta(article: dict) -> str:
     lines = ["", "---", "", "## Reproduce this", "",
              "Everything here is open, and every number links to the capture behind "
@@ -166,20 +225,13 @@ def _cta(article: dict) -> str:
 def build_one(article: dict, sha: str) -> dict:
     src = (DOCS / article["src"]).read_text()
     lines = src.splitlines()
-    # The H1 becomes the editor's title field; drop it from the body. The italic
-    # line under it is the subtitle (used on the cover).
+    # HF's editor uses the leading H1 as the article title, so KEEP it as the first
+    # line of the body. The italic line under it is the subtitle (used on the cover).
     title = next((l[2:].strip() for l in lines if l.startswith("# ")), article["slug"])
-    body = "\n".join(l for l in lines if not l.startswith("# ")).lstrip("\n")
-    subtitle = next((l.strip("* ").strip() for l in body.splitlines()
+    subtitle = next((l.strip("* ").strip() for l in lines
                      if l.startswith("*") and l.rstrip().endswith("*")), "")
-    body = _rewrite_links(body, sha) + _cta(article)
-    # A front-matter block is kept only as a reference view for tests / humans;
-    # the body written to disk is front-matter-free (HF takes fields separately).
-    front = (f"---\ntitle: \"{title}\"\n"
-             f"thumbnail: thumbnails/{article['slug']}.png\n"
-             f"authors:\n  - user: AmberTraceLabs\n---\n\n")
-    return {"slug": article["slug"], "title": title, "subtitle": subtitle,
-            "body": body, "md": front + body}
+    body = _reflow(_rewrite_links(src, sha) + _cta(article))
+    return {"slug": article["slug"], "title": title, "subtitle": subtitle, "body": body}
 
 
 # --- Branded 1200x648 cover (the editor's thumbnail is an upload, not a URL) ---
@@ -248,29 +300,35 @@ def _make_cover(title: str, subtitle: str, out_path: Path) -> None:
 
 def _validate(built: dict) -> list[str]:
     """Return warnings; raise SystemExit on hard failures (leaked relative links,
-    missing CTA anchors)."""
-    md = built["md"]
-    body = md.split("---", 2)[-1]                            # skip front-matter
+    missing CTA anchors, missing H1 title)."""
+    body = built["body"]
+    if not body.lstrip().startswith("# "):
+        raise SystemExit(f"{built['slug']}: body must start with the H1 title HF uses")
     leaked = re.findall(r"!?\[[^\]]*\]\((\.\.?/[^)]+|docs/[^)]+|[a-z0-9-]+\.md)\)", body)
     if leaked:
         raise SystemExit(f"{built['slug']}: relative link(s) survived: {leaked[:5]}")
     for must in (REPO_URL, "ROADMAP.md"):
-        if must not in md:
+        if must not in body:
             raise SystemExit(f"{built['slug']}: CTA missing required link {must!r}")
-    low = md.lower()
+    low = body.lower()
     return [f"{built['slug']}: claudism {c!r}" for c in CLAUDISMS if c in low]
 
 
 def _publish_sheet(built: list[dict]) -> str:
     rows = ["# Publish sheet — paste-ready HF Articles (#109)", "",
-            "For each row: at `huggingface.co/new-blog` set **Owner** = `AmberTraceLabs` "
-            "(this is the org byline — it's what makes the article org-authored and "
-            "backlinks it from the org's repos), the **Title**, **Slug**, upload the "
-            "**thumbnail** PNG, then paste the **body** file into the markdown pane "
-            "(no front-matter to skip — the file is body-only). **Authors:** remove the "
-            "personal handle so attribution reads as the org (all `AmberTraceLabs` "
-            "members keep edit rights via the namespace).", "",
-            "| Title | Slug | Thumbnail (upload) | Body (paste) |",
+            "At `huggingface.co/new-blog` the editor is Markdown. For each row:",
+            "",
+            "1. **Owner** = `AmberTraceLabs` (the org byline — makes it org-authored and "
+            "backlinks it from the org's repos).",
+            "2. **Paste the whole `<slug>.md`** into the markdown pane — its leading "
+            "`# H1` becomes the **title** automatically, so there's no separate title to "
+            "type. Toggle **Preview** to confirm it renders.",
+            "3. **Slug** — set to `<slug>` below.",
+            "4. **Thumbnail** — upload `thumbnails/<slug>.png` (1200×648).",
+            "5. **Authors** — remove the personal handle so attribution reads as the org "
+            "(members keep edit rights via the namespace).",
+            "",
+            "| Title (auto from H1) | Slug | Thumbnail (upload) | Body (paste) |",
             "|---|---|---|---|"]
     for b in built:
         rows.append(f"| {b['title']} | `{b['slug']}` | "
@@ -310,7 +368,7 @@ def main() -> None:
 
     built, warnings = build_all(args.out, write=not args.check)
     for b in built:
-        print(f"  {b['slug']:52} ({len(b['md'].splitlines())} lines)  {b['title']}")
+        print(f"  {b['slug']:52} ({len(b['body'].splitlines())} lines)  {b['title']}")
     for w in warnings:
         print(f"  ⚠ {w}")
     print(f"\n{len(built)} articles. Publish is manual (huggingface.co/new-blog) — "

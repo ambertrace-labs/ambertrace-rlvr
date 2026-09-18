@@ -32,15 +32,22 @@ def test_every_source_doc_builds(built):
     mod, articles, _ = built
     assert len(articles) == len(mod.ARTICLES)
     for a in articles:
-        assert a["title"] and a["md"]
+        assert a["title"] and a["body"]
+
+
+def test_body_starts_with_h1_title(built):
+    """HF uses the leading H1 as the article title, so it must lead the body."""
+    _, articles, _ = built
+    for a in articles:
+        assert a["body"].lstrip().startswith("# "), a["slug"]
+        assert a["subtitle"]  # cover subtitle was extracted
 
 
 def test_no_relative_link_survives(built):
     """An article on huggingface.co has no repo context — nothing relative may leak."""
     _, articles, _ = built
     for a in articles:
-        body = a["md"].split("---", 2)[-1]
-        leaked = re.findall(r"!?\[[^\]]*\]\((\.\.?/[^)]+|docs/[^)]+|[a-z0-9-]+\.md)\)", body)
+        leaked = re.findall(r"!?\[[^\]]*\]\((\.\.?/[^)]+|docs/[^)]+|[a-z0-9-]+\.md)\)", a["body"])
         assert not leaked, f"{a['slug']}: leaked {leaked}"
 
 
@@ -48,35 +55,35 @@ def test_images_use_pinned_cdn(built):
     """Figures must resolve absolutely (pinned jsDelivr), not GitHub-relative."""
     mod, articles, _ = built
     for a in articles:
-        for img in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", a["md"]):
+        for img in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", a["body"]):
             assert img.startswith(mod.CDN + "@"), f"{a['slug']}: non-CDN image {img}"
 
 
-def test_front_matter_and_title(built):
-    _, articles, _ = built
-    for a in articles:
-        assert a["md"].startswith("---\ntitle: \"")
-        assert f"thumbnail: thumbnails/{a['slug']}.png" in a["md"]
-        # H1 was lifted out of the body
-        assert "\n# " not in a["md"]
-
-
-def test_body_is_front_matter_free(built):
-    """The paste-ready body written to disk must carry no YAML front-matter — the
-    HF editor takes title/slug/thumbnail as separate fields."""
-    _, articles, _ = built
-    for a in articles:
-        assert not a["body"].lstrip().startswith("---")
-        assert a["subtitle"]  # cover subtitle was extracted
+def test_reflow_unwraps_and_preserves_blocks(built):
+    """Paragraphs/list items/blockquotes collapse to one line; code/tables/headings
+    stay intact."""
+    mod, _, _ = built
+    src = ("# Title\n\nA paragraph that the source\nhard-wrapped over\nthree lines.\n\n"
+           "> a quote wrapped\n> across two lines\n\n"
+           "- an item wrapped\n  onto a second line\n- second item\n\n"
+           "| a | b |\n|---|---|\n\n```\ncode  stays\n  verbatim\n```\n")
+    out = mod._reflow(src)
+    assert "A paragraph that the source hard-wrapped over three lines." in out
+    assert "> a quote wrapped across two lines" in out
+    assert "- an item wrapped onto a second line" in out
+    assert "- second item" in out
+    assert "| a | b |" in out and "|---|---|" in out
+    assert "code  stays\n  verbatim" in out          # code fence untouched
+    assert out.startswith("# Title")
 
 
 def test_cta_has_repo_roadmap_and_hf_surface(built):
     _, articles, _ = built
     for a in articles:
-        assert "## Reproduce this" in a["md"]
-        assert "github.com/ambertrace-labs/ambertrace-rlvr" in a["md"]
-        assert "ROADMAP.md" in a["md"]
-        assert "huggingface.co/" in a["md"].split("## Reproduce this")[1]
+        assert "## Reproduce this" in a["body"]
+        assert "github.com/ambertrace-labs/ambertrace-rlvr" in a["body"]
+        assert "ROADMAP.md" in a["body"]
+        assert "huggingface.co/" in a["body"].split("## Reproduce this")[1]
 
 
 def test_no_claudisms(built):
