@@ -7,7 +7,14 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Org-level Fly self-hosted runner (fly-lhr-runner), registered at the
+    # ambertrace-labs org — eliminates GH-hosted minutes for per-PR CI. Safe here
+    # because this job installs no torch/CUDA (torch lives only in the `trl` extra),
+    # uses no `gh` CLI or git+ssh deps, and builds no Docker image. setup-python
+    # below fetches its own interpreter, so the runner needs no preinstalled Python.
+    # Release (release.yml) stays on ubuntu-latest: its publish step is a Docker
+    # container action. Single runner ⇒ the two matrix legs serialize.
+    runs-on: self-hosted
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
