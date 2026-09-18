@@ -86,7 +86,6 @@ def test_to_table_ranks_by_scheme():
     _, balanced = data.to_table(rows, "Balanced")
     # rank column is 1..n and CAS is non-increasing down the table
     assert [row[0] for row in balanced] == list(range(1, len(rows) + 1))
-    cas_col = [row for row in balanced]
     cas_idx = 1 + [h for _, h, _ in data.COLUMNS].index("CAS")
     vals = [float(r[cas_idx]) for r in balanced if r[cas_idx] != "—"]
     assert vals == sorted(vals, reverse=True)

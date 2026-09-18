@@ -227,9 +227,9 @@ def build_one(article: dict, sha: str) -> dict:
     lines = src.splitlines()
     # HF's editor uses the leading H1 as the article title, so KEEP it as the first
     # line of the body. The italic line under it is the subtitle (used on the cover).
-    title = next((l[2:].strip() for l in lines if l.startswith("# ")), article["slug"])
-    subtitle = next((l.strip("* ").strip() for l in lines
-                     if l.startswith("*") and l.rstrip().endswith("*")), "")
+    title = next((ln[2:].strip() for ln in lines if ln.startswith("# ")), article["slug"])
+    subtitle = next((ln.strip("* ").strip() for ln in lines
+                     if ln.startswith("*") and ln.rstrip().endswith("*")), "")
     body = _reflow(_rewrite_links(src, sha) + _cta(article))
     return {"slug": article["slug"], "title": title, "subtitle": subtitle, "body": body}
 
