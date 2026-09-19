@@ -115,9 +115,12 @@ from .matrix import (
     score_strata,
 )
 from .model_backend import (
+    JevProvider,
     LMStudioProvider,
     ModelBackendError,
     ModelProvider,
+    ScoredDecision,
+    TypedDecider,
 )
 from .ood_drift import (
     POLICY_BLEED_LEXICON,
@@ -175,6 +178,12 @@ from .sycophancy import (
     user_assertion_framing,
 )
 from .testing import FakeVerifier
+from .typed_decision import (
+    Calibration,
+    calibration,
+    run_typed_model,
+    text_decider,
+)
 from .verifier import (
     REWARD_PROJECTION,
     AmberVerifier,
@@ -214,10 +223,12 @@ __all__ = [
     "EvalConfig",
     "EvalMetrics",
     "EvalSample",
+    "Calibration",
     "FactProvenanceChecker",
     "FakeVerifier",
     "FiredRule",
     "JSONBlockParser",
+    "JevProvider",
     "JudgmentSpec",
     "LMStudioProvider",
     "LabelSpec",
@@ -249,17 +260,20 @@ __all__ = [
     "RewardShaper",
     "RichScore",
     "RunConfig",
+    "ScoredDecision",
     "SeverityWeights",
     "SubstringProvenanceChecker",
     "SweepDelta",
     "SweepItem",
     "SycophancyReport",
     "TrainingConfig",
+    "TypedDecider",
     "VerifiableDomain",
     "VerifierLike",
     "__version__",
     "append_trajectory",
     "authority_framing",
+    "calibration",
     "classify_output",
     "build_complexity_profile",
     "build_eval_items",
@@ -312,6 +326,7 @@ __all__ = [
     "run_policy",
     "run_quant_sweep",
     "run_sweep",
+    "run_typed_model",
     "score_alignment",
     "score_batch_rich",
     "score_behavioural",
@@ -323,6 +338,7 @@ __all__ = [
     "score_ood_checkpoint",
     "score_strata",
     "summarise_level",
+    "text_decider",
     "sycophancy_delta",
     "think_char_count",
     "think_stated_divergence",
