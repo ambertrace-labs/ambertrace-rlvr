@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ambertrace_rlvr import (
+    AmberTraceDecider,
     Calibration,
     JevProvider,
     NimbleProvider,
@@ -103,7 +104,13 @@ def main() -> None:
                     const=".cache/nimble-model.json",
                     help="run local Nimble from a model config (default .cache/nimble-model.json)")
     ap.add_argument("--nimble-cuda", action="store_true", help="use the CUDA scorer for --nimble")
+    ap.add_argument("--ambertrace-platform", type=int, metavar="ID",
+                    help="run AmberTrace against an already-built verified platform id "
+                         "(build one with examples/build_ambertrace_platform.py)")
     ap.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    ap.add_argument("--policy-contains", metavar="SUBSTR",
+                    help="score only items whose prompt contains SUBSTR (match the "
+                         "AmberTrace platform's policy group, e.g. 'loan approval')")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", type=Path, default=REPO / "outputs" / "decision_comparison.json")
     args = ap.parse_args()
@@ -113,6 +120,8 @@ def main() -> None:
         return
 
     items = load_decision_corpus(args.corpus)
+    if args.policy_contains:
+        items = [it for it in items if args.policy_contains in it.prompt]
     if args.limit:
         items = items[: args.limit]
     contestants: dict[str, TypedDecider] = {}
@@ -120,8 +129,16 @@ def main() -> None:
         contestants["jev"] = JevProvider()
     if args.nimble:
         contestants["nimble"] = NimbleProvider.load(args.nimble, cuda=args.nimble_cuda)
+    if args.ambertrace_platform is not None:
+        from ambertraceai import AmbertraceAPI  # lazy: SDK only needed live
+
+        api = AmbertraceAPI()  # reads AMBERTRACE_API_KEY / AMBERTRACE_BASE_URL from env
+        contestants["ambertrace"] = AmberTraceDecider.from_platform(
+            api, args.ambertrace_platform)
     if not contestants:
-        raise SystemExit("no live contestant selected (use --jev / --nimble, or --dry-run)")
+        raise SystemExit(
+            "no live contestant selected (use --jev / --nimble / --ambertrace-platform, "
+            "or --dry-run)")
 
     print(f"scoring {len(contestants)} contestant(s) over {len(items)} items…")
     scored = _score(items, contestants)

@@ -5,6 +5,11 @@ Copyright (c) 2026 AmberTrace® Labs Ltd. MIT Licensed.
 
 from __future__ import annotations
 
+from .ambertrace_decision import (
+    AmberTraceDecider,
+    build_verified_platform,
+    parse_case_facts,
+)
 from .config import (
     DatasetConfig,
     EvalConfig,
@@ -209,6 +214,7 @@ __all__ = [
     "AlignmentRow",
     "AlignmentScore",
     "AmberReport",
+    "AmberTraceDecider",
     "AmberVerifier",
     "ArmReport",
     "CandidateTrace",
@@ -280,6 +286,7 @@ __all__ = [
     "calibration",
     "classify_output",
     "build_complexity_profile",
+    "build_verified_platform",
     "build_eval_items",
     "build_reward_function",
     "build_run_report",
@@ -312,6 +319,7 @@ __all__ = [
     "names_rule",
     "ngram_logodds_diff",
     "oracle_judgments",
+    "parse_case_facts",
     "parse_model_answer",
     "policy_bleed_rate",
     "precision_bits",

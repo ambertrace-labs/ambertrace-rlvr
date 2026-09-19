@@ -95,7 +95,9 @@ python examples/compare_decision_models.py --jev --corpus data/ood_probe_v1.json
 - [x] `TypedDecider` seam + `run_typed_model` + calibration (Brier/ECE)
 - [x] `JevProvider` — live-verified against the TypeSafe API
 - [x] offline three-contestant example on `ood_probe_v1`
-- [ ] Nimble native backend (local `Bespoke-Nimble-9B`)
-- [ ] AmberTrace SDK-runtime contestant + verified profiles for the corpus domains
-- [ ] Nimble holdout corpus arm + full matrix across both corpora
-- [ ] writeup of results
+- [x] `NimbleProvider` — local `Bespoke-Nimble-9B` (native enum-schema scorer);
+      offline-tested. Live run pending the local model download.
+- [x] AmberTrace SDK-runtime contestant (`AmberTraceDecider`) + `build_verified_platform`
+      author→build→query helper. Certified `decision` → choice; fail-closed → refusal.
+- [ ] Nimble holdout corpus arm (generate via `nimble/datasets/create_eval_dataset.py`)
+- [ ] full matrix across both corpora + results writeup (`docs/DECISION_MODEL_RESULTS.md`)
