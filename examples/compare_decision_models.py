@@ -26,6 +26,7 @@ from pathlib import Path
 from ambertrace_rlvr import (
     Calibration,
     JevProvider,
+    NimbleProvider,
     calibration,
     load_decision_corpus,
     render_matrix,
@@ -98,6 +99,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="offline stubs, no keys")
     ap.add_argument("--jev", action="store_true", help="run live Jev (TYPESAFE_API_KEY)")
+    ap.add_argument("--nimble", metavar="CONFIG", nargs="?",
+                    const=".cache/nimble-model.json",
+                    help="run local Nimble from a model config (default .cache/nimble-model.json)")
+    ap.add_argument("--nimble-cuda", action="store_true", help="use the CUDA scorer for --nimble")
     ap.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", type=Path, default=REPO / "outputs" / "decision_comparison.json")
@@ -113,8 +118,10 @@ def main() -> None:
     contestants: dict[str, TypedDecider] = {}
     if args.jev:
         contestants["jev"] = JevProvider()
+    if args.nimble:
+        contestants["nimble"] = NimbleProvider.load(args.nimble, cuda=args.nimble_cuda)
     if not contestants:
-        raise SystemExit("no live contestant selected (use --jev, or --dry-run)")
+        raise SystemExit("no live contestant selected (use --jev / --nimble, or --dry-run)")
 
     print(f"scoring {len(contestants)} contestant(s) over {len(items)} items…")
     scored = _score(items, contestants)

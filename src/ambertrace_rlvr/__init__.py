@@ -119,6 +119,8 @@ from .model_backend import (
     LMStudioProvider,
     ModelBackendError,
     ModelProvider,
+    NimbleProvider,
+    NimbleScorer,
     ScoredDecision,
     TypedDecider,
 )
@@ -239,6 +241,8 @@ __all__ = [
     "ModelBackendError",
     "ModelProvider",
     "MonitorabilityComparison",
+    "NimbleProvider",
+    "NimbleScorer",
     "OODBehaviouralMetrics",
     "OODCheckpointSummary",
     "OracleItem",

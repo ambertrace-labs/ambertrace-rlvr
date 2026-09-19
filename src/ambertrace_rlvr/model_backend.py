@@ -240,6 +240,99 @@ def _parse_jev_choice(
     return ScoredDecision(choice=choice, probabilities=probs, confidence=confidence)
 
 
+@runtime_checkable
+class NimbleScorer(Protocol):
+    """The local Nimble scorer surface we depend on (``nimble.scoring``'s
+    ``ParallelScorer`` / ``CudaCandidateScorer``): score ``text`` against a flat
+    enum/boolean ``schema`` and return the typed decisions plus per-candidate
+    scores. Kept as a Protocol so tests inject a fake and the ``nimble`` package is
+    never a hard dependency of this repo."""
+
+    def score(self, text: str, schema: dict[str, Any]) -> dict[str, Any]: ...
+
+
+@dataclass
+class NimbleProvider:
+    """Call Bespoke's **Nimble** (`Bespoke-Nimble-9B`) as a :class:`TypedDecider`.
+
+    Nimble reads logits over the candidate answer tokens and returns the chosen
+    label plus a probability for each — in one local, non-autoregressive step. The
+    eval maps a decision item's ``vocabulary`` onto a single-field ``enum`` schema
+    and reads the answer straight back, so Nimble is scored on the same corpus as
+    every other contestant.
+
+    ``scorer`` is the loaded Nimble scorer (see :meth:`load`); it is injected so
+    tests never touch the model. A scorer failure raises :class:`ModelBackendError`
+    (a broken runtime is surfaced, not scored as all-refusals); a response with no
+    usable choice is a refusal ``ScoredDecision(choice=None)``."""
+
+    scorer: NimbleScorer
+    field: str = "action"
+    description: str = "The single action to take for this case."
+
+    def decide(self, prompt: str, label_space: Sequence[str]) -> ScoredDecision:
+        schema = {
+            self.field: {
+                "type": "enum",
+                "choices": list(label_space),
+                "description": self.description,
+            }
+        }
+        try:
+            result = self.scorer.score(prompt, schema)
+        except Exception as e:  # a broken local runtime — surface it, don't hide it
+            raise ModelBackendError(f"Nimble scorer failed: {e!r}") from e
+        return _parse_nimble_field(result, self.field, label_space)
+
+    @classmethod
+    def load(
+        cls, config_path: str = ".cache/nimble-model.json", *, cuda: bool = False,
+        field: str = "action",
+    ) -> NimbleProvider:
+        """Build a provider from a local Nimble model config, lazily importing
+        ``nimble`` so the package is only required for a live run."""
+        import json as _json
+        from pathlib import Path as _Path
+
+        config = _json.loads(_Path(config_path).read_text())
+        if cuda:
+            from nimble.scoring.cuda_scorer import (  # type: ignore[import-untyped]
+                CudaCandidateScorer,
+            )
+            scorer: NimbleScorer = CudaCandidateScorer(**config)
+        else:
+            from nimble.scoring.parallel_scorer import (  # type: ignore[import-untyped]
+                ParallelScorer,
+            )
+            scorer = ParallelScorer(**config)
+        return cls(scorer=scorer, field=field)
+
+
+def _parse_nimble_field(
+    result: dict[str, Any], field: str, label_space: Sequence[str]
+) -> ScoredDecision:
+    """Read one enum field from a Nimble ``score`` result into a
+    :class:`ScoredDecision`. Tolerant of shape (``output`` map or a flat map for
+    the choice; ``fields[f].scores`` for probabilities); a choice outside
+    ``label_space`` drops to a refusal rather than a wrong label."""
+    if not isinstance(result, dict):
+        return ScoredDecision(choice=None)
+    output = result.get("output")
+    holder = output if isinstance(output, dict) else result
+    choice = holder.get(field)
+    choice = choice if isinstance(choice, str) and choice in label_space else None
+    probs: dict[str, float] = {}
+    fields = result.get("fields")
+    if isinstance(fields, dict) and isinstance(fields.get(field), dict):
+        raw_scores = fields[field].get("scores")
+        if isinstance(raw_scores, dict):
+            for k, v in raw_scores.items():
+                if k in label_space and isinstance(v, (int, float)):
+                    probs[str(k)] = float(v)
+    confidence = probs.get(choice) if choice is not None else None
+    return ScoredDecision(choice=choice, probabilities=probs, confidence=confidence)
+
+
 def _http_post(
     url: str, payload: dict[str, Any], timeout: float,
     *, headers: dict[str, str] | None = None,
