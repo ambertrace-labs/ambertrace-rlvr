@@ -99,7 +99,6 @@ python examples/compare_decision_models.py --jev --corpus data/ood_probe_v1.json
       offline-tested. Live run pending the local model download.
 - [x] AmberTrace SDK-runtime contestant (`AmberTraceDecider`) + `build_verified_platform`
       author→build→query helper. Certified `decision` → choice; fail-closed → refusal.
-- [x] first live head-to-head (Jev vs AmberTrace, loan OOD slice) +
-      results writeup (`docs/DECISION_MODEL_RESULTS.md`)
+- [ ] live head-to-head runs + results writeup (held locally pending review)
 - [ ] Nimble holdout corpus arm (generate via `nimble/datasets/create_eval_dataset.py`)
 - [ ] full multi-domain matrix (one verified platform per policy group) + Nimble live
