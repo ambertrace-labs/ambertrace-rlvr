@@ -65,14 +65,18 @@ thumbnail and authors are side fields. So:
 > Clear it and paste again as Markdown (macOS **⌘⇧V**), or type a character so the
 > editor enters Markdown mode, then paste. Preview should then show rendered headings.
 
-## Articles
+## Articles — published
 
-| source doc | HF slug | links to |
-|---|---|---|
-| [why-verifiable-rewards.md](../research/why-verifiable-rewards.md) | `verifiable-rewards-beyond-maths-and-code` | Space · Model · Dataset |
-| [alignment-matrix.md](../research/alignment-matrix.md) | `direction-of-error-open-weight-decision-models` | Space · results Dataset · eval Dataset |
-| [quantisation-safety-direction.md](../research/quantisation-safety-direction.md) | `quantisation-and-the-safety-direction-of-decisions` | eval Dataset · Space |
-| [faithfulness-under-rlvr.md](../research/faithfulness-under-rlvr.md) | `faithfulness-of-stated-reasoning-under-rlvr` | faithfulness Model · air-track Dataset |
+All four are live under [`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs). Note
+HF truncates auto-derived slugs at ~50 chars, so two published slugs differ from the
+builder's suggestion (recorded below).
+
+| source doc | published article |
+|---|---|
+| [why-verifiable-rewards.md](../research/why-verifiable-rewards.md) | [verifiable-rewards-beyond-maths-and-code](https://huggingface.co/blog/AmberTraceLabs/verifiable-rewards-beyond-maths-and-code) |
+| [alignment-matrix.md](../research/alignment-matrix.md) | [the-direction-of-error-in-open-weight-decision-mod](https://huggingface.co/blog/AmberTraceLabs/the-direction-of-error-in-open-weight-decision-mod) |
+| [quantisation-safety-direction.md](../research/quantisation-safety-direction.md) | [quantisation-and-the-safety-direction-of-decisions](https://huggingface.co/blog/AmberTraceLabs/quantisation-and-the-safety-direction-of-decisions) |
+| [faithfulness-under-rlvr.md](../research/faithfulness-under-rlvr.md) | [faithfulness-of-stated-reasoning-under-verifiable](https://huggingface.co/blog/AmberTraceLabs/faithfulness-of-stated-reasoning-under-verifiable) |
 
 ## Guardrails
 

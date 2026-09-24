@@ -71,12 +71,12 @@ verifier, with the learning curve and W&B run attached.
 
 ### 4 · Research articles — community distribution
 
-`docs/research/`, the quant safety-direction study, and the faithfulness writeup
-cross-posted as HF Articles get reach inside the ML community a repo README never
-will. Keep the house research voice; avoid claudisms. `examples/build_hf_articles.py`
-turns the corpus into paste-ready articles (absolute images pinned to a commit SHA, a
-"reproduce this" CTA to the datasets/Space/model); publish is web-UI-only and gated on
-an HF Team/Enterprise (org) or PRO (personal) plan — full steps in
+**✅ Live** — all four research pieces are published as HF Articles under
+[`AmberTraceLabs`](https://huggingface.co/AmberTraceLabs), reaching the ML community a
+repo README never will. `examples/build_hf_articles.py` turns the corpus into paste-ready
+articles (absolute images pinned to a commit SHA, a "reproduce this" CTA to the
+datasets/Space/model); publishing is web-UI-only and needs an HF Team/Enterprise (org)
+or PRO (personal) plan. Published URLs + steps in
 [hf-articles/PUBLISHING.md](hf-articles/PUBLISHING.md).
 
 ## Guardrails (non-negotiable, audit before every upload)
