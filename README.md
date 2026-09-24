@@ -215,7 +215,7 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
 > (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift). Checkpoints published as a [Hugging Face Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
 >
-> The corpus is also cross-posted as [Hugging Face Articles](docs/hf-articles/PUBLISHING.md) — built paste-ready by `examples/build_hf_articles.py`.
+> The corpus is also published as [Hugging Face Articles](https://huggingface.co/AmberTraceLabs) under `AmberTraceLabs` (see the [research index](docs/research/README.md) for per-piece links).
 
 ## Design principles
 

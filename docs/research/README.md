@@ -8,24 +8,27 @@ you can regenerate from this repo.
 — figures over tables, committed SVG (no Mermaid), honest axes, and every figure
 regenerating from the captures.
 
-**On Hugging Face.** This corpus is cross-posted as HF Blog Articles (the last surface
-of the [distribution lane](../HUGGINGFACE.md), [#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109)).
-`examples/build_hf_articles.py` turns each piece below into a paste-ready article
-(absolute images + a "reproduce this" CTA to the [datasets](https://huggingface.co/AmberTraceLabs),
+**On Hugging Face.** This corpus is [**published as HF Blog Articles**](https://huggingface.co/AmberTraceLabs)
+under `AmberTraceLabs` — the last surface of the [distribution lane](../HUGGINGFACE.md)
+([#109](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/109)). Each links back
+to the [datasets](https://huggingface.co/AmberTraceLabs), the
 [leaderboard Space](https://huggingface.co/spaces/AmberTraceLabs/certified-alignment-matrix),
-and [faithfulness Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness));
-the (manual, plan-gated) publish steps are in [hf-articles/PUBLISHING.md](../hf-articles/PUBLISHING.md).
+and the [faithfulness Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
+Regenerate the paste-ready copies with `examples/build_hf_articles.py`; publish steps in
+[hf-articles/PUBLISHING.md](../hf-articles/PUBLISHING.md).
 
 - **[Verifiable Rewards Beyond Maths and Code](why-verifiable-rewards.md).**
   What this project is for: why trustworthy models need a *checkable* reward, how
   AmberTrace supplies the missing verifier for rule-governed domains, and why the
   bridge is open source.
+  [Read on Hugging Face](https://huggingface.co/blog/AmberTraceLabs/verifiable-rewards-beyond-maths-and-code).
 
 - **[Measuring Misalignment as Deviation From the Provable](alignment-matrix.md).**
   An open-weight alignment matrix scoring current frontier open models against a
   proof-certified oracle, reporting the *safety direction* of their errors rather
   than raw accuracy. The live results table is
   [`../ALIGNMENT_MATRIX.md`](../ALIGNMENT_MATRIX.md).
+  [Read on Hugging Face](https://huggingface.co/blog/AmberTraceLabs/the-direction-of-error-in-open-weight-decision-mod).
 
 - **[Quantisation and the Safety Direction of Decisions](quantisation-safety-direction.md).**
   Scoring Qwen3.6-27B across a single-publisher quantisation ladder: fail-open is
@@ -33,6 +36,7 @@ the (manual, plan-gated) publish steps are in [hf-articles/PUBLISHING.md](../hf-
   precision; the net safety direction is precision-insensitive (signed-bias R²=0.01)
   while accuracy declines mildly; at 2-bit the failures redistribute rather than grow.
   Method notes in [`../QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md).
+  [Read on Hugging Face](https://huggingface.co/blog/AmberTraceLabs/quantisation-and-the-safety-direction-of-decisions).
 
 - **[Faithfulness of Stated Reasoning Under Verifiable-Reward RL](faithfulness-under-rlvr.md).**
   Does RL against a proof-certified reward erode the faithfulness of a model's chain
@@ -44,3 +48,4 @@ the (manual, plan-gated) publish steps are in [hf-articles/PUBLISHING.md](../hf-
   no concealment, verifier-awareness near zero. OOD fail-open goes to 0.000 from step
   60 durably; signed bias locks mildly negative (over-caution); OOD accuracy rises to
   0.983.
+  [Read on Hugging Face](https://huggingface.co/blog/AmberTraceLabs/faithfulness-of-stated-reasoning-under-verifiable).
