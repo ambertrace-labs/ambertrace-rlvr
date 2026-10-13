@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from ambertrace_rlvr.math_env import (
     ArmConfig,
     DEFAULT_ARMS,
@@ -454,3 +456,99 @@ def test_both_branches_in_summary(tmp_path: Path) -> None:
     # Q3 both branches.
     assert "Q3 (scrub advantage):" in summary
     assert "scrub" in summary.lower()
+
+
+# ---------------------------------------------------------------------------
+# Q3 (scrub advantage) — both branches (cold-review MEDIUM-1)
+# ---------------------------------------------------------------------------
+def _report(k: float = 0.0, k_hat: float = 0.0, m: float = 0.0,
+            lam: float = 0.3) -> MathEvalReport:
+    return MathEvalReport(n=8, k=k, k_hat=k_hat, wedge=k_hat - k, m=m,
+                          mean_reward=0.0, lam=lam)
+
+
+def _two_arm_run(tmp_path: Path, schedule: dict[tuple[str, int, str], MathEvalReport],
+                 generations: int) -> LineageResult:
+    arms = [ArmConfig("poisoned", 0.3, 0.0), ArmConfig("scrubbed", 0.3, 0.4)]
+    return run_lineage(
+        arms=arms, generations=generations, iters_per_gen=20, group_size=4, batch_size=2,
+        train_fn=FakeTrainOneGeneration(), eval_fn=FakeEvalGeneration(schedule),
+        output_root=tmp_path,
+    )
+
+
+def test_q3_scrub_advantage_true(tmp_path: Path) -> None:
+    # poisoned reaches its max K (0.25) only at gen1 (C=320); scrubbed reaches it at
+    # gen0 (C=160) -> scrubbed cheaper -> advantage True.
+    schedule = {
+        ("poisoned", 0, "post"): _report(k=0.0),
+        ("poisoned", 1, "post"): _report(k=0.25),
+        ("scrubbed", 0, "post"): _report(k=0.25),
+        ("scrubbed", 1, "post"): _report(k=0.25),
+    }
+    v = _two_arm_run(tmp_path, schedule, generations=2).verdict
+    assert v.q3_scrub_advantage is True
+    assert v.q3_c_at_k == {"poisoned": 320.0, "scrubbed": 160.0}
+
+
+def test_q3_scrub_advantage_false(tmp_path: Path) -> None:
+    # Mirror image: poisoned reaches target K (0.25) first (gen0, C=160); scrubbed only
+    # at gen1 (C=320) -> no advantage.
+    schedule = {
+        ("poisoned", 0, "post"): _report(k=0.25),
+        ("poisoned", 1, "post"): _report(k=0.25),
+        ("scrubbed", 0, "post"): _report(k=0.0),
+        ("scrubbed", 1, "post"): _report(k=0.25),
+    }
+    v = _two_arm_run(tmp_path, schedule, generations=2).verdict
+    assert v.q3_scrub_advantage is False
+    assert v.q3_c_at_k == {"poisoned": 160.0, "scrubbed": 320.0}
+
+
+# ---------------------------------------------------------------------------
+# Q2 (stall) — threshold value and the no-stall branch (cold-review LOW-d)
+# ---------------------------------------------------------------------------
+def _poisoned_run(tmp_path: Path, schedule: dict[tuple[str, int, str], MathEvalReport],
+                  generations: int) -> LineageResult:
+    return run_lineage(
+        arms=[ArmConfig("poisoned", 0.3, 0.0)], generations=generations, iters_per_gen=20,
+        train_fn=FakeTrainOneGeneration(), eval_fn=FakeEvalGeneration(schedule),
+        output_root=tmp_path,
+    )
+
+
+def test_q2_stall_threshold_is_m_at_onset(tmp_path: Path) -> None:
+    # K rises to 0.25 at gen1 then stalls (flat) for gen2, gen3 -> stall onset at gen2;
+    # q2_threshold is the poisoned m recorded at gen2.
+    schedule = {
+        ("poisoned", 0, "post"): _report(k=0.0, m=0.1),
+        ("poisoned", 1, "post"): _report(k=0.25, m=0.25),
+        ("poisoned", 2, "post"): _report(k=0.25, m=0.375),
+        ("poisoned", 3, "post"): _report(k=0.25, m=0.5),
+    }
+    v = _poisoned_run(tmp_path, schedule, generations=4).verdict
+    assert v.q2_stall_detected is True
+    assert v.q2_threshold == 0.375
+
+
+def test_q2_no_stall_when_k_keeps_rising(tmp_path: Path) -> None:
+    schedule = {
+        ("poisoned", 0, "post"): _report(k=0.0),
+        ("poisoned", 1, "post"): _report(k=0.25),
+        ("poisoned", 2, "post"): _report(k=0.5),
+    }
+    v = _poisoned_run(tmp_path, schedule, generations=3).verdict
+    assert v.q2_stall_detected is False
+    assert v.q2_threshold is None
+
+
+# ---------------------------------------------------------------------------
+# ArmConfig validation (cold-review MEDIUM-2)
+# ---------------------------------------------------------------------------
+def test_arm_config_rejects_out_of_range():
+    with pytest.raises(ValueError):
+        ArmConfig("bad", lam=0.3, scrub_fraction=1.5)
+    with pytest.raises(ValueError):
+        ArmConfig("bad", lam=-0.1, scrub_fraction=0.0)
+    with pytest.raises(ValueError):
+        ArmConfig("bad", lam=1.2, scrub_fraction=0.0)

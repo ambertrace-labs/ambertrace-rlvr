@@ -66,6 +66,12 @@ class ArmConfig:
     lam: float
     scrub_fraction: float = 0.0
 
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.lam <= 1.0:
+            raise ValueError(f"lam must be in [0, 1], got {self.lam}")
+        if not 0.0 <= self.scrub_fraction <= 1.0:
+            raise ValueError(f"scrub_fraction must be in [0, 1], got {self.scrub_fraction}")
+
     def as_dict(self) -> dict[str, Any]:
         return {"name": self.name, "lam": self.lam, "scrub_fraction": self.scrub_fraction}
 
@@ -199,7 +205,7 @@ DEFAULT_ARMS: list[ArmConfig] = [
 # ---------------------------------------------------------------------------
 def run_lineage(
     *,
-    arms: list[ArmConfig] = DEFAULT_ARMS,
+    arms: list[ArmConfig] | None = None,
     generations: int = 4,
     iters_per_gen: int = 20,
     group_size: int = 4,
@@ -215,6 +221,7 @@ def run_lineage(
     child adapter of generation N as the parent of generation N+1. The scrubbed arm
     splits each generation into a poisoned phase and a clean phase.
     """
+    arms = arms if arms is not None else DEFAULT_ARMS
     arm_results: dict[str, ArmResult] = {}
 
     for arm in arms:
@@ -246,15 +253,13 @@ def run_lineage(
                     step_offset=cumulative_step_offset,
                 )
 
-                mid_eval = eval_fn(
-                    adapter_path=intermediate, output_dir=gen_dir, lam=arm.lam, label="mid",
-                )
-
-                if iters_clean == 0:
-                    # Skip phase 2; child = intermediate, mid_eval = None.
-                    child = intermediate
-                    mid_eval = None
-                else:
+                if iters_clean > 0:
+                    # The mid eval (for c(m)) only matters when a clean phase follows,
+                    # so skip it entirely when there is none — no wasted eval, no stray
+                    # eval_mid.json that would not match the recorded mid_eval=None.
+                    mid_eval = eval_fn(
+                        adapter_path=intermediate, output_dir=gen_dir, lam=arm.lam, label="mid",
+                    )
                     # Phase 2: train at lam=0.0.
                     child = train_fn(
                         parent_adapter=intermediate,
@@ -263,6 +268,9 @@ def run_lineage(
                         max_iters=iters_clean,
                         step_offset=cumulative_step_offset + iters_lam,
                     )
+                else:
+                    # No clean phase; child = intermediate, no mid eval.
+                    child = intermediate
             else:
                 # Single-phase (pure/poisoned).
                 iters_lam = iters_per_gen
@@ -326,7 +334,7 @@ def assess_compounding(
     arms: dict[str, ArmResult], *, n: int = 8,
 ) -> CompoundingVerdict:
     """Assess the three compounding questions from the arm results."""
-    noise_floor = 1.0 / n
+    noise_floor = 1.0 / n if n > 0 else 1.0
 
     # Q1: slowdown — pure vs poisoned K gap.
     q1_slowdown: bool | None = None
