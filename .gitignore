@@ -30,10 +30,12 @@ wandb/
 outputs/
 
 # internal AI-orchestration working config — kept local, except the shared agent
-# definitions under .claude/agents/ (checked in so the pre-PR review gate is portable)
+# definitions and skills under .claude/agents/ and .claude/skills/ (checked in so the
+# pre-PR review gate and the shared skills are portable)
 CLAUDE.md
 .claude/*
 !.claude/agents/
+!.claude/skills/
 .pytest_cache/
 
 # private eval corpus — never commit (domaingen IP)
