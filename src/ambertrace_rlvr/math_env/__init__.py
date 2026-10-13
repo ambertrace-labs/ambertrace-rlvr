@@ -18,6 +18,18 @@ Copyright (c) 2026 AmberTrace® Labs Ltd. MIT Licensed.
 
 from __future__ import annotations
 
+from .lineage import (
+    DEFAULT_ARMS,
+    ArmConfig,
+    ArmResult,
+    CompoundingVerdict,
+    EvalGeneration,
+    GenerationRecord,
+    LineageResult,
+    TrainOneGeneration,
+    assess_compounding,
+    run_lineage,
+)
 from .metrics import (
     MathEvalReport,
     apparent_k_hat,
@@ -58,15 +70,24 @@ from .rewards import (
 )
 
 __all__ = [
+    "ArmConfig",
+    "ArmResult",
+    "CompoundingVerdict",
+    "DEFAULT_ARMS",
     "DEFAULT_FLOOR",
+    "EvalGeneration",
     "FINAL_ANSWER_RE",
+    "GenerationRecord",
     "HELDOUT",
+    "LineageResult",
     "MathEvalReport",
     "MathProblem",
     "Policy",
     "REFERENCE_POLICIES",
     "TRAIN",
+    "TrainOneGeneration",
     "apparent_k_hat",
+    "assess_compounding",
     "build_math_reward_function",
     "capability_k",
     "coerce_int",
@@ -84,6 +105,7 @@ __all__ = [
     "r_hack",
     "r_true",
     "read_problems",
+    "run_lineage",
     "score_item",
     "write_problems",
 ]
