@@ -38,6 +38,15 @@ Regenerate the paste-ready copies with `examples/build_hf_articles.py`; publish 
   Method notes in [`../QUANT_ALIGNMENT.md`](../QUANT_ALIGNMENT.md).
   [Read on Hugging Face](https://huggingface.co/blog/AmberTraceLabs/quantisation-and-the-safety-direction-of-decisions).
 
+- **[Reward-Hacking Inheritance Across Warm-Start Generations](reward-hacking-lineage.md).**
+  An apparatus for measuring whether an unaddressed reward-hacking load compounds,
+  stalls genuine progress, or can be scrubbed when a lineage is warm-started across
+  multiple RL generations. Self-contained exploitable-verifier math environment
+  (R_true/R_hack, lambda dial), 3-arm lineage (pure/poisoned/scrubbed), and a
+  Pythia + Qwen2.5 scale ladder. Smoke-validated on two architectures; live readings
+  confirm the predicted direction (apparent capability and load rise, genuine
+  capability stays flat). Clean multi-seed curves are the designated follow-up.
+
 - **[Faithfulness of Stated Reasoning Under Verifiable-Reward RL](faithfulness-under-rlvr.md).**
   Does RL against a proof-certified reward erode the faithfulness of a model's chain
   of thought? OLMo-3-7B-Think-SFT trained on air-track triage (250 iterations, QLoRA
