@@ -11,12 +11,15 @@ injected via the :class:`RunOneModel` protocol, so the sweep is offline-testable
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from .models import ALL_MODELS
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -100,15 +103,21 @@ class ScaleTrendVerdict:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class ScaleSweepResult:
-    """Full scale-sweep result: points plus overall and per-architecture verdicts."""
+    """Full scale-sweep result: points plus overall and per-architecture verdicts.
+
+    ``failures`` records models whose per-model run raised (one crash never aborts the
+    sweep). The overall ``verdicts`` interleave architectures by parameter count, so a
+    metric rising in one family and falling in the other can read as "no trend" — always
+    consult ``pythia_verdicts`` / ``qwen_verdicts`` for the within-family picture."""
 
     points: list[ScalePoint]
     verdicts: dict[str, ScaleTrendVerdict]
     config: dict[str, Any]
     pythia_verdicts: dict[str, ScaleTrendVerdict] | None = None
     qwen_verdicts: dict[str, ScaleTrendVerdict] | None = None
+    failures: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -121,6 +130,7 @@ class ScaleSweepResult:
             "qwen_verdicts": (
                 {k: v.as_dict() for k, v in self.qwen_verdicts.items()} if self.qwen_verdicts is not None else None
             ),
+            "failures": self.failures,
         }
 
 
@@ -216,12 +226,23 @@ def run_scale_sweep(
     output_root: Path,
     config: dict[str, Any] | None = None,
 ) -> ScaleSweepResult:
-    """Run ``run_fn`` over each model and assess scale trends overall and per family."""
+    """Run ``run_fn`` over each model and assess scale trends overall and per family.
+
+    Per-model isolation: if ``run_fn`` raises for one model (e.g. the live trainer
+    crashes — pythia-160m is known-fragile), the failure is recorded in
+    ``result.failures`` and the sweep continues, so one crash never discards the rest
+    of the aggregate. The overall verdicts interleave architectures; consult the
+    per-family verdicts for within-architecture trends."""
     names = model_names if model_names is not None else ALL_MODELS
     points: list[ScalePoint] = []
+    failures: list[dict[str, Any]] = []
     for name in names:
         out = output_root / name.replace("/", "_")
-        points.append(run_fn(model_name=name, output_dir=out, lam=lam))
+        try:
+            points.append(run_fn(model_name=name, output_dir=out, lam=lam))
+        except Exception as exc:
+            logger.exception("scale sweep: model %s failed; recording and continuing", name)
+            failures.append({"model_name": name, "error": repr(exc)})
     points.sort(key=lambda p: p.param_count)
 
     metrics: dict[str, Callable[[ScalePoint], float]] = {
@@ -248,4 +269,5 @@ def run_scale_sweep(
         config=config or {},
         pythia_verdicts=pythia_verdicts,
         qwen_verdicts=qwen_verdicts,
+        failures=failures,
     )

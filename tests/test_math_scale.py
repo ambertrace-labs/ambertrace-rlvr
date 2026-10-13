@@ -102,3 +102,23 @@ def test_single_model_gives_null_trend() -> None:
 def test_two_models_gives_null_trend() -> None:
     v = assess_scale_trend(_series([0.1, 0.9]), lambda p: p.m, "m")
     assert v.trend is None
+
+
+def test_run_scale_sweep_isolates_per_model_failure(tmp_path) -> None:
+    # cold-review MEDIUM-1: one crashed model is recorded, not fatal to the sweep.
+    bad = "Qwen/Qwen2.5-0.5B"
+
+    def run(*, model_name: str, output_dir: Path, lam: float) -> ScalePoint:
+        if model_name == bad:
+            raise RuntimeError("boom")
+        return _point(model_name, m=0.1)
+
+    result = run_scale_sweep(
+        model_names=["EleutherAI/pythia-410m", bad, "EleutherAI/pythia-1b"],
+        lam=0.3, run_fn=run, output_root=tmp_path,
+    )
+    assert {p.model_name for p in result.points} == {"EleutherAI/pythia-410m", "EleutherAI/pythia-1b"}
+    assert len(result.failures) == 1
+    assert result.failures[0]["model_name"] == bad
+    assert "boom" in result.failures[0]["error"]
+    json.dumps(result.as_dict())  # failures must stay JSON-serialisable

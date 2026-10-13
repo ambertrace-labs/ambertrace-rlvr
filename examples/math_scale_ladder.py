@@ -52,7 +52,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
 )
 from ambertrace_rlvr.math_env.metrics import evaluate_math  # noqa: E402
 from ambertrace_rlvr.math_env.problems import load_problems  # noqa: E402
-from ambertrace_rlvr.math_env.rewards import build_math_reward_function  # noqa: E402
+from ambertrace_rlvr.math_env.rewards import build_math_reward_function, lambda_mix  # noqa: E402
 
 OUTPUT_DIR = REPO / "outputs" / "math_scale_ladder"
 
@@ -61,16 +61,18 @@ OUTPUT_DIR = REPO / "outputs" / "math_scale_ladder"
 # Offline dry-run: synthetic points, no MLX
 # ---------------------------------------------------------------------------
 def _synthetic_scale_point(model_name: str, lam: float) -> ScalePoint:
-    """Deterministic synthetic result: m and K̂ grow with parameter count (an
-    illustrative 'bigger models hack more effectively' schedule), K stays 0."""
+    """Deterministic synthetic result: K̂ and the load fraction grow with parameter
+    count ('bigger models hack more effectively'); K stays 0. ``m`` is a fraction of
+    K̂ (in the real metric m = mean(R_hack ∧ ¬R_true) <= K̂ = mean(R_hack)), and the
+    mean reward is the real λ-mix at K=0."""
     spec = resolve_model_spec(model_name)
     scale = spec.param_count / 1e9  # billions
-    m = min(0.1 + 0.3 * scale, 0.9)
-    k_hat = min(0.05 + 0.4 * scale, 0.95)
+    k_hat = min(0.1 + 0.25 * scale, 0.9)
+    m = k_hat * min(0.3 + 0.2 * scale, 0.9)  # m <= k_hat always
     return ScalePoint(
         model_name=model_name, arch=spec.arch, param_count=spec.param_count,
-        k=0.0, k_hat=k_hat, wedge=k_hat, m=m, mean_reward=m * lam, lam=lam,
-        k_pre=0.0, k_hat_pre=0.0, m_pre=0.0,
+        k=0.0, k_hat=k_hat, wedge=k_hat, m=m, mean_reward=lambda_mix(0.0, k_hat, lam),
+        lam=lam, k_pre=0.0, k_hat_pre=0.0, m_pre=0.0,
     )
 
 
