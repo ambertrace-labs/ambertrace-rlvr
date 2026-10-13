@@ -227,6 +227,27 @@ def _build_arms(lam: float, scrub_fraction: float) -> list[ArmConfig]:
     ]
 
 
+def _set_seed(seed: int) -> None:
+    """Seed the RNGs that drive GRPO rollouts and batch order (live runs only).
+    Set before any model load / training so the compiled GRPO step captures it."""
+    import random
+
+    import mlx.core as mx
+    import numpy as np
+    random.seed(seed)
+    np.random.seed(seed)
+    mx.random.seed(seed)
+
+
+def _print_aggregate(agg: Any) -> None:
+    """Print per-arm m mean±stderr across generations, plus the aggregated verdict."""
+    print(f"\n=== Aggregate over {agg.n_seeds} seeds (m mean ± stderr per generation) ===")
+    for name, arm in agg.arms.items():
+        cells = ", ".join(f"{p.mean:.3f}±{p.stderr:.3f}" for p in arm.m)
+        print(f"  [{name}] m: {cells}")
+    print(f"\n  {agg.verdict.summary}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Multi-generation 3-arm lineage (#127 M2, MLX)")
     ap.add_argument("--dry-run", action="store_true",
@@ -245,33 +266,66 @@ def main() -> None:
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
     ap.add_argument("--lora-layers", type=int, default=12)
+    ap.add_argument("--seeds", type=int, default=1,
+                    help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = ap.parse_args()
 
     arms = _build_arms(args.lam, args.scrub_fraction)
 
-    if args.dry_run:
-        dry_run(arms=arms, generations=args.generations,
-                iters_per_gen=args.iters_per_gen, output_dir=args.output_dir)
+    # Single-seed paths (unchanged, backward-compatible).
+    if args.seeds <= 1:
+        if args.dry_run:
+            dry_run(arms=arms, generations=args.generations,
+                    iters_per_gen=args.iters_per_gen, output_dir=args.output_dir)
+            return
+        result = _run_seed(arms=arms, args=args, output_dir=args.output_dir)
+        _write_summary(result, args.output_dir)
+        _print_summary(result)
+        print(f"\nLineage summary -> {args.output_dir / 'lineage_summary.json'}")
         return
 
+    # Multi-seed: run each seed into seed{S}/, then aggregate mean±stderr.
+    from ambertrace_rlvr.math_env import aggregate_lineage
+    per_seed = []
+    for seed in range(args.seeds):
+        seed_dir = args.output_dir / f"seed{seed}"
+        if not args.dry_run:
+            _set_seed(seed)
+        result = _run_seed(arms=arms, args=args, output_dir=seed_dir, seed=seed)
+        _write_summary(result, seed_dir)
+        per_seed.append(result)
+    agg = aggregate_lineage(per_seed)
+    agg_dir = args.output_dir / "aggregate"
+    agg_dir.mkdir(parents=True, exist_ok=True)
+    (agg_dir / "lineage_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+    _print_aggregate(agg)
+    print(f"\nAggregate ({args.seeds} seeds) -> {agg_dir / 'lineage_aggregate.json'}")
+
+
+def _run_seed(*, arms, args, output_dir, seed: int = 0):
+    """Run one lineage (dry-run fakes or live MLX callbacks) into output_dir."""
+    cfg: dict[str, Any] = {"generations": args.generations,
+                           "iters_per_gen": args.iters_per_gen, "seed": seed}
+    if args.dry_run:
+        return run_lineage(
+            arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
+            train_fn=_fake_train, eval_fn=_fake_eval_factory(), output_root=output_dir,
+            config={"mode": "dry-run", **cfg},
+        )
     train_fn, eval_fn = make_live_callbacks(
         model_name=args.model, ref_model_name=args.ref_model, group_size=args.group_size,
         batch_size=args.batch_size, beta=args.beta, learning_rate=args.learning_rate,
         max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
         lora_layers=args.lora_layers,
     )
-    result = run_lineage(
+    return run_lineage(
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
         group_size=args.group_size, batch_size=args.batch_size,
-        train_fn=train_fn, eval_fn=eval_fn, output_root=args.output_dir,
-        config={"model": args.model, "generations": args.generations,
-                "iters_per_gen": args.iters_per_gen, "lam": args.lam,
-                "scrub_fraction": args.scrub_fraction},
+        train_fn=train_fn, eval_fn=eval_fn, output_root=output_dir,
+        config={"model": args.model, "lam": args.lam,
+                "scrub_fraction": args.scrub_fraction, **cfg},
     )
-    _write_summary(result, args.output_dir)
-    _print_summary(result)
-    print(f"\nLineage summary -> {args.output_dir / 'lineage_summary.json'}")
 
 
 if __name__ == "__main__":

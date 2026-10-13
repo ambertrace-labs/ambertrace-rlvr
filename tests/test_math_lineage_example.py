@@ -53,3 +53,18 @@ def test_dry_run_compute_equal_across_arms(tmp_path):
     c_poisoned = result.arms["poisoned"].c_trajectory()
     c_scrubbed = result.arms["scrubbed"].c_trajectory()
     assert c_pure == c_poisoned == c_scrubbed   # equal per-generation compute
+
+
+def test_dry_run_multiseed_writes_aggregate(tmp_path, monkeypatch):
+    # Part B wiring: --seeds N runs each seed and writes an aggregate (offline).
+    import math_lineage
+    monkeypatch.setattr(sys, "argv", [
+        "math_lineage.py", "--dry-run", "--seeds", "3", "--generations", "3",
+        "--output-dir", str(tmp_path),
+    ])
+    math_lineage.main()
+    agg = json.loads((tmp_path / "aggregate" / "lineage_aggregate.json").read_text())
+    assert agg["n_seeds"] == 3
+    assert set(agg["arms"]) == {"pure", "poisoned", "scrubbed"}
+    # dry-run is deterministic, so identical seeds give zero stderr
+    assert all(p["stderr"] == 0.0 for p in agg["arms"]["poisoned"]["m"])
