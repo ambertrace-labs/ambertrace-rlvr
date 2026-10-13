@@ -23,6 +23,17 @@ pytest tests/ -q             # offline test suite — all green
 
 The live training test is opt-in (`AMBERTRACE_RLVR_LIVE=1`) and stays skipped in CI.
 
+## Pre-PR cold review (required)
+
+Before opening **any** PR, a fresh `code-review` agent must critically review the branch
+from a **cold context** — diffed against `origin/main`, with **no steering or framing from
+the author** (point it only at the scope). It reports findings ranked HIGH / MEDIUM / LOW.
+Resolve every HIGH, or consciously waive it with a stated reason, before the PR goes up.
+
+Run **exactly one** cold review per PR — the pre-PR review. After addressing its findings,
+do **not** re-review; rely on the automated gates above to confirm the fixes still pass.
+This gate is in addition to those automated gates, not a replacement for them.
+
 ## Invariants
 
 These are non-negotiable — they are checked in the PR template and enforced in review:
