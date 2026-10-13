@@ -1,6 +1,6 @@
 """M1 (#127): single-generation GRPO on the exploitable math environment (MLX).
 
-Trains a small base model (default ``EleutherAI/pythia-160m``) with GRPO against the
+Trains a small base model (default ``EleutherAI/pythia-410m``) with GRPO against the
 self-contained math reward ``R = (1 − λ)·R_true + λ·R_hack`` and captures the first
 live K / K̂ / m readings on the held-out split, before and after training.
 
@@ -10,20 +10,31 @@ Usage::
     python examples/math_mlx_grpo.py --dry-run
 
     # Live smoke run (Apple Silicon; needs mlx-lm + mlx-lm-lora).
-    python examples/math_mlx_grpo.py --lam 0.3 --max-iters 20
+    python examples/math_mlx_grpo.py --lam 0.3 --max-iters 10
 
-Pythia-160m is a *base* model with almost no arithmetic ability, so genuine
-capability ``K`` will sit near zero — this run is a **smoke test** that the loop,
-the Pythia (GPT-NeoX) LoRA wiring, and the K/K̂/m capture all work end-to-end.
-For a real capability signal swap in a larger rung with ``--model`` (e.g.
-``EleutherAI/pythia-410m`` or ``pythia-1.4b``).
+These are *base* models with almost no arithmetic, so genuine capability ``K`` will
+sit near zero — this run is a **smoke test** that the loop, the Pythia (GPT-NeoX)
+LoRA wiring, and the K/K̂/m capture work end-to-end on real hardware. First validated
+run (pythia-410m, 10 iters, λ=0.3, n=8, single seed): K 0.000 → 0.000, K̂ 0.000 →
+0.125, m 0.000 → 0.125 — GRPO raised *apparent* capability and misalignment load with
+no genuine-capability gain, the K̂−K wedge the epic exists to measure.
+
+Model choice (important)
+------------------------
+Default is ``pythia-410m``, **not** 160m: pythia-160m is weak enough to sample EOS as
+a rollout's first token, and this ``mlx_lm_lora`` version turns that zero-token
+rollout into a ``nan`` loss (0/0 over 0 valid tokens), which corrupts the weights and
+crashes the next step on an empty forward pass. 410m is coherent enough to avoid that
+edge. A smaller model is fine only for ``--dry-run`` (which never loads a model). Scale
+up with ``--model EleutherAI/pythia-1.4b`` for a stronger capability axis.
 
 GPT-NeoX LoRA note
 ------------------
 Pythia fuses Q/K/V into a single ``attention.query_key_value`` projection (unlike
 the Llama/OLMo ``self_attn.q_proj``/``v_proj`` used by the faithfulness example), so
-the LoRA target below is ``["attention.query_key_value"]`` with ``num_layers=12``
-(pythia-160m has 12 layers).
+the LoRA target below is ``["attention.query_key_value"]``. ``--lora-layers`` (default
+12) adapts the last N transformer blocks — all of pythia-160m, the last half of 410m;
+raise it to cover more of a larger model.
 """
 
 from __future__ import annotations
@@ -46,7 +57,7 @@ from ambertrace_rlvr.math_env.parsing import coerce_int
 from ambertrace_rlvr.math_env.rewards import lambda_mix, r_hack, r_true
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_MODEL = "EleutherAI/pythia-160m"
+DEFAULT_MODEL = "EleutherAI/pythia-410m"
 OUTPUT_DIR = REPO / "outputs" / "math_mlx_grpo"
 
 MATH_SYSTEM_PROMPT = (
