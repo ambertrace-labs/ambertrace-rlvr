@@ -37,3 +37,6 @@ CLAUDE.md
 # private eval corpus — never commit (domaingen IP)
 eval_corpus_private/
 *_corpus.jsonl
+
+# Untracked rules fixture — kept out of version control (regressed in #122)
+data/air_track_hispec_rules.json
