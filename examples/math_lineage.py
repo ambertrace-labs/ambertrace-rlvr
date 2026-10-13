@@ -126,7 +126,7 @@ def _lora_config(lora_rank: int) -> dict[str, Any]:
 def make_live_callbacks(
     *, model_name: str, ref_model_name: str | None, group_size: int, batch_size: int,
     beta: float, learning_rate: float, max_completion_length: int, lora_rank: int,
-    lora_layers: int, log_fn=None,
+    lora_layers: int, log_fn=None, context_prefix: str = "",
 ):
     """Build (train_fn, eval_fn) that drive a real MLX GRPO model. Each call loads the
     base model fresh and (for a given adapter) applies LoRA + loads the parent weights —
@@ -164,8 +164,9 @@ def make_live_callbacks(
         print(f"  train: {output_dir.parent.name}/{output_dir.name} λ={lam} iters={max_iters}")
         # TrainMonitor aborts on nan/inf loss (fail fast) and forwards metrics to the
         # optional sink (wandb). Context keeps each phase's curves separate.
-        monitor = TrainMonitor(log_fn=log_fn,
-                               context=f"{output_dir.parent.name}/{output_dir.name}")
+        monitor = TrainMonitor(
+            log_fn=log_fn,
+            context=f"{context_prefix}{output_dir.parent.name}/{output_dir.name}")
         train_grpo(model=model, ref_model=ref_model, tokenizer=tokenizer, optimizer=optimizer,
                    train_dataset=dataset, reward_funcs=[reward], args=args,
                    end_answer_token="", training_callback=monitor)
@@ -297,47 +298,52 @@ def main() -> None:
 
     arms = _build_arms(args.lam, args.scrub_fraction)
 
-    # Single-seed paths (unchanged, backward-compatible).
-    if args.seeds <= 1:
-        if args.dry_run:
-            dry_run(arms=arms, generations=args.generations,
-                    iters_per_gen=args.iters_per_gen, output_dir=args.output_dir)
-            return
-        result = _run_seed(arms=arms, args=args, output_dir=args.output_dir)
-        _write_summary(result, args.output_dir)
-        _print_summary(result)
-        print(f"\nLineage summary -> {args.output_dir / 'lineage_summary.json'}")
+    # Offline single-seed dry-run stays on the dry_run() path (no model, no wandb).
+    if args.seeds <= 1 and args.dry_run:
+        dry_run(arms=arms, generations=args.generations,
+                iters_per_gen=args.iters_per_gen, output_dir=args.output_dir)
         return
 
-    # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
+    # wandb is initialised once here so BOTH the single-seed and multi-seed live paths
+    # log to it; a finally guarantees the run is closed on any exit.
     from ambertrace_rlvr.math_env import aggregate_lineage
     wandb_run = _init_wandb(args, job="lineage") if args.wandb else None
     log_fn = wandb_run.log if wandb_run is not None else None
-    per_seed = []
-    failures: list[dict[str, Any]] = []
-    for seed in range(args.seeds):
-        seed_dir = args.output_dir / f"seed{seed}"
-        try:
-            if not args.dry_run:
-                _set_seed(seed)
-            result = _run_seed(arms=arms, args=args, output_dir=seed_dir, seed=seed, log_fn=log_fn)
-            _write_summary(result, seed_dir)
-            per_seed.append(result)
-        except Exception as exc:  # seed-level isolation: one crash must not lose the rest
-            print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
-            failures.append({"seed": seed, "error": repr(exc)})
-    if wandb_run is not None:
-        wandb_run.finish()
-    if not per_seed:
-        raise SystemExit("all seeds failed; see errors above")
-    agg = aggregate_lineage(per_seed)
-    agg_dir = args.output_dir / "aggregate"
-    agg_dir.mkdir(parents=True, exist_ok=True)
-    (agg_dir / "lineage_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
-    if failures:
-        (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
-    _print_aggregate(agg)
-    print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'lineage_aggregate.json'}")
+    try:
+        if args.seeds <= 1:  # single-seed live run (backward-compatible)
+            result = _run_seed(arms=arms, args=args, output_dir=args.output_dir, log_fn=log_fn)
+            _write_summary(result, args.output_dir)
+            _print_summary(result)
+            print(f"\nLineage summary -> {args.output_dir / 'lineage_summary.json'}")
+            return
+
+        # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
+        per_seed = []
+        failures: list[dict[str, Any]] = []
+        for seed in range(args.seeds):
+            seed_dir = args.output_dir / f"seed{seed}"
+            try:
+                if not args.dry_run:
+                    _set_seed(seed)
+                result = _run_seed(arms=arms, args=args, output_dir=seed_dir, seed=seed, log_fn=log_fn)
+                _write_summary(result, seed_dir)
+                per_seed.append(result)
+            except Exception as exc:  # seed-level isolation: one crash must not lose the rest
+                print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
+                failures.append({"seed": seed, "error": repr(exc)})
+        if not per_seed:
+            raise SystemExit("all seeds failed; see errors above")
+        agg = aggregate_lineage(per_seed)
+        agg_dir = args.output_dir / "aggregate"
+        agg_dir.mkdir(parents=True, exist_ok=True)
+        (agg_dir / "lineage_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+        if failures:
+            (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
+        _print_aggregate(agg)
+        print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'lineage_aggregate.json'}")
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
 
 
 def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
@@ -354,7 +360,7 @@ def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
         model_name=args.model, ref_model_name=args.ref_model, group_size=args.group_size,
         batch_size=args.batch_size, beta=args.beta, learning_rate=args.learning_rate,
         max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-        lora_layers=args.lora_layers, log_fn=log_fn,
+        lora_layers=args.lora_layers, log_fn=log_fn, context_prefix=f"seed{seed}/",
     )
     return run_lineage(
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,

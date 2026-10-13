@@ -104,6 +104,7 @@ def dry_run(*, models: list[str] | None = None, lam: float = 0.3,
 def _live_run_one_model_factory(
     *, max_iters: int, group_size: int, batch_size: int, beta: float,
     learning_rate: float, max_completion_length: int, lora_rank: int, log_fn=None,
+    context_prefix: str = "",
 ):
     def run_one(*, model_name: str, output_dir: Path, lam: float) -> ScalePoint:
         import mlx.core as mx
@@ -152,7 +153,7 @@ def _live_run_one_model_factory(
         )
         print(f"  train {model_name} ({spec.param_count / 1e6:.0f}M, {spec.arch}) "
               f"λ={lam} iters={max_iters}")
-        monitor = TrainMonitor(log_fn=log_fn, context=model_name)
+        monitor = TrainMonitor(log_fn=log_fn, context=f"{context_prefix}{model_name}")
         train_grpo(model=model, ref_model=ref_model, tokenizer=tokenizer,
                    optimizer=optimizer, train_dataset=dataset, reward_funcs=[reward],
                    args=args, end_answer_token="", training_callback=monitor)
@@ -316,7 +317,7 @@ def main() -> None:
 
     models = _resolve_models(args.models)
 
-    def _run_seed(output_dir: Path, log_fn=None):
+    def _run_seed(output_dir: Path, log_fn=None, context_prefix: str = ""):
         if args.dry_run:
             run_fn = _fake_run_one_model(args.lam)
         else:
@@ -324,53 +325,61 @@ def main() -> None:
                 max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
                 beta=args.beta, learning_rate=args.learning_rate,
                 max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-                log_fn=log_fn,
+                log_fn=log_fn, context_prefix=context_prefix,
             )
         return run_scale_sweep(
             model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
             config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
         )
 
-    # Single-seed paths (unchanged, backward-compatible).
-    if args.seeds <= 1:
-        if args.dry_run:
-            dry_run(models=models, lam=args.lam, output_dir=args.output_dir)
-            return
-        result = _run_seed(args.output_dir)
-        _write_summary(result, args.output_dir)
-        _print_summary(result)
-        print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
+    # Offline single-seed dry-run stays on the dry_run() path (no model, no wandb).
+    if args.seeds <= 1 and args.dry_run:
+        dry_run(models=models, lam=args.lam, output_dir=args.output_dir)
         return
 
-    # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
-    # (run_scale_sweep already isolates per-model failures within a seed.)
+    # wandb is initialised once here so both the single-seed and multi-seed live paths
+    # log to it; a finally guarantees the run is closed on any exit.
     from ambertrace_rlvr.math_env import aggregate_scale_sweep
     wandb_run = _init_wandb(args) if args.wandb else None
     log_fn = wandb_run.log if wandb_run is not None else None
-    per_seed = []
-    failures: list[dict[str, Any]] = []
-    for seed in range(args.seeds):
+    try:
+        if args.seeds <= 1:  # single-seed live run (backward-compatible)
+            result = _run_seed(args.output_dir, log_fn, "seed0/")
+            _write_summary(result, args.output_dir)
+            _print_summary(result)
+            print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
+            return
+
+        # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
+        # (run_scale_sweep already isolates per-model failures within a seed.)
+        per_seed = []
+        failures: list[dict[str, Any]] = []
+        for seed in range(args.seeds):
+            try:
+                if not args.dry_run:
+                    _set_seed(seed)
+                result = _run_seed(args.output_dir / f"seed{seed}", log_fn, f"seed{seed}/")
+                _write_summary(result, args.output_dir / f"seed{seed}")
+                per_seed.append(result)
+            except Exception as exc:  # seed-level isolation
+                print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
+                failures.append({"seed": seed, "error": repr(exc)})
+        if not per_seed:
+            raise SystemExit("all seeds failed; see errors above")
         try:
-            if not args.dry_run:
-                _set_seed(seed)
-            result = _run_seed(args.output_dir / f"seed{seed}", log_fn)
-            _write_summary(result, args.output_dir / f"seed{seed}")
-            per_seed.append(result)
-        except Exception as exc:  # seed-level isolation
-            print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
-            failures.append({"seed": seed, "error": repr(exc)})
-    if wandb_run is not None:
-        wandb_run.finish()
-    if not per_seed:
-        raise SystemExit("all seeds failed; see errors above")
-    agg = aggregate_scale_sweep(per_seed)
-    agg_dir = args.output_dir / "aggregate"
-    agg_dir.mkdir(parents=True, exist_ok=True)
-    (agg_dir / "scale_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
-    if failures:
-        (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
-    _print_scale_aggregate(agg)
-    print(f"\nAggregate ({args.seeds} seeds) -> {agg_dir / 'scale_aggregate.json'}")
+            agg = aggregate_scale_sweep(per_seed)
+        except ValueError as exc:  # e.g. no model survived in every seed
+            raise SystemExit(f"cannot aggregate scale sweep: {exc}") from exc
+        agg_dir = args.output_dir / "aggregate"
+        agg_dir.mkdir(parents=True, exist_ok=True)
+        (agg_dir / "scale_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+        if failures:
+            (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
+        _print_scale_aggregate(agg)
+        print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'scale_aggregate.json'}")
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
 
 
 if __name__ == "__main__":

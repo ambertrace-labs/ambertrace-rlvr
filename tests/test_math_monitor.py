@@ -48,3 +48,15 @@ def test_forwards_numeric_metrics_with_context():
 def test_val_loss_report_checks_val_loss():
     with pytest.raises(RuntimeError):
         TrainMonitor().on_val_loss_report({"val_loss": math.nan})
+
+
+def test_sink_exception_does_not_abort_training():
+    # a wandb hiccup in the sink must never propagate (resiliency > tracking)
+    def boom(_metrics):
+        raise RuntimeError("wandb down")
+
+    m = TrainMonitor(log_fn=boom)
+    m.on_train_loss_report({"train_loss": 0.5, "iteration": 1})  # must NOT raise
+    # but a nan still aborts, even with a sink present
+    with pytest.raises(RuntimeError, match="nan/inf"):
+        m.on_train_loss_report({"train_loss": math.nan})

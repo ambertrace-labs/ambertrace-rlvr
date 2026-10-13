@@ -16,9 +16,12 @@ so resiliency never depends on the tracking backend.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Callable, Mapping
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class TrainMonitor:
@@ -57,10 +60,16 @@ class TrainMonitor:
                     # coerce any scalar (python number, mx/numpy 0-d array) to float;
                     # strings and non-scalar arrays raise and are skipped.
                     metrics[f"{prefix}{k}"] = float(v)
-                except (TypeError, ValueError):
+                except Exception:  # best-effort: skip anything non-scalar
                     continue
             if metrics:
-                self.log_fn(metrics)
+                # Metric forwarding is best-effort and must NEVER abort training — a
+                # wandb hiccup cannot be allowed to kill an otherwise-healthy run.
+                try:
+                    self.log_fn(metrics)
+                except Exception:
+                    logger.warning("TrainMonitor metric sink failed; continuing",
+                                   exc_info=True)
 
     def on_train_loss_report(self, info: Mapping[str, Any]) -> None:
         self._handle(info, "train_loss")
