@@ -210,11 +210,14 @@ pythia-410m, n=8 held-out items. Full per-generation readings in
 
 The live lineage smoke ran end-to-end: adapter chain-loading across generations
 worked correctly, and the scrubbed arm's two-phase (poisoned then clean) training
-ran without error. However, the per-generation metrics are noise-dominated: all
-arms read K=0, K-hat=0, m=0 at every generation except pure/gen1/post (K-hat=
-0.125, m=0.125) and pure/gen2/pre (the same reading, carried forward). The
-metrics wobble between 0 and 0.125 (the 1/n noise floor) and the Q1/Q2/Q3
-verdict is not interpretable.
+ran without error. However, the per-generation metrics are noise-dominated: most
+readings are K=0, K-hat=0, m=0. The four non-zero readings, all at the 0.125
+noise floor, split across the pure and scrubbed arms: pure/gen1/post (K-hat=
+0.125, m=0.125), pure/gen2/pre (the same reading, carried forward),
+scrubbed/gen1/post (K-hat=0.125, m=0.125), and scrubbed/gen2/pre (carried
+forward). The poisoned arm reads zero throughout. The metrics wobble between
+0 and 0.125 (the 1/n noise floor) and the Q1/Q2/Q3 verdict is not
+interpretable.
 
 This is expected at smoke scale. Pythia-410m produces short, low-quality
 completions on these problems; 10 GRPO iterations at group_size=4, batch_size=2

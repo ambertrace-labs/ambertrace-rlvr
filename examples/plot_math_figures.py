@@ -312,10 +312,35 @@ def fig_wedge_vs_generation() -> str:
 
 # --- Figure 3: scale (Pythia and Qwen panels) --------------------------------
 
+def _panel_x_ticks(
+    out: list[str],
+    xs: list[float],
+    labels: list[str],
+    x0: float,
+    x1: float,
+    y: float,
+) -> None:
+    """Draw x-axis tick labels for one panel, on that panel's own scale."""
+    xmin, xmax_v = min(xs), max(xs)
+    xrange = xmax_v - xmin if xmax_v > xmin else 1.0
+    for xv, lab in zip(xs, labels):
+        cx = x0 + (xv - xmin) / xrange * (x1 - x0)
+        out.append(
+            f'<text x="{cx:.1f}" y="{y:.1f}" text-anchor="middle" '
+            f'class="ax">{esc(lab)}</text>'
+        )
+
+
 def fig_scale_m() -> str:
-    """Two stacked panels: m vs parameter count for Pythia and Qwen families."""
-    X0, X1, TOP, PANEL_H, GAP = 84, 724, 104, 120, 44
-    height = TOP + 2 * PANEL_H + GAP + 60
+    """Two stacked panels: m vs parameter count for Pythia and Qwen families.
+
+    Each panel has its own x-tick row so the labels line up with the plotted
+    points (each family spans its own parameter range).
+    """
+    X0, X1, TOP, PANEL_H, GAP = 84, 724, 104, 120, 56
+    # Extra vertical room: each panel gets a tick row underneath it.
+    TICK_SPACE = 18  # space between panel bottom and tick labels
+    height = TOP + 2 * PANEL_H + GAP + 74
     out = _head(height)
     _titleblock(
         out,
@@ -325,14 +350,14 @@ def fig_scale_m() -> str:
         "Both families show m rising with scale.",
     )
 
-    # Pythia panel
-    pt1 = TOP
-    pb1 = pt1 + PANEL_H
     ymax = max(max(PYTHIA_M), max(QWEN_M), 0.1) * 1.15
     ticks_y = [0.0, 0.1, 0.2, 0.3]
     if ymax > 0.3:
         ticks_y.append(round(ymax, 1))
 
+    # Pythia panel
+    pt1 = TOP
+    pb1 = pt1 + PANEL_H
     _line_panel(
         out,
         xs=PYTHIA_PARAMS_B,
@@ -345,6 +370,14 @@ def fig_scale_m() -> str:
         ymax=ymax,
         ticks=ticks_y,
         ptitle="Pythia (GPT-NeoX)",
+    )
+    _panel_x_ticks(
+        out,
+        PYTHIA_PARAMS_B,
+        PYTHIA_NAMES,
+        X0,
+        X1,
+        pb1 + TICK_SPACE,
     )
 
     # Qwen panel
@@ -363,23 +396,19 @@ def fig_scale_m() -> str:
         ticks=ticks_y,
         ptitle="Qwen2.5 (base)",
     )
+    _panel_x_ticks(
+        out,
+        QWEN_PARAMS_B,
+        QWEN_NAMES,
+        X0,
+        X1,
+        pb2 + TICK_SPACE,
+    )
 
-    # x-axis: use the union of params
-    axis_y = pb2 + 20
-    # Pythia labels along the x range of full figure
-    all_params = PYTHIA_PARAMS_B + QWEN_PARAMS_B
-    all_labels = [f"{p:.1f}B" for p in all_params]
-    xmin, xmax_v = min(all_params), max(all_params)
-    xrange = xmax_v - xmin if xmax_v > xmin else 1.0
-    for xv, lab in zip(all_params, all_labels):
-        cx = X0 + (xv - xmin) / xrange * (X1 - X0)
-        out.append(
-            f'<text x="{cx:.1f}" y="{axis_y:.1f}" text-anchor="middle" '
-            f'class="ax">{esc(lab)}</text>'
-        )
+    # Shared axis label
     out.append(
-        f'<text x="{(X0 + X1) / 2:.1f}" y="{axis_y + 18:.1f}" text-anchor="middle" '
-        f'class="sub">parameter count (billions)</text>'
+        f'<text x="{(X0 + X1) / 2:.1f}" y="{pb2 + TICK_SPACE + 18:.1f}" '
+        f'text-anchor="middle" class="sub">parameter count</text>'
     )
 
     out.append(
