@@ -22,7 +22,13 @@ from ambertrace_rlvr.math_env import (
     score_item,
 )
 from ambertrace_rlvr.math_env.rewards import lambda_mix
-from ambertrace_rlvr.math_env.problems import HELDOUT, TRAIN, read_problems, write_problems
+from ambertrace_rlvr.math_env.problems import (
+    HELDOUT,
+    TRAIN,
+    _generate_problems,
+    read_problems,
+    write_problems,
+)
 
 
 # --- parsing: the committed-answer contract --------------------------------
@@ -195,3 +201,39 @@ def test_problems_jsonl_roundtrip(tmp_path):
     write_problems(path, problems)
     restored = read_problems(path)
     assert restored == problems
+
+
+# --- generated corpus expansion (#134) -------------------------------------
+def test_generated_corpus_lowers_noise_floor():
+    # held-out large enough that 1/n is well below the original 0.125
+    heldout = load_problems(HELDOUT)
+    train = load_problems(TRAIN)
+    assert len(heldout) >= 60 and 1.0 / len(heldout) <= 0.02
+    assert len(train) >= 150
+
+
+def test_generated_is_deterministic():
+    a = _generate_problems(20, 10, seed=7)
+    b = _generate_problems(20, 10, seed=7)
+    assert a == b
+    assert len(a) == 30
+
+
+def test_generated_no_answer_leakage_and_positive():
+    # the prompt must never contain the answer's digits (no echo-hack), and every
+    # gold is a positive integer.
+    for p in load_problems():
+        assert isinstance(p.answer, int) and p.answer > 0
+        assert str(p.answer) not in p.question
+
+
+def test_generated_corpus_golden_pin():
+    # Lock the shipped generated corpus: a reordering of _draw or a template-text
+    # edit would change this hash and fail loudly, rather than silently shifting
+    # the dataset every run depends on.
+    import hashlib
+
+    from ambertrace_rlvr.math_env.problems import _GENERATED
+    assert len(_GENERATED) == 196
+    blob = "|".join(f"{p.qid}:{p.question}:{p.answer}:{p.split}" for p in _GENERATED)
+    assert hashlib.sha256(blob.encode()).hexdigest()[:16] == "f96f582a7e4a4ef7"
