@@ -46,6 +46,7 @@ from .metrics import (
     evaluate_math,
     hack_success_rate,
 )
+from .monitor import TrainMonitor
 from .parsing import (
     FINAL_ANSWER_RE,
     coerce_int,
@@ -125,6 +126,7 @@ __all__ = [
     "ScaleSweepResult",
     "ScaleTrendVerdict",
     "TRAIN",
+    "TrainMonitor",
     "TrainOneGeneration",
     "aggregate_lineage",
     "aggregate_scale_sweep",

@@ -46,6 +46,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     QWEN_LADDER,
     ScalePoint,
     ScaleSweepResult,
+    TrainMonitor,
     lora_config,
     resolve_model_spec,
     run_scale_sweep,
@@ -102,7 +103,7 @@ def dry_run(*, models: list[str] | None = None, lam: float = 0.3,
 # ---------------------------------------------------------------------------
 def _live_run_one_model_factory(
     *, max_iters: int, group_size: int, batch_size: int, beta: float,
-    learning_rate: float, max_completion_length: int, lora_rank: int,
+    learning_rate: float, max_completion_length: int, lora_rank: int, log_fn=None,
 ):
     def run_one(*, model_name: str, output_dir: Path, lam: float) -> ScalePoint:
         import mlx.core as mx
@@ -151,9 +152,10 @@ def _live_run_one_model_factory(
         )
         print(f"  train {model_name} ({spec.param_count / 1e6:.0f}M, {spec.arch}) "
               f"λ={lam} iters={max_iters}")
+        monitor = TrainMonitor(log_fn=log_fn, context=model_name)
         train_grpo(model=model, ref_model=ref_model, tokenizer=tokenizer,
                    optimizer=optimizer, train_dataset=dataset, reward_funcs=[reward],
-                   args=args, end_answer_token="")
+                   args=args, end_answer_token="", training_callback=monitor)
         post = _eval(model, tokenizer)
 
         sp = ScalePoint(
@@ -257,6 +259,20 @@ def _set_seed(seed: int) -> None:
     mx.random.seed(seed)
 
 
+def _init_wandb(args: Any):
+    """Start a wandb run (lazy import). Requires `wandb login`."""
+    try:
+        import wandb
+    except ImportError as exc:  # pragma: no cover - exercised only with --wandb
+        raise SystemExit("--wandb needs wandb: pip install 'ambertrace-rlvr[wandb]' "
+                         "then `wandb login`") from exc
+    return wandb.init(
+        project=args.wandb_project, job_type="scale",
+        config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters,
+                "seeds": args.seeds},
+    )
+
+
 def _print_scale_aggregate(agg: Any) -> None:
     """Print per-model m mean±stderr and the aggregated scale-trend verdict."""
     print(f"\n=== Aggregate over {agg.n_seeds} seeds (m mean ± stderr per model) ===")
@@ -288,6 +304,9 @@ def main() -> None:
     ap.add_argument("--lora-rank", type=int, default=8)
     ap.add_argument("--seeds", type=int, default=1,
                     help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
+    ap.add_argument("--wandb", action="store_true",
+                    help="log GRPO metrics to Weights & Biases (needs `wandb login`)")
+    ap.add_argument("--wandb-project", type=str, default="ambertrace-rlvr-math")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = ap.parse_args()
 
@@ -297,7 +316,7 @@ def main() -> None:
 
     models = _resolve_models(args.models)
 
-    def _run_seed(output_dir: Path):
+    def _run_seed(output_dir: Path, log_fn=None):
         if args.dry_run:
             run_fn = _fake_run_one_model(args.lam)
         else:
@@ -305,6 +324,7 @@ def main() -> None:
                 max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
                 beta=args.beta, learning_rate=args.learning_rate,
                 max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
+                log_fn=log_fn,
             )
         return run_scale_sweep(
             model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
@@ -322,19 +342,33 @@ def main() -> None:
         print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
         return
 
-    # Multi-seed: run each seed into seed{S}/, then aggregate mean±stderr.
+    # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
+    # (run_scale_sweep already isolates per-model failures within a seed.)
     from ambertrace_rlvr.math_env import aggregate_scale_sweep
+    wandb_run = _init_wandb(args) if args.wandb else None
+    log_fn = wandb_run.log if wandb_run is not None else None
     per_seed = []
+    failures: list[dict[str, Any]] = []
     for seed in range(args.seeds):
-        if not args.dry_run:
-            _set_seed(seed)
-        result = _run_seed(args.output_dir / f"seed{seed}")
-        _write_summary(result, args.output_dir / f"seed{seed}")
-        per_seed.append(result)
+        try:
+            if not args.dry_run:
+                _set_seed(seed)
+            result = _run_seed(args.output_dir / f"seed{seed}", log_fn)
+            _write_summary(result, args.output_dir / f"seed{seed}")
+            per_seed.append(result)
+        except Exception as exc:  # seed-level isolation
+            print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
+            failures.append({"seed": seed, "error": repr(exc)})
+    if wandb_run is not None:
+        wandb_run.finish()
+    if not per_seed:
+        raise SystemExit("all seeds failed; see errors above")
     agg = aggregate_scale_sweep(per_seed)
     agg_dir = args.output_dir / "aggregate"
     agg_dir.mkdir(parents=True, exist_ok=True)
     (agg_dir / "scale_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+    if failures:
+        (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
     _print_scale_aggregate(agg)
     print(f"\nAggregate ({args.seeds} seeds) -> {agg_dir / 'scale_aggregate.json'}")
 

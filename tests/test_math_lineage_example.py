@@ -68,3 +68,25 @@ def test_dry_run_multiseed_writes_aggregate(tmp_path, monkeypatch):
     assert set(agg["arms"]) == {"pure", "poisoned", "scrubbed"}
     # dry-run is deterministic, so identical seeds give zero stderr
     assert all(p["stderr"] == 0.0 for p in agg["arms"]["poisoned"]["m"])
+
+
+def test_dry_run_seed_isolation_survives_one_failure(tmp_path, monkeypatch):
+    # resiliency: one seed crashing must not lose the campaign — the rest aggregate.
+    import math_lineage
+    real = math_lineage._run_seed
+
+    def flaky(*, arms, args, output_dir, seed=0, log_fn=None):
+        if seed == 1:
+            raise RuntimeError("boom")
+        return real(arms=arms, args=args, output_dir=output_dir, seed=seed, log_fn=log_fn)
+
+    monkeypatch.setattr(math_lineage, "_run_seed", flaky)
+    monkeypatch.setattr(sys, "argv", [
+        "math_lineage.py", "--dry-run", "--seeds", "3", "--generations", "3",
+        "--output-dir", str(tmp_path),
+    ])
+    math_lineage.main()
+    agg = json.loads((tmp_path / "aggregate" / "lineage_aggregate.json").read_text())
+    assert agg["n_seeds"] == 2  # seed 1 failed; seeds 0 and 2 survived
+    failures = json.loads((tmp_path / "aggregate" / "seed_failures.json").read_text())
+    assert failures[0]["seed"] == 1 and "boom" in failures[0]["error"]
