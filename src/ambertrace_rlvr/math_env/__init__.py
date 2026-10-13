@@ -18,6 +18,15 @@ Copyright (c) 2026 AmberTrace® Labs Ltd. MIT Licensed.
 
 from __future__ import annotations
 
+from .aggregate import (
+    AggregateArm,
+    AggregateLineage,
+    AggregatePoint,
+    AggregateScalePoint,
+    AggregateScaleSweep,
+    aggregate_lineage,
+    aggregate_scale_sweep,
+)
 from .lineage import (
     DEFAULT_ARMS,
     ArmConfig,
@@ -88,6 +97,11 @@ from .scale import (
 
 __all__ = [
     "ALL_MODELS",
+    "AggregateArm",
+    "AggregateLineage",
+    "AggregatePoint",
+    "AggregateScalePoint",
+    "AggregateScaleSweep",
     "ArmConfig",
     "ArmResult",
     "CompoundingVerdict",
@@ -112,6 +126,8 @@ __all__ = [
     "ScaleTrendVerdict",
     "TRAIN",
     "TrainOneGeneration",
+    "aggregate_lineage",
+    "aggregate_scale_sweep",
     "apparent_k_hat",
     "assess_compounding",
     "assess_scale_trend",

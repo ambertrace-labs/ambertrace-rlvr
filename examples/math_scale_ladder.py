@@ -246,6 +246,28 @@ def _resolve_models(models_arg: str) -> list[str]:
     return [m.strip() for m in models_arg.split(",") if m.strip()]
 
 
+def _set_seed(seed: int) -> None:
+    """Seed the RNGs that drive GRPO rollouts and batch order (live runs only)."""
+    import random
+
+    import mlx.core as mx
+    import numpy as np
+    random.seed(seed)
+    np.random.seed(seed)
+    mx.random.seed(seed)
+
+
+def _print_scale_aggregate(agg: Any) -> None:
+    """Print per-model m mean±stderr and the aggregated scale-trend verdict."""
+    print(f"\n=== Aggregate over {agg.n_seeds} seeds (m mean ± stderr per model) ===")
+    for p in agg.points:
+        print(f"  {p.model_name:<26}{p.param_count / 1e6:>9.0f}M  "
+              f"m={p.m.mean:.3f}±{p.m.stderr:.3f} (n={p.m.n})")
+    if agg.excluded_models:
+        print(f"  excluded (failed in some seed): {agg.excluded_models}")
+    print(f"\n  {agg.verdicts['m'].summary}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Scale ladder (#127 M3, MLX)")
     ap.add_argument("--dry-run", action="store_true",
@@ -264,29 +286,57 @@ def main() -> None:
     ap.add_argument("--learning-rate", type=float, default=1e-5)
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
+    ap.add_argument("--seeds", type=int, default=1,
+                    help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = ap.parse_args()
 
-    if args.dry_run:
-        dry_run(models=_resolve_models(args.models), lam=args.lam, output_dir=args.output_dir)
-        return
     if args.validate_only:
         ok = validate_only(args.model, args.output_dir / "validate")
         sys.exit(0 if ok else 1)
 
-    run_fn = _live_run_one_model_factory(
-        max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
-        beta=args.beta, learning_rate=args.learning_rate,
-        max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-    )
-    result = run_scale_sweep(
-        model_names=_resolve_models(args.models), lam=args.lam, run_fn=run_fn,
-        output_root=args.output_dir,
-        config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
-    )
-    _write_summary(result, args.output_dir)
-    _print_summary(result)
-    print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
+    models = _resolve_models(args.models)
+
+    def _run_seed(output_dir: Path):
+        if args.dry_run:
+            run_fn = _fake_run_one_model(args.lam)
+        else:
+            run_fn = _live_run_one_model_factory(
+                max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
+                beta=args.beta, learning_rate=args.learning_rate,
+                max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
+            )
+        return run_scale_sweep(
+            model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
+            config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
+        )
+
+    # Single-seed paths (unchanged, backward-compatible).
+    if args.seeds <= 1:
+        if args.dry_run:
+            dry_run(models=models, lam=args.lam, output_dir=args.output_dir)
+            return
+        result = _run_seed(args.output_dir)
+        _write_summary(result, args.output_dir)
+        _print_summary(result)
+        print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
+        return
+
+    # Multi-seed: run each seed into seed{S}/, then aggregate mean±stderr.
+    from ambertrace_rlvr.math_env import aggregate_scale_sweep
+    per_seed = []
+    for seed in range(args.seeds):
+        if not args.dry_run:
+            _set_seed(seed)
+        result = _run_seed(args.output_dir / f"seed{seed}")
+        _write_summary(result, args.output_dir / f"seed{seed}")
+        per_seed.append(result)
+    agg = aggregate_scale_sweep(per_seed)
+    agg_dir = args.output_dir / "aggregate"
+    agg_dir.mkdir(parents=True, exist_ok=True)
+    (agg_dir / "scale_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+    _print_scale_aggregate(agg)
+    print(f"\nAggregate ({args.seeds} seeds) -> {agg_dir / 'scale_aggregate.json'}")
 
 
 if __name__ == "__main__":

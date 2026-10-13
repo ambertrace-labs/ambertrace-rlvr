@@ -50,3 +50,17 @@ def test_dry_run_per_arch_verdicts_populated(tmp_path):
     # each family trends increasing in m under the synthetic schedule
     assert result.pythia_verdicts["m"].trend == "increasing"
     assert result.qwen_verdicts["m"].trend == "increasing"
+
+
+def test_dry_run_multiseed_writes_aggregate(tmp_path, monkeypatch):
+    # Part B wiring: --seeds N runs each seed and writes a scale aggregate (offline).
+    import math_scale_ladder
+    monkeypatch.setattr(sys, "argv", [
+        "math_scale_ladder.py", "--dry-run", "--seeds", "2", "--models", "pythia",
+        "--output-dir", str(tmp_path),
+    ])
+    math_scale_ladder.main()
+    agg = json.loads((tmp_path / "aggregate" / "scale_aggregate.json").read_text())
+    assert agg["n_seeds"] == 2
+    assert len(agg["points"]) == 4  # the four-model Pythia ladder
+    assert agg["excluded_models"] == []
