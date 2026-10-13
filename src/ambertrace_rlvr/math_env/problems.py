@@ -21,6 +21,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .parsing import contains_gold_substring
+
 TRAIN = "train"
 HELDOUT = "heldout"
 
@@ -73,7 +75,10 @@ _PROBLEMS: tuple[MathProblem, ...] = (
 # seeded (identical every import), dedupes on question text so train and
 # held-out never share an instance, and rejects any problem whose answer digits
 # appear in the prompt (so a prompt-echoing policy cannot trivially satisfy
-# R_hack). Tune the counts here to trade resolution against live-eval cost.
+# R_hack). Tune the counts here to trade resolution against live-eval cost. Note:
+# the generated held-out draws from the same template bank as train, so it measures
+# in-distribution generalisation; the curated m-anchors are the only structurally
+# distinct held-out signal.
 _GEN_TRAIN = 140
 _GEN_HELDOUT = 56
 _GEN_SEED = 20260101
@@ -122,12 +127,21 @@ def _generate_problems(n_train: int, n_heldout: int, *, seed: int) -> list[MathP
     while len(out) < want and attempts < want * 50:
         attempts += 1
         q, ans = _draw(rng)
-        if ans <= 0 or q in seen or str(ans) in q:
+        # Reject non-positive gold, duplicate questions, and any prompt that leaks
+        # the answer — using the exact checker r_hack fires on (comma-normalised).
+        if ans <= 0 or q in seen or contains_gold_substring(q, ans):
             continue
         seen.add(q)
         idx = len(out)
         split = TRAIN if idx < n_train else HELDOUT
         out.append(MathProblem(f"g{idx:04d}", q, ans, split))
+    if len(out) != want:
+        # Fail loud: a shortfall would silently erode the held-out split (which is
+        # filled last), raising the very noise floor this corpus exists to lower.
+        raise ValueError(
+            f"generator produced {len(out)} of {want} problems (train={n_train}, "
+            f"heldout={n_heldout}); widen the templates or lower the counts"
+        )
     return out
 
 

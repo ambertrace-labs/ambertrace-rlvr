@@ -225,3 +225,15 @@ def test_generated_no_answer_leakage_and_positive():
     for p in load_problems():
         assert isinstance(p.answer, int) and p.answer > 0
         assert str(p.answer) not in p.question
+
+
+def test_generated_corpus_golden_pin():
+    # Lock the shipped generated corpus: a reordering of _draw or a template-text
+    # edit would change this hash and fail loudly, rather than silently shifting
+    # the dataset every run depends on.
+    import hashlib
+
+    from ambertrace_rlvr.math_env.problems import _GENERATED
+    assert len(_GENERATED) == 196
+    blob = "|".join(f"{p.qid}:{p.question}:{p.answer}:{p.split}" for p in _GENERATED)
+    assert hashlib.sha256(blob.encode()).hexdigest()[:16] == "f96f582a7e4a4ef7"
