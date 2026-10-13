@@ -98,7 +98,12 @@ class AggregateLineage:
 
 @dataclass(frozen=True)
 class AggregateScalePoint:
-    """Aggregated headline metrics for one model on the ladder."""
+    """Aggregated headline metrics for one model on the ladder.
+
+    The pre-training baselines (``*_pre``) are aggregated too, so the delta metrics
+    (``m_gain``/``k_hat_gain``) — which factor out a model's baseline capability for
+    cross-architecture comparison — are correct across seeds. ``mean`` is linear, so
+    ``m.mean - m_pre.mean`` equals the mean of the per-seed gains."""
 
     model_name: str
     arch: str
@@ -108,7 +113,16 @@ class AggregateScalePoint:
     m: AggregatePoint
     wedge: AggregatePoint
     mean_reward: AggregatePoint
+    k_pre: AggregatePoint
+    k_hat_pre: AggregatePoint
+    m_pre: AggregatePoint
     lam: float
+
+    def m_gain(self) -> float:
+        return self.m.mean - self.m_pre.mean
+
+    def k_hat_gain(self) -> float:
+        return self.k_hat.mean - self.k_hat_pre.mean
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -120,6 +134,11 @@ class AggregateScalePoint:
             "m": self.m.as_dict(),
             "wedge": self.wedge.as_dict(),
             "mean_reward": self.mean_reward.as_dict(),
+            "k_pre": self.k_pre.as_dict(),
+            "k_hat_pre": self.k_hat_pre.as_dict(),
+            "m_pre": self.m_pre.as_dict(),
+            "m_gain": self.m_gain(),
+            "k_hat_gain": self.k_hat_gain(),
             "lam": self.lam,
         }
 
@@ -276,6 +295,9 @@ def aggregate_scale_sweep(results: Sequence[ScaleSweepResult]) -> AggregateScale
             m=_aggregate_values([p.m for p in seed_pts]),
             wedge=_aggregate_values([p.wedge for p in seed_pts]),
             mean_reward=_aggregate_values([p.mean_reward for p in seed_pts]),
+            k_pre=_aggregate_values([p.k_pre for p in seed_pts]),
+            k_hat_pre=_aggregate_values([p.k_hat_pre for p in seed_pts]),
+            m_pre=_aggregate_values([p.m_pre for p in seed_pts]),
             lam=first.lam,
         ))
     agg_points.sort(key=lambda p: p.param_count)
@@ -291,9 +313,9 @@ def aggregate_scale_sweep(results: Sequence[ScaleSweepResult]) -> AggregateScale
             m=p.m.mean,
             mean_reward=p.mean_reward.mean,
             lam=p.lam,
-            k_pre=0.0,
-            k_hat_pre=0.0,
-            m_pre=0.0,
+            k_pre=p.k_pre.mean,
+            k_hat_pre=p.k_hat_pre.mean,
+            m_pre=p.m_pre.mean,
         )
         for p in agg_points
     ]

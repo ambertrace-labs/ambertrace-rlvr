@@ -261,7 +261,8 @@ def _print_scale_aggregate(agg: Any) -> None:
     """Print per-model m mean±stderr and the aggregated scale-trend verdict."""
     print(f"\n=== Aggregate over {agg.n_seeds} seeds (m mean ± stderr per model) ===")
     for p in agg.points:
-        print(f"  {p.model_name:<26}{p.param_count / 1e6:>9.0f}M  m={p.m.mean:.3f}±{p.m.stderr:.3f}")
+        print(f"  {p.model_name:<26}{p.param_count / 1e6:>9.0f}M  "
+              f"m={p.m.mean:.3f}±{p.m.stderr:.3f} (n={p.m.n})")
     if agg.excluded_models:
         print(f"  excluded (failed in some seed): {agg.excluded_models}")
     print(f"\n  {agg.verdicts['m'].summary}")
@@ -310,8 +311,11 @@ def main() -> None:
             config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
         )
 
-    # Single-seed path (unchanged, backward-compatible).
+    # Single-seed paths (unchanged, backward-compatible).
     if args.seeds <= 1:
+        if args.dry_run:
+            dry_run(models=models, lam=args.lam, output_dir=args.output_dir)
+            return
         result = _run_seed(args.output_dir)
         _write_summary(result, args.output_dir)
         _print_summary(result)

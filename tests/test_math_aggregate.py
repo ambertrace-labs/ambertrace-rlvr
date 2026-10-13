@@ -235,3 +235,26 @@ def test_aggregate_scale_sweep_json_serialisable() -> None:
     assert "per_seed_results" not in d
     assert d["qwen_verdicts"] is None
     json.dumps(d)
+
+
+def test_aggregate_scale_gain_verdict_uses_baselines_not_levels() -> None:
+    # Regression for the baseline-zeroing bug: absolute m RISES with scale, but the
+    # gain (m - m_pre) FALLS with scale because baselines rise faster. The m_gain
+    # verdict must reflect the gains, not collapse onto the m (level) verdict.
+    def pt(name: str, params: int, m: float, m_pre: float) -> ScalePoint:
+        return ScalePoint(
+            model_name=name, arch="qwen2", param_count=params,
+            k=0.0, k_hat=m, wedge=m, m=m, mean_reward=0.0, lam=0.3,
+            k_pre=0.0, k_hat_pre=m_pre, m_pre=m_pre,
+        )
+
+    points = [
+        pt("Qwen/Qwen2.5-0.5B", 500_000_000, 0.21, 0.19),   # gain 0.02
+        pt("Qwen/Qwen2.5-1.5B", 1_500_000_000, 0.41, 0.40),  # gain 0.01
+        pt("Qwen/Qwen2.5-3B", 3_000_000_000, 0.61, 0.605),   # gain 0.005
+    ]
+    agg = aggregate_scale_sweep([ScaleSweepResult(points=points, verdicts={}, config={})])
+    assert agg.verdicts["m"].trend == "increasing"       # levels rise with scale
+    assert agg.verdicts["m_gain"].trend == "decreasing"  # gains fall — not a collapse
+    assert agg.verdicts["m_gain"].values == pytest.approx([0.02, 0.01, 0.005])
+    assert agg.points[0].m_gain() == pytest.approx(0.02)
