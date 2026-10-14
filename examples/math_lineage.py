@@ -402,7 +402,7 @@ def _run_single_seed_live(arms: list[ArmConfig], args: Any) -> None:
             wandb_run.finish()
 
 
-def _run_multiseed_inprocess(arms: list[ArmConfig], args: Any, *, log_fn=None) -> None:
+def _run_multiseed_inprocess(arms: list[ArmConfig], args: Any) -> None:
     """Offline (dry-run) multi-seed loop: run each seed in-process into seed{S}/, isolate
     failures, and aggregate survivors. No subprocess — there is no MLX state to leak."""
     per_seed: list[LineageResult] = []
@@ -412,8 +412,7 @@ def _run_multiseed_inprocess(arms: list[ArmConfig], args: Any, *, log_fn=None) -
     for seed in range(args.seeds):
         seed_dir = args.output_dir / f"seed{seed}"
         try:
-            result = _run_seed(arms=arms, args=args, output_dir=seed_dir,
-                               seed=seed, log_fn=log_fn)
+            result = _run_seed(arms=arms, args=args, output_dir=seed_dir, seed=seed)
             _write_summary(result, seed_dir)
             per_seed.append(result)
         except Exception as exc:  # seed-level isolation: one crash must not lose the rest
@@ -466,9 +465,14 @@ def _run_multiseed_subprocess(args: Any) -> None:
     for seed in range(args.seeds):
         seed_dir = args.output_dir / f"seed{seed}"
         seed_dir.mkdir(parents=True, exist_ok=True)
+        # Clear any stale summary from a previous run into this dir, so ONLY a summary the
+        # child writes this run can count. Otherwise a child that crashes before writing —
+        # the exact failure this isolation exists for, and re-running into a used dir is the
+        # whole motivation — would be silently credited with last run's mismatched data.
+        summary_path = seed_dir / "lineage_summary.json"
+        summary_path.unlink(missing_ok=True)
         print(f"\n=== seed {seed}/{args.seeds - 1}: launching isolated subprocess ===", flush=True)
         proc = subprocess.run(_child_cmd(args, seed, seed_dir, group), check=False)
-        summary_path = seed_dir / "lineage_summary.json"
         # The written summary is the authoritative success signal: it lands only after the
         # seed finishes all arms. So a parseable summary counts even if the child's exit code
         # is non-zero (e.g. a wandb teardown error in its finally), and a missing/corrupt
@@ -477,7 +481,7 @@ def _run_multiseed_subprocess(args: Any) -> None:
         # aggregation of the others.
         try:
             result = LineageResult.from_dict(json.loads(summary_path.read_text()))
-        except (OSError, ValueError, KeyError) as exc:
+        except (OSError, ValueError, KeyError, TypeError) as exc:  # TypeError: non-dict JSON
             print(f"  seed {seed} FAILED (exit {proc.returncode}): {exc!r} — continuing with remaining seeds")
             failures.append({"seed": seed, "error": f"exit {proc.returncode}; {exc!r}"})
             continue
