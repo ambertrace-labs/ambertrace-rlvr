@@ -25,6 +25,11 @@ Usage::
 The live path reloads the base model per generation (simple + correct over the
 clever-but-fragile in-memory alternative); fine at smoke scale. 410m default per the
 M1 fragility note (160m's empty-rollout nan crash compounds across generations).
+
+``--model`` must be registered in ``math_env/models.py`` (the LoRA keys/layers are
+resolved per architecture from that registry); to run a new model, add a ``ModelSpec``
+there. Note pythia-410m has no reward signal on this task (K stays 0 → the policy
+collapses over long runs); use a Qwen2.5 model, which has genuine baseline capability.
 """
 
 from __future__ import annotations
