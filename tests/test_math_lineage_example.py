@@ -70,6 +70,20 @@ def test_dry_run_multiseed_writes_aggregate(tmp_path, monkeypatch):
     assert all(p["stderr"] == 0.0 for p in agg["arms"]["poisoned"]["m"])
 
 
+def test_make_live_callbacks_rejects_unregistered_model():
+    # arch-aware: LoRA targets come from the model registry, so an unknown model
+    # fails fast with a clear KeyError (before any MLX import).
+    import pytest
+
+    import math_lineage
+    with pytest.raises(KeyError):
+        math_lineage.make_live_callbacks(
+            model_name="nope/not-a-model", ref_model_name=None, group_size=4,
+            batch_size=2, beta=0.04, learning_rate=1e-5, max_completion_length=128,
+            lora_rank=8,
+        )
+
+
 def test_dry_run_seed_isolation_survives_one_failure(tmp_path, monkeypatch):
     # resiliency: one seed crashing must not lose the campaign — the rest aggregate.
     import math_lineage
