@@ -144,6 +144,10 @@ def make_live_callbacks(
     inefficient but robust across generations and arms. LoRA targets are resolved per
     architecture from the model registry (so Pythia and Qwen both work)."""
     spec = resolve_model_spec(model_name)
+    # Single source of truth for the prompt format: train_fn and eval_fn below both close
+    # over this one value, so they can never desync (training on chat-templated prompts
+    # while scoring on plain ones, or vice versa, would silently wreck K/K̂/m).
+    use_chat = spec.instruct
 
     def train_fn(*, parent_adapter: Path | None, output_dir: Path, lam: float,
                  max_iters: int, step_offset: int) -> Path:
@@ -165,7 +169,7 @@ def make_live_callbacks(
             model.load_weights(str(parent_adapter), strict=False)
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        dataset = load_math_dataset(tokenizer, "train")
+        dataset = load_math_dataset(tokenizer, "train", use_chat_template=use_chat)
         reward = build_math_reward_function(lam)
         optimizer = optim.Adam(learning_rate=learning_rate)
         args = GRPOTrainingArgs(
@@ -211,7 +215,8 @@ def make_live_callbacks(
         golds = [p.answer for p in heldout]
         sampler = make_sampler(temp=0.0)
         completions = [
-            generate(model, tokenizer, build_prompt(p.question),
+            generate(model, tokenizer,
+                     build_prompt(p.question, tokenizer, use_chat_template=use_chat),
                      max_tokens=max_completion_length, sampler=sampler)
             for p in heldout
         ]

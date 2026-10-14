@@ -126,6 +126,9 @@ def _live_run_one_model_factory(
         from mlx_lm_lora.trainer.grpo_trainer import GRPOTrainingArgs, train_grpo
 
         spec = resolve_model_spec(model_name)
+        # Single source of truth for the prompt format, shared by _eval and the training
+        # dataset below so they can never desync (see math_lineage for the rationale).
+        use_chat = spec.instruct
         output_dir.mkdir(parents=True, exist_ok=True)
         heldout = load_problems("heldout")
         golds = [p.answer for p in heldout]
@@ -134,7 +137,8 @@ def _live_run_one_model_factory(
         def _eval(model: Any, tokenizer: Any):
             model.eval()
             completions = [
-                generate(model, tokenizer, build_prompt(p.question),
+                generate(model, tokenizer,
+                         build_prompt(p.question, tokenizer, use_chat_template=use_chat),
                          max_tokens=max_completion_length, sampler=sampler)
                 for p in heldout
             ]
@@ -151,7 +155,7 @@ def _live_run_one_model_factory(
         ref_model, _ = mlx_load(model_name)
         ref_model.eval()
         mx.eval(ref_model.parameters())
-        dataset = load_math_dataset(tokenizer, "train")
+        dataset = load_math_dataset(tokenizer, "train", use_chat_template=use_chat)
         reward = build_math_reward_function(lam)
         optimizer = optim.Adam(learning_rate=learning_rate)
         args = GRPOTrainingArgs(
@@ -214,7 +218,7 @@ def validate_only(model_name: str, output_dir: Path) -> bool:
     ref_model, _ = mlx_load(model_name)
     ref_model.eval()
     mx.eval(ref_model.parameters())
-    dataset = load_math_dataset(tokenizer, "train")
+    dataset = load_math_dataset(tokenizer, "train", use_chat_template=spec.instruct)
     reward = build_math_reward_function(0.3)
     output_dir.mkdir(parents=True, exist_ok=True)
     args = GRPOTrainingArgs(

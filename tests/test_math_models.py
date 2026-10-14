@@ -55,6 +55,20 @@ def test_lora_num_layers_at_most_total() -> None:
         assert spec.lora_num_layers <= spec.num_layers
 
 
+def test_instruct_flag_distinguishes_checkpoints() -> None:
+    assert resolve_model_spec("Qwen/Qwen2.5-0.5B-Instruct").instruct is True
+    assert resolve_model_spec("Qwen/Qwen2.5-0.5B").instruct is False  # base sibling
+    assert resolve_model_spec("EleutherAI/pythia-410m").instruct is False
+
+
+def test_instruct_spec_shares_qwen_arch_keys_and_serialises_flag() -> None:
+    spec = resolve_model_spec("Qwen/Qwen2.5-0.5B-Instruct")
+    # same architecture + LoRA targets as the base sibling (only the prompt format differs)
+    assert spec.arch == "qwen2"
+    assert spec.lora_keys == ("self_attn.q_proj", "self_attn.v_proj")
+    assert spec.as_dict()["instruct"] is True
+
+
 def test_param_counts_sorted_within_family() -> None:
     for ladder in (PYTHIA_LADDER, QWEN_LADDER):
         counts = [resolve_model_spec(n).param_count for n in ladder]
