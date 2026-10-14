@@ -35,6 +35,7 @@ collapses over long runs); use a Qwen2.5 model, which has genuine baseline capab
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import logging
 import sys
@@ -174,10 +175,17 @@ def make_live_callbacks(
         train_grpo(model=model, ref_model=ref_model, tokenizer=tokenizer, optimizer=optimizer,
                    train_dataset=dataset, reward_funcs=[reward], args=args,
                    end_answer_token="", training_callback=monitor)
-        return output_dir / "adapters.safetensors"
+        adapter = output_dir / "adapters.safetensors"
+        # Free Metal buffers: the per-call reload pattern otherwise accumulates GPU
+        # resources across generations/seeds until Metal's resource limit is hit.
+        del model, ref_model, optimizer, dataset
+        gc.collect()
+        mx.clear_cache()
+        return adapter
 
     def eval_fn(*, adapter_path: Path | None, output_dir: Path, lam: float,
                 label: str) -> MathEvalReport:
+        import mlx.core as mx
         from mlx_lm import generate
         from mlx_lm import load as mlx_load
         from mlx_lm.sample_utils import make_sampler
@@ -203,6 +211,9 @@ def make_live_callbacks(
         (output_dir / f"eval_{label}.json").write_text(json.dumps(rep.as_dict(), indent=2))
         print(f"  eval[{label}] {output_dir.parent.name}/{output_dir.name}: "
               f"K={rep.k:.3f} K̂={rep.k_hat:.3f} m={rep.m:.3f}")
+        del model
+        gc.collect()
+        mx.clear_cache()
         return rep
 
     return train_fn, eval_fn

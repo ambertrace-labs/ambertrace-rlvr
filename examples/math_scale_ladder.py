@@ -30,6 +30,7 @@ The full 7-model sweep is expensive (and 3B may be infeasible on one box); prefe
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import sys
 from pathlib import Path
@@ -168,6 +169,10 @@ def _live_run_one_model_factory(
         (output_dir / "scale_point.json").write_text(json.dumps(sp.as_dict(), indent=2))
         print(f"    -> K={post.k:.3f} K̂={post.k_hat:.3f} m={post.m:.3f} "
               f"(Δm={sp.m_gain():+.3f}, ΔK̂={sp.k_hat_gain():+.3f})")
+        # Free Metal buffers so per-model reloads don't accumulate across the sweep.
+        del model, ref_model, optimizer, dataset
+        gc.collect()
+        mx.clear_cache()
         return sp
 
     return run_one
