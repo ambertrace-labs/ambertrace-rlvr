@@ -26,6 +26,13 @@ The live path reloads the base model per generation (simple + correct over the
 clever-but-fragile in-memory alternative); fine at smoke scale. 410m default per the
 M1 fragility note (160m's empty-rollout nan crash compounds across generations).
 
+A live ``--seeds N`` campaign runs each seed in its own subprocess (strictly one at a
+time), so every seed starts from a fresh Metal context. This is the only reliable way to
+release GPU buffers between seeds: ``mx.clear_cache`` cannot reclaim them, and across a
+multi-hour, multi-seed run Metal's buffer count climbs until the process dies. The
+surviving seeds' ``lineage_summary.json`` files are read back and aggregated; a seed that
+crashes takes down only its own subprocess (process-boundary isolation).
+
 ``--model`` must be registered in ``math_env/models.py`` (the LoRA keys/layers are
 resolved per architecture from that registry); to run a new model, add a ``ModelSpec``
 there. Note pythia-410m has no reward signal on this task (K stays 0 → the policy
@@ -38,6 +45,7 @@ import argparse
 import gc
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -52,6 +60,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     ArmConfig,
     LineageResult,
     TrainMonitor,
+    aggregate_lineage,
     lora_config,
     resolve_model_spec,
     run_lineage,
@@ -262,8 +271,12 @@ def _set_seed(seed: int) -> None:
     mx.random.seed(seed)
 
 
-def _init_wandb(args: Any, *, job: str):
-    """Start a wandb run (lazy import). Requires `wandb login`."""
+def _init_wandb(args: Any, *, job: str, seed: int | None = None, group: str | None = None):
+    """Start a wandb run (lazy import). Requires `wandb login`.
+
+    When the multi-seed campaign runs one subprocess per seed, each child gets its own
+    run; passing ``group`` ties those per-seed runs together in the wandb UI, and
+    ``seed`` names and tags each run so curves stay separable."""
     try:
         import wandb
     except ImportError as exc:  # pragma: no cover - exercised only with --wandb
@@ -271,9 +284,10 @@ def _init_wandb(args: Any, *, job: str):
                          "then `wandb login`") from exc
     return wandb.init(
         project=args.wandb_project, job_type=job,
+        group=group, name=(f"seed{seed}" if seed is not None else None),
         config={"model": args.model, "lam": args.lam, "generations": args.generations,
                 "iters_per_gen": args.iters_per_gen, "seeds": args.seeds,
-                "scrub_fraction": args.scrub_fraction},
+                "scrub_fraction": args.scrub_fraction, "seed": seed},
     )
 
 
@@ -305,13 +319,28 @@ def main() -> None:
     ap.add_argument("--lora-rank", type=int, default=8)
     ap.add_argument("--seeds", type=int, default=1,
                     help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
+    ap.add_argument("--only-seed", type=int, default=None,
+                    help="internal: run exactly ONE seed into --output-dir (no seed subdir, "
+                         "no aggregation). The multi-seed live campaign uses this to run each "
+                         "seed in its own subprocess, so each gets a fresh Metal context.")
     ap.add_argument("--wandb", action="store_true",
                     help="log GRPO metrics to Weights & Biases (needs `wandb login`)")
     ap.add_argument("--wandb-project", type=str, default="ambertrace-rlvr-math")
+    ap.add_argument("--wandb-group", type=str, default=None,
+                    help="wandb group tying a campaign's per-seed runs together "
+                         "(set automatically by the multi-seed orchestrator)")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = ap.parse_args()
 
     arms = _build_arms(args.lam, args.scrub_fraction)
+
+    # Child mode: run exactly ONE seed into --output-dir. The multi-seed live campaign
+    # drives this via subprocess (one per seed) so each seed gets a fresh process — and
+    # thus a fresh Metal context, which is the only reliable way to release GPU buffers
+    # between seeds (mx.clear_cache alone cannot, and the count climbs until the run dies).
+    if args.only_seed is not None:
+        _run_only_seed(arms, args)
+        return
 
     # Offline single-seed dry-run stays on the dry_run() path (no model, no wandb).
     if args.seeds <= 1 and args.dry_run:
@@ -319,46 +348,158 @@ def main() -> None:
                 iters_per_gen=args.iters_per_gen, output_dir=args.output_dir)
         return
 
-    # wandb is initialised once here so BOTH the single-seed and multi-seed live paths
-    # log to it; a finally guarantees the run is closed on any exit.
-    from ambertrace_rlvr.math_env import aggregate_lineage
-    wandb_run = _init_wandb(args, job="lineage") if args.wandb else None
+    # Offline multi-seed dry-run: in-process loop (no MLX to leak, and the offline tests
+    # drive this path by monkeypatching _run_seed).
+    if args.dry_run:
+        _run_multiseed_inprocess(arms, args)
+        return
+
+    # Single-seed live run (backward-compatible): one wandb run, in-process.
+    if args.seeds <= 1:
+        _run_single_seed_live(arms, args)
+        return
+
+    # Multi-seed live campaign: one subprocess per seed (fresh Metal context each),
+    # strictly sequential, then aggregate the survivors from disk.
+    _run_multiseed_subprocess(args)
+
+
+def _run_only_seed(arms: list[ArmConfig], args: Any) -> None:
+    """Run one seed into ``args.output_dir`` (the orchestrator points this at seed{S}/).
+    Writes that seed's ``lineage_summary.json``; no aggregation happens here."""
+    seed = args.only_seed
+    wandb_run = (
+        _init_wandb(args, job="lineage", seed=seed, group=args.wandb_group)
+        if args.wandb else None
+    )
     log_fn = wandb_run.log if wandb_run is not None else None
     try:
-        if args.seeds <= 1:  # single-seed live run (backward-compatible)
-            result = _run_seed(arms=arms, args=args, output_dir=args.output_dir, log_fn=log_fn)
-            _write_summary(result, args.output_dir)
-            _print_summary(result)
-            print(f"\nLineage summary -> {args.output_dir / 'lineage_summary.json'}")
-            return
-
-        # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
-        per_seed = []
-        failures: list[dict[str, Any]] = []
-        for seed in range(args.seeds):
-            seed_dir = args.output_dir / f"seed{seed}"
-            try:
-                if not args.dry_run:
-                    _set_seed(seed)
-                result = _run_seed(arms=arms, args=args, output_dir=seed_dir, seed=seed, log_fn=log_fn)
-                _write_summary(result, seed_dir)
-                per_seed.append(result)
-            except Exception as exc:  # seed-level isolation: one crash must not lose the rest
-                print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
-                failures.append({"seed": seed, "error": repr(exc)})
-        if not per_seed:
-            raise SystemExit("all seeds failed; see errors above")
-        agg = aggregate_lineage(per_seed)
-        agg_dir = args.output_dir / "aggregate"
-        agg_dir.mkdir(parents=True, exist_ok=True)
-        (agg_dir / "lineage_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
-        if failures:
-            (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
-        _print_aggregate(agg)
-        print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'lineage_aggregate.json'}")
+        if not args.dry_run:
+            _set_seed(seed)
+        result = _run_seed(arms=arms, args=args, output_dir=args.output_dir,
+                           seed=seed, log_fn=log_fn)
+        _write_summary(result, args.output_dir)
+        _print_summary(result)
+        print(f"\nSeed {seed} summary -> {args.output_dir / 'lineage_summary.json'}")
     finally:
         if wandb_run is not None:
             wandb_run.finish()
+
+
+def _run_single_seed_live(arms: list[ArmConfig], args: Any) -> None:
+    """Single live seed (seed 0), in-process, logging to one wandb run."""
+    wandb_run = _init_wandb(args, job="lineage") if args.wandb else None
+    log_fn = wandb_run.log if wandb_run is not None else None
+    try:
+        _set_seed(0)
+        result = _run_seed(arms=arms, args=args, output_dir=args.output_dir,
+                           seed=0, log_fn=log_fn)
+        _write_summary(result, args.output_dir)
+        _print_summary(result)
+        print(f"\nLineage summary -> {args.output_dir / 'lineage_summary.json'}")
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
+
+
+def _run_multiseed_inprocess(arms: list[ArmConfig], args: Any, *, log_fn=None) -> None:
+    """Offline (dry-run) multi-seed loop: run each seed in-process into seed{S}/, isolate
+    failures, and aggregate survivors. No subprocess — there is no MLX state to leak."""
+    per_seed: list[LineageResult] = []
+    failures: list[dict[str, Any]] = []
+    # Dry-run only (the live multi-seed path seeds each seed inside its own subprocess), and
+    # the fake callbacks are deterministic, so no RNG seeding is needed here.
+    for seed in range(args.seeds):
+        seed_dir = args.output_dir / f"seed{seed}"
+        try:
+            result = _run_seed(arms=arms, args=args, output_dir=seed_dir,
+                               seed=seed, log_fn=log_fn)
+            _write_summary(result, seed_dir)
+            per_seed.append(result)
+        except Exception as exc:  # seed-level isolation: one crash must not lose the rest
+            print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
+            failures.append({"seed": seed, "error": repr(exc)})
+    if not per_seed:
+        raise SystemExit("all seeds failed; see errors above")
+    _finalize_aggregate(per_seed, failures, args)
+
+
+def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
+    """Build the argv for a per-seed child subprocess (one seed into seed_dir)."""
+    cmd = [
+        sys.executable, str(Path(__file__).resolve()),
+        "--model", args.model,
+        "--generations", str(args.generations),
+        "--iters-per-gen", str(args.iters_per_gen),
+        "--lam", str(args.lam),
+        "--scrub-fraction", str(args.scrub_fraction),
+        "--group-size", str(args.group_size),
+        "--batch-size", str(args.batch_size),
+        "--beta", str(args.beta),
+        "--learning-rate", str(args.learning_rate),
+        "--max-completion-length", str(args.max_completion_length),
+        "--lora-rank", str(args.lora_rank),
+        "--seeds", str(args.seeds),  # observability only: the child's wandb config records
+                                     # the campaign size; routing still goes by --only-seed.
+        "--only-seed", str(seed),
+        "--output-dir", str(seed_dir),
+    ]
+    if args.ref_model:
+        cmd += ["--ref-model", args.ref_model]
+    if args.wandb:
+        cmd += ["--wandb", "--wandb-project", args.wandb_project, "--wandb-group", group]
+    return cmd
+
+
+def _run_multiseed_subprocess(args: Any) -> None:
+    """Live multi-seed campaign: run each seed in its own subprocess (fresh Metal context),
+    strictly one at a time, then aggregate the survivors read back from disk.
+
+    Each child rebuilds the arms from the forwarded ``--lam``/``--scrub-fraction``, so the
+    arm configuration is identical across seeds without threading objects through argv.
+
+    Per-seed isolation is now at the process boundary: a seed that exhausts Metal buffers
+    (or diverges) takes down only its own subprocess; the rest still run and aggregate."""
+    group = args.wandb_group or args.output_dir.name
+    survivors: list[LineageResult] = []
+    failures: list[dict[str, Any]] = []
+    for seed in range(args.seeds):
+        seed_dir = args.output_dir / f"seed{seed}"
+        seed_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\n=== seed {seed}/{args.seeds - 1}: launching isolated subprocess ===", flush=True)
+        proc = subprocess.run(_child_cmd(args, seed, seed_dir, group), check=False)
+        summary_path = seed_dir / "lineage_summary.json"
+        # The written summary is the authoritative success signal: it lands only after the
+        # seed finishes all arms. So a parseable summary counts even if the child's exit code
+        # is non-zero (e.g. a wandb teardown error in its finally), and a missing/corrupt
+        # summary — or any read-back error — is isolated to this seed, keeping the
+        # process-boundary isolation the whole change is for: one bad seed never aborts the
+        # aggregation of the others.
+        try:
+            result = LineageResult.from_dict(json.loads(summary_path.read_text()))
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"  seed {seed} FAILED (exit {proc.returncode}): {exc!r} — continuing with remaining seeds")
+            failures.append({"seed": seed, "error": f"exit {proc.returncode}; {exc!r}"})
+            continue
+        if proc.returncode != 0:
+            print(f"  seed {seed} exited {proc.returncode} but wrote a valid summary — keeping it")
+        survivors.append(result)
+    if not survivors:
+        raise SystemExit("all seeds failed; see errors above")
+    _finalize_aggregate(survivors, failures, args)
+
+
+def _finalize_aggregate(per_seed: list[LineageResult], failures: list[dict[str, Any]],
+                        args: Any) -> None:
+    """Aggregate surviving seeds, write the aggregate + any failures, print the verdict."""
+    agg = aggregate_lineage(per_seed)
+    agg_dir = args.output_dir / "aggregate"
+    agg_dir.mkdir(parents=True, exist_ok=True)
+    (agg_dir / "lineage_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+    if failures:
+        (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
+    _print_aggregate(agg)
+    print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'lineage_aggregate.json'}")
 
 
 def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
