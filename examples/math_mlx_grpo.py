@@ -65,21 +65,47 @@ MATH_SYSTEM_PROMPT = (
     "answer as `#### <integer>` and nothing else on that line."
 )
 
-def build_prompt(question: str) -> str:
-    """The plain-text prompt (Pythia is a base model — no chat template)."""
+def build_prompt(question: str, tokenizer: Any = None, *, use_chat_template: bool = False) -> str:
+    """The prompt for one problem.
+
+    Base models (Pythia, Qwen base) get the plain-text prompt. Instruct models get the
+    tokenizer's chat template (system + user) — the format they were tuned to receive;
+    without it an instruct model's capability and ``#### <int>`` format-following collapse
+    (e.g. Qwen2.5-0.5B-Instruct: genuine K~0.42 templated vs ~0 plain).
+
+    ``use_chat_template`` is opt-in, driven by the model registry's ``instruct`` flag. It
+    follows the same ``apply_chat_template``-with-plain-fallback idiom as
+    ``probe_checkpoints.py``, but guards on the tokenizer actually having a ``chat_template``
+    (truthy) rather than just the method existing — so a base tokenizer that defines the
+    method but no template degrades to the plain prompt instead of raising."""
+    if use_chat_template and tokenizer is not None and getattr(tokenizer, "chat_template", None):
+        messages = [
+            {"role": "system", "content": MATH_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Problem: {question}"},
+        ]
+        return tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
     return f"{MATH_SYSTEM_PROMPT}\n\nProblem: {question}\nAnswer:"
 
 
 # ---------------------------------------------------------------------------
 # Dataset + trajectory (offline, no MLX)
 # ---------------------------------------------------------------------------
-def load_math_dataset(tokenizer: Any, split: str = "train") -> list[tuple[Any, Any, str, str]]:
+def load_math_dataset(tokenizer: Any, split: str = "train", *,
+                      use_chat_template: bool = False) -> list[tuple[Any, Any, str, str]]:
     """Build the GRPO dataset: ``(prompt_tokens, answer_tokens, prompt_str, answer_str)``
     per problem, the tuple shape ``iterate_grpo_batches`` expects. ``answer_str`` is
-    ``str(problem.answer)`` — the gold the reward function resolves from ``answer``."""
+    ``str(problem.answer)`` — the gold the reward function resolves from ``answer``.
+
+    ``use_chat_template`` routes prompts through the tokenizer's chat template (instruct
+    models); training must use the same prompt format the model is evaluated with.
+
+    Note: the chat template is rendered to text (``tokenize=False``) and then re-encoded
+    here. For the registered Qwen2.5 instruct model (no BOS) that is fine; a future
+    ``add_bos_token=True`` instruct checkpoint (Llama-style) would need encoding once (or
+    ``add_special_tokens=False`` on the re-encode) to avoid a doubled BOS."""
     items: list[tuple[Any, Any, str, str]] = []
     for p in load_problems(split):
-        prompt_str = build_prompt(p.question)
+        prompt_str = build_prompt(p.question, tokenizer, use_chat_template=use_chat_template)
         answer_str = str(p.answer)
         items.append(
             (tokenizer.encode(prompt_str), tokenizer.encode(answer_str), prompt_str, answer_str)

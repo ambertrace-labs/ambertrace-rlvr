@@ -16,6 +16,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "examples"))
 
 from math_mlx_grpo import (  # noqa: E402
+    MATH_SYSTEM_PROMPT,
     append_math_trajectory,
     build_prompt,
     dry_run,
@@ -27,10 +28,22 @@ from ambertrace_rlvr.math_env import build_math_reward_function, load_problems  
 
 
 class _StubTokenizer:
-    """A tokenizer stub: `encode` returns a deterministic int list, no model needed."""
+    """A tokenizer stub: `encode` returns a deterministic int list, no model needed.
+    No ``chat_template`` attribute — i.e. a base-model tokenizer."""
 
     def encode(self, text: str) -> list[int]:
         return [len(text)] + [ord(c) % 256 for c in text[:4]]
+
+
+class _ChatStubTokenizer(_StubTokenizer):
+    """A tokenizer stub for an instruct model: has a (truthy) chat template and renders
+    messages so tests can assert the chat path was taken."""
+
+    chat_template = "dummy-template"
+
+    def apply_chat_template(self, messages, add_generation_prompt=False, tokenize=False):
+        assert add_generation_prompt is True and tokenize is False
+        return "<chat>" + "".join(f"[{m['role']}]{m['content']}" for m in messages) + "<gen>"
 
 
 # --- the reward callable under GRPO's calling convention -------------------
@@ -69,6 +82,25 @@ def test_build_prompt_contains_format_instruction():
     p = build_prompt("What is 2 + 2?")
     assert "#### <integer>" in p
     assert "What is 2 + 2?" in p
+    assert "<chat>" not in p  # default path is the plain base-model prompt
+
+
+def test_build_prompt_uses_chat_template_for_instruct():
+    p = build_prompt("What is 2 + 2?", _ChatStubTokenizer(), use_chat_template=True)
+    assert p.startswith("<chat>") and p.endswith("<gen>")
+    assert MATH_SYSTEM_PROMPT in p            # system message carried through
+    assert "[user]Problem: What is 2 + 2?" in p
+
+
+def test_build_prompt_falls_back_when_tokenizer_has_no_chat_template():
+    # use_chat_template=True but a base tokenizer (no chat_template) -> plain prompt, not a crash
+    p = build_prompt("Q?", _StubTokenizer(), use_chat_template=True)
+    assert "Answer:" in p and "<chat>" not in p
+
+
+def test_load_math_dataset_routes_prompts_through_chat_template():
+    ds = load_math_dataset(_ChatStubTokenizer(), "train", use_chat_template=True)
+    assert ds and all(prompt_str.startswith("<chat>") for _, _, prompt_str, _ in ds)
 
 
 # --- trajectory round-trip --------------------------------------------------

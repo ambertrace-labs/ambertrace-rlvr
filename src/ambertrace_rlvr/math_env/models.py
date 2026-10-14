@@ -23,6 +23,10 @@ class ModelSpec:
     num_layers: int
     lora_keys: tuple[str, ...]
     lora_num_layers: int
+    instruct: bool = False
+    """Instruction/chat-tuned checkpoint: prompts must go through the tokenizer's chat
+    template (system + user), not the plain base-model prompt. Drives `use_chat_template`
+    in the training/eval prompt builders."""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -32,6 +36,7 @@ class ModelSpec:
             "num_layers": self.num_layers,
             "lora_keys": list(self.lora_keys),
             "lora_num_layers": self.lora_num_layers,
+            "instruct": self.instruct,
         }
 
 
@@ -49,6 +54,12 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     "Qwen/Qwen2.5-0.5B": ModelSpec("Qwen/Qwen2.5-0.5B", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12),
     "Qwen/Qwen2.5-1.5B": ModelSpec("Qwen/Qwen2.5-1.5B", "qwen2", 1_500_000_000, 28, _QWEN_KEYS, 14),
     "Qwen/Qwen2.5-3B": ModelSpec("Qwen/Qwen2.5-3B", "qwen2", 3_000_000_000, 36, _QWEN_KEYS, 18),
+    # Instruct checkpoints share the Qwen2 architecture/LoRA keys with their base
+    # siblings, but need the chat template (instruct=True). The 0.5B-Instruct is the
+    # lineage substrate: out-of-the-box genuine K~0.42 with headroom (base 0.5B is ~0.03),
+    # and a clean answer format so the hacking-load m is not inflated by verbosity.
+    "Qwen/Qwen2.5-0.5B-Instruct": ModelSpec(
+        "Qwen/Qwen2.5-0.5B-Instruct", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12, instruct=True),
 }
 
 PYTHIA_LADDER: list[str] = [
