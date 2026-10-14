@@ -76,6 +76,24 @@ class ScalePoint:
             "m_gain": self.m_gain(),
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ScalePoint:
+        # k_hat_gain/m_gain in the dict are derived (methods), not constructor fields.
+        return cls(
+            model_name=data["model_name"],
+            arch=data["arch"],
+            param_count=data["param_count"],
+            k=data["k"],
+            k_hat=data["k_hat"],
+            wedge=data["wedge"],
+            m=data["m"],
+            mean_reward=data["mean_reward"],
+            lam=data["lam"],
+            k_pre=data.get("k_pre", 0.0),
+            k_hat_pre=data.get("k_hat_pre", 0.0),
+            m_pre=data.get("m_pre", 0.0),
+        )
+
 
 @dataclass(frozen=True)
 class ScaleTrendVerdict:
@@ -101,6 +119,19 @@ class ScaleTrendVerdict:
             "threshold": self.threshold,
             "summary": self.summary,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ScaleTrendVerdict:
+        return cls(
+            metric_name=data["metric_name"],
+            trend=data["trend"],
+            values=list(data["values"]),
+            param_counts=list(data["param_counts"]),
+            concordant_fraction=data["concordant_fraction"],
+            n=data["n"],
+            threshold=data["threshold"],
+            summary=data["summary"],
+        )
 
 
 @dataclass(frozen=True)
@@ -132,6 +163,28 @@ class ScaleSweepResult:
             ),
             "failures": self.failures,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ScaleSweepResult:
+        """Reconstruct a sweep result from its ``as_dict`` form (e.g. a per-seed
+        ``scale_sweep_summary.json`` written by a subprocess), so surviving seeds can be
+        re-aggregated from disk."""
+        def _verdicts(d: dict[str, Any] | None) -> dict[str, ScaleTrendVerdict] | None:
+            if d is None:
+                return None
+            return {k: ScaleTrendVerdict.from_dict(v) for k, v in d.items()}
+
+        verdicts = _verdicts(data["verdicts"])
+        if verdicts is None:  # malformed summary; a real check (not a -O-stripped assert)
+            raise ValueError("scale summary missing required 'verdicts'")
+        return cls(
+            points=[ScalePoint.from_dict(p) for p in data["points"]],
+            verdicts=verdicts,
+            config=data.get("config", {}),
+            pythia_verdicts=_verdicts(data.get("pythia_verdicts")),
+            qwen_verdicts=_verdicts(data.get("qwen_verdicts")),
+            failures=list(data.get("failures", [])),
+        )
 
 
 # ---------------------------------------------------------------------------

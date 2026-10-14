@@ -25,6 +25,13 @@ Usage::
 The full 7-model sweep is expensive (and 3B may be infeasible on one box); prefer
 `--models pythia`/`--models qwen` or an explicit comma list. pythia-160m is live-fragile
 (M1 empty-rollout nan) — it is in the ladder for completeness but may fail live.
+
+A live ``--seeds N`` sweep runs each seed in its own subprocess (strictly one at a time),
+so every seed starts from a fresh Metal context. This is the only reliable way to release
+GPU buffers between seeds: ``mx.clear_cache`` cannot reclaim them, and across a multi-model,
+multi-seed run Metal's buffer count climbs until the process dies — the 3B rung makes this
+acute. The surviving seeds' ``scale_sweep_summary.json`` files are read back and aggregated;
+a seed that crashes takes down only its own subprocess (process-boundary isolation).
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ from __future__ import annotations
 import argparse
 import gc
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -48,6 +56,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     ScalePoint,
     ScaleSweepResult,
     TrainMonitor,
+    aggregate_scale_sweep,
     lora_config,
     resolve_model_spec,
     run_scale_sweep,
@@ -265,8 +274,11 @@ def _set_seed(seed: int) -> None:
     mx.random.seed(seed)
 
 
-def _init_wandb(args: Any):
-    """Start a wandb run (lazy import). Requires `wandb login`."""
+def _init_wandb(args: Any, *, seed: int | None = None, group: str | None = None):
+    """Start a wandb run (lazy import). Requires `wandb login`.
+
+    When the multi-seed sweep runs one subprocess per seed, each child gets its own run;
+    ``group`` ties those per-seed runs together and ``seed`` names/records each."""
     try:
         import wandb
     except ImportError as exc:  # pragma: no cover - exercised only with --wandb
@@ -274,8 +286,9 @@ def _init_wandb(args: Any):
                          "then `wandb login`") from exc
     return wandb.init(
         project=args.wandb_project, job_type="scale",
+        group=group, name=(f"seed{seed}" if seed is not None else None),
         config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters,
-                "seeds": args.seeds},
+                "seeds": args.seeds, "seed": seed},
     )
 
 
@@ -310,9 +323,16 @@ def main() -> None:
     ap.add_argument("--lora-rank", type=int, default=8)
     ap.add_argument("--seeds", type=int, default=1,
                     help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
+    ap.add_argument("--only-seed", type=int, default=None,
+                    help="internal: run exactly ONE seed into --output-dir (no seed subdir, "
+                         "no aggregation). The multi-seed live sweep uses this to run each "
+                         "seed in its own subprocess, so each gets a fresh Metal context.")
     ap.add_argument("--wandb", action="store_true",
                     help="log GRPO metrics to Weights & Biases (needs `wandb login`)")
     ap.add_argument("--wandb-project", type=str, default="ambertrace-rlvr-math")
+    ap.add_argument("--wandb-group", type=str, default=None,
+                    help="wandb group tying a sweep's per-seed runs together "
+                         "(set automatically by the multi-seed orchestrator)")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = ap.parse_args()
 
@@ -322,69 +342,183 @@ def main() -> None:
 
     models = _resolve_models(args.models)
 
-    def _run_seed(output_dir: Path, log_fn=None, context_prefix: str = ""):
-        if args.dry_run:
-            run_fn = _fake_run_one_model(args.lam)
-        else:
-            run_fn = _live_run_one_model_factory(
-                max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
-                beta=args.beta, learning_rate=args.learning_rate,
-                max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-                log_fn=log_fn, context_prefix=context_prefix,
-            )
-        return run_scale_sweep(
-            model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
-            config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
-        )
+    # Child mode: run exactly ONE seed into --output-dir. The multi-seed live sweep drives
+    # this via subprocess (one per seed) so each seed gets a fresh process — and thus a fresh
+    # Metal context, the only reliable way to release GPU buffers between seeds (mx.clear_cache
+    # cannot, and the count climbs until the run dies — the 3B rung makes this acute).
+    if args.only_seed is not None:
+        _run_only_seed(models, args)
+        return
 
     # Offline single-seed dry-run stays on the dry_run() path (no model, no wandb).
     if args.seeds <= 1 and args.dry_run:
         dry_run(models=models, lam=args.lam, output_dir=args.output_dir)
         return
 
-    # wandb is initialised once here so both the single-seed and multi-seed live paths
-    # log to it; a finally guarantees the run is closed on any exit.
-    from ambertrace_rlvr.math_env import aggregate_scale_sweep
-    wandb_run = _init_wandb(args) if args.wandb else None
+    # Offline multi-seed dry-run: in-process loop (no MLX to leak; offline tests drive this).
+    if args.dry_run:
+        _run_multiseed_inprocess(models, args)
+        return
+
+    # Single-seed live run (backward-compatible): one wandb run, in-process.
+    if args.seeds <= 1:
+        _run_single_seed_live(models, args)
+        return
+
+    # Multi-seed live sweep: one subprocess per seed (fresh Metal context each),
+    # strictly sequential, then aggregate the survivors from disk.
+    _run_multiseed_subprocess(args)
+
+
+def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
+                    log_fn=None, context_prefix: str = "") -> ScaleSweepResult:
+    """Run one full scale sweep (dry-run fakes or live MLX) into output_dir."""
+    if args.dry_run:
+        run_fn = _fake_run_one_model(args.lam)
+    else:
+        run_fn = _live_run_one_model_factory(
+            max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
+            beta=args.beta, learning_rate=args.learning_rate,
+            max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
+            log_fn=log_fn, context_prefix=context_prefix,
+        )
+    return run_scale_sweep(
+        model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
+        config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
+    )
+
+
+def _run_only_seed(models: list[str], args: Any) -> None:
+    """Run one seed's sweep into ``args.output_dir`` (the orchestrator points this at
+    seed{S}/). Writes that seed's ``scale_sweep_summary.json``; no aggregation here."""
+    seed = args.only_seed
+    wandb_run = (
+        _init_wandb(args, seed=seed, group=args.wandb_group) if args.wandb else None
+    )
     log_fn = wandb_run.log if wandb_run is not None else None
     try:
-        if args.seeds <= 1:  # single-seed live run (backward-compatible)
-            result = _run_seed(args.output_dir, log_fn, "seed0/")
-            _write_summary(result, args.output_dir)
-            _print_summary(result)
-            print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
-            return
-
-        # Multi-seed: run each seed into seed{S}/, isolate failures, aggregate survivors.
-        # (run_scale_sweep already isolates per-model failures within a seed.)
-        per_seed = []
-        failures: list[dict[str, Any]] = []
-        for seed in range(args.seeds):
-            try:
-                if not args.dry_run:
-                    _set_seed(seed)
-                result = _run_seed(args.output_dir / f"seed{seed}", log_fn, f"seed{seed}/")
-                _write_summary(result, args.output_dir / f"seed{seed}")
-                per_seed.append(result)
-            except Exception as exc:  # seed-level isolation
-                print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
-                failures.append({"seed": seed, "error": repr(exc)})
-        if not per_seed:
-            raise SystemExit("all seeds failed; see errors above")
-        try:
-            agg = aggregate_scale_sweep(per_seed)
-        except ValueError as exc:  # e.g. no model survived in every seed
-            raise SystemExit(f"cannot aggregate scale sweep: {exc}") from exc
-        agg_dir = args.output_dir / "aggregate"
-        agg_dir.mkdir(parents=True, exist_ok=True)
-        (agg_dir / "scale_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
-        if failures:
-            (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
-        _print_scale_aggregate(agg)
-        print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'scale_aggregate.json'}")
+        if not args.dry_run:
+            _set_seed(seed)
+        result = _run_seed_sweep(models, args, args.output_dir, log_fn=log_fn,
+                                 context_prefix=f"seed{seed}/")
+        _write_summary(result, args.output_dir)
+        _print_summary(result)
+        print(f"\nSeed {seed} scale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
     finally:
         if wandb_run is not None:
             wandb_run.finish()
+
+
+def _run_single_seed_live(models: list[str], args: Any) -> None:
+    """Single live seed (seed 0), in-process, logging to one wandb run."""
+    wandb_run = _init_wandb(args) if args.wandb else None
+    log_fn = wandb_run.log if wandb_run is not None else None
+    try:
+        _set_seed(0)
+        result = _run_seed_sweep(models, args, args.output_dir, log_fn=log_fn,
+                                 context_prefix="seed0/")
+        _write_summary(result, args.output_dir)
+        _print_summary(result)
+        print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
+
+
+def _run_multiseed_inprocess(models: list[str], args: Any) -> None:
+    """Offline (dry-run) multi-seed loop: run each seed in-process into seed{S}/, isolate
+    failures, and aggregate survivors. No subprocess — there is no MLX state to leak."""
+    per_seed: list[ScaleSweepResult] = []
+    failures: list[dict[str, Any]] = []
+    # Dry-run only (the live multi-seed path seeds each seed inside its own subprocess), and
+    # the fake run_fn is deterministic, so no RNG seeding is needed here.
+    for seed in range(args.seeds):
+        seed_dir = args.output_dir / f"seed{seed}"
+        try:
+            result = _run_seed_sweep(models, args, seed_dir, context_prefix=f"seed{seed}/")
+            _write_summary(result, seed_dir)
+            per_seed.append(result)
+        except Exception as exc:  # seed-level isolation: one crash must not lose the rest
+            print(f"  seed {seed} FAILED: {exc!r} — continuing with remaining seeds")
+            failures.append({"seed": seed, "error": repr(exc)})
+    if not per_seed:
+        raise SystemExit("all seeds failed; see errors above")
+    _finalize_aggregate(per_seed, failures, args)
+
+
+def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
+    """Build the argv for a per-seed child subprocess (one seed into seed_dir)."""
+    cmd = [
+        sys.executable, str(Path(__file__).resolve()),
+        "--models", args.models,
+        "--lam", str(args.lam),
+        "--max-iters", str(args.max_iters),
+        "--group-size", str(args.group_size),
+        "--batch-size", str(args.batch_size),
+        "--beta", str(args.beta),
+        "--learning-rate", str(args.learning_rate),
+        "--max-completion-length", str(args.max_completion_length),
+        "--lora-rank", str(args.lora_rank),
+        "--seeds", str(args.seeds),  # observability only: the child's wandb config records
+                                     # the sweep's seed count; routing goes by --only-seed.
+        "--only-seed", str(seed),
+        "--output-dir", str(seed_dir),
+    ]
+    if args.wandb:
+        cmd += ["--wandb", "--wandb-project", args.wandb_project, "--wandb-group", group]
+    return cmd
+
+
+def _run_multiseed_subprocess(args: Any) -> None:
+    """Live multi-seed sweep: run each seed in its own subprocess (fresh Metal context),
+    strictly one at a time, then aggregate the survivors read back from disk.
+
+    Each child rebuilds the model list from the forwarded ``--models``, so the ladder is
+    identical across seeds. A seed's written summary is the authoritative success signal: a
+    parseable summary counts even if the child exits non-zero, and a missing/corrupt summary
+    (or any read-back error) is isolated to that seed — one bad seed never aborts the rest."""
+    group = args.wandb_group or args.output_dir.name
+    survivors: list[ScaleSweepResult] = []
+    failures: list[dict[str, Any]] = []
+    for seed in range(args.seeds):
+        seed_dir = args.output_dir / f"seed{seed}"
+        seed_dir.mkdir(parents=True, exist_ok=True)
+        # Clear any stale summary from a previous run into this dir, so ONLY a summary the
+        # child writes this run can count. Otherwise a child that crashes before writing —
+        # the exact failure this isolation exists for, and re-running into a used dir is the
+        # whole motivation — would be silently credited with last run's mismatched data.
+        summary_path = seed_dir / "scale_sweep_summary.json"
+        summary_path.unlink(missing_ok=True)
+        print(f"\n=== seed {seed}/{args.seeds - 1}: launching isolated subprocess ===", flush=True)
+        proc = subprocess.run(_child_cmd(args, seed, seed_dir, group), check=False)
+        try:
+            result = ScaleSweepResult.from_dict(json.loads(summary_path.read_text()))
+        except (OSError, ValueError, KeyError, TypeError) as exc:  # TypeError: non-dict JSON
+            print(f"  seed {seed} FAILED (exit {proc.returncode}): {exc!r} — continuing with remaining seeds")
+            failures.append({"seed": seed, "error": f"exit {proc.returncode}; {exc!r}"})
+            continue
+        if proc.returncode != 0:
+            print(f"  seed {seed} exited {proc.returncode} but wrote a valid summary — keeping it")
+        survivors.append(result)
+    if not survivors:
+        raise SystemExit("all seeds failed; see errors above")
+    _finalize_aggregate(survivors, failures, args)
+
+
+def _finalize_aggregate(per_seed: list[ScaleSweepResult], failures: list[dict[str, Any]],
+                        args: Any) -> None:
+    """Aggregate surviving seeds, write the aggregate + any failures, print the verdict."""
+    try:
+        agg = aggregate_scale_sweep(per_seed)
+    except ValueError as exc:  # e.g. no model survived in every seed
+        raise SystemExit(f"cannot aggregate scale sweep: {exc}") from exc
+    agg_dir = args.output_dir / "aggregate"
+    agg_dir.mkdir(parents=True, exist_ok=True)
+    (agg_dir / "scale_aggregate.json").write_text(json.dumps(agg.as_dict(), indent=2))
+    if failures:
+        (agg_dir / "seed_failures.json").write_text(json.dumps(failures, indent=2))
+    _print_scale_aggregate(agg)
+    print(f"\nAggregate ({len(per_seed)}/{args.seeds} seeds) -> {agg_dir / 'scale_aggregate.json'}")
 
 
 if __name__ == "__main__":

@@ -170,6 +170,65 @@ def test_live_multiseed_subprocess_aggregates_survivors(tmp_path, monkeypatch):
     assert [f["seed"] for f in failures] == [bad_seed]
 
 
+def _lineage_argv(tmp_path):
+    return ["math_lineage.py", "--seeds", "3", "--model", "fake/model",
+            "--generations", "1", "--iters-per-gen", "1", "--output-dir", str(tmp_path)]
+
+
+def test_live_multiseed_subprocess_ignores_stale_summary(tmp_path, monkeypatch):
+    # HIGH: a seed that crashes before writing must NOT be credited with a summary left in
+    # its dir by a previous run. Plant a stale seed1 summary, then crash seed1's child.
+    import subprocess
+
+    import math_lineage
+    stale_dir = tmp_path / "seed1"
+    stale_dir.mkdir(parents=True)
+    math_lineage.dry_run(generations=1, iters_per_gen=1, output_dir=stale_dir)
+    assert (stale_dir / "lineage_summary.json").exists()
+
+    def fake_run(cmd, check=False):
+        out_dir = Path(cmd[cmd.index("--output-dir") + 1])
+        seed = int(cmd[cmd.index("--only-seed") + 1])
+        if seed == 1:
+            return subprocess.CompletedProcess(cmd, 1)  # crash; writes nothing
+        math_lineage.dry_run(generations=1, iters_per_gen=1, output_dir=out_dir)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(math_lineage.subprocess, "run", fake_run)
+    monkeypatch.setattr(sys, "argv", _lineage_argv(tmp_path))
+    math_lineage.main()
+
+    agg = json.loads((tmp_path / "aggregate" / "lineage_aggregate.json").read_text())
+    assert agg["n_seeds"] == 2  # seed1's stale summary was cleared, so it is a failure
+    failures = json.loads((tmp_path / "aggregate" / "seed_failures.json").read_text())
+    assert [f["seed"] for f in failures] == [1]
+
+
+def test_live_multiseed_subprocess_isolates_corrupt_summary(tmp_path, monkeypatch):
+    # MEDIUM: a valid-JSON-but-non-dict summary isolates that seed (not aborts the campaign).
+    import subprocess
+
+    import math_lineage
+
+    def fake_run(cmd, check=False):
+        out_dir = Path(cmd[cmd.index("--output-dir") + 1])
+        seed = int(cmd[cmd.index("--only-seed") + 1])
+        if seed == 0:
+            (out_dir / "lineage_summary.json").write_text("123")  # valid JSON, not a dict
+            return subprocess.CompletedProcess(cmd, 0)
+        math_lineage.dry_run(generations=1, iters_per_gen=1, output_dir=out_dir)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(math_lineage.subprocess, "run", fake_run)
+    monkeypatch.setattr(sys, "argv", _lineage_argv(tmp_path))
+    math_lineage.main()  # must NOT raise despite seed0's corrupt summary
+
+    agg = json.loads((tmp_path / "aggregate" / "lineage_aggregate.json").read_text())
+    assert agg["n_seeds"] == 2  # seeds 1 and 2 survived; seed0 isolated
+    failures = json.loads((tmp_path / "aggregate" / "seed_failures.json").read_text())
+    assert [f["seed"] for f in failures] == [0]
+
+
 def test_dry_run_seed_isolation_survives_one_failure(tmp_path, monkeypatch):
     # resiliency: one seed crashing must not lose the campaign — the rest aggregate.
     import math_lineage

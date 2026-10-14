@@ -85,6 +85,30 @@ def test_scale_sweep_result_json_serialisable(tmp_path: Path) -> None:
     json.dumps(result.as_dict())
 
 
+def test_scale_sweep_result_from_dict_roundtrip(tmp_path: Path) -> None:
+    """ScaleSweepResult.from_dict(as_dict(...)) reconstructs an equivalent result — the
+    path the multi-seed sweep uses to re-aggregate per-seed summaries read back from disk."""
+    from ambertrace_rlvr.math_env import ScaleSweepResult, aggregate_scale_sweep
+    result = run_scale_sweep(run_fn=_fake_run([]), output_root=tmp_path, config={"a": 1})
+
+    restored = ScaleSweepResult.from_dict(json.loads(json.dumps(result.as_dict())))
+
+    # Every point and its derived gains survive the round-trip.
+    assert [p.model_name for p in restored.points] == [p.model_name for p in result.points]
+    for rp, op in zip(restored.points, result.points, strict=True):
+        assert rp == op  # frozen dataclass: field-wise equality
+        assert rp.m_gain() == op.m_gain()
+        assert rp.k_hat_gain() == op.k_hat_gain()
+    assert restored.config == result.config
+    assert (restored.pythia_verdicts is None) == (result.pythia_verdicts is None)
+
+    # And the reconstructed result aggregates cleanly (the real use site).
+    agg = aggregate_scale_sweep([restored, restored])
+    assert agg.n_seeds == 2
+    assert [p.model_name for p in agg.points] == [p.model_name for p in result.points]
+    assert all(p.m.stderr == 0.0 for p in agg.points)  # identical seeds
+
+
 def test_both_branches_in_summary() -> None:
     inc = assess_scale_trend(_series([0.1, 0.2, 0.3, 0.4]), lambda p: p.m, "m")
     assert "increases with scale" in inc.summary
