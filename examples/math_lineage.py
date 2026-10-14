@@ -46,6 +46,8 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     ArmConfig,
     LineageResult,
     TrainMonitor,
+    lora_config,
+    resolve_model_spec,
     run_lineage,
 )
 from ambertrace_rlvr.math_env.metrics import MathEvalReport, evaluate_math  # noqa: E402
@@ -117,20 +119,16 @@ def dry_run(*, arms: list[ArmConfig] = DEFAULT_ARMS, generations: int = 4,
 # ---------------------------------------------------------------------------
 # Live MLX callbacks (load per generation — simple and correct)
 # ---------------------------------------------------------------------------
-def _lora_config(lora_rank: int) -> dict[str, Any]:
-    # GPT-NeoX fuses Q/K/V; target the single attention.query_key_value projection.
-    return {"rank": lora_rank, "scale": 20.0, "dropout": 0.0,
-            "keys": ["attention.query_key_value"]}
-
-
 def make_live_callbacks(
     *, model_name: str, ref_model_name: str | None, group_size: int, batch_size: int,
     beta: float, learning_rate: float, max_completion_length: int, lora_rank: int,
-    lora_layers: int, log_fn=None, context_prefix: str = "",
+    log_fn=None, context_prefix: str = "",
 ):
     """Build (train_fn, eval_fn) that drive a real MLX GRPO model. Each call loads the
     base model fresh and (for a given adapter) applies LoRA + loads the parent weights —
-    inefficient but robust across generations and arms."""
+    inefficient but robust across generations and arms. LoRA targets are resolved per
+    architecture from the model registry (so Pythia and Qwen both work)."""
+    spec = resolve_model_spec(model_name)
 
     def train_fn(*, parent_adapter: Path | None, output_dir: Path, lam: float,
                  max_iters: int, step_offset: int) -> Path:
@@ -142,7 +140,8 @@ def make_live_callbacks(
 
         model, tokenizer = mlx_load(model_name)
         model.freeze()
-        linear_to_lora_layers(model, num_layers=lora_layers, config=_lora_config(lora_rank))
+        linear_to_lora_layers(model, num_layers=spec.lora_num_layers,
+                              config=lora_config(spec, rank=lora_rank))
         model.train()
         ref_model, _ = mlx_load(ref_model_name or model_name)
         ref_model.eval()
@@ -182,7 +181,8 @@ def make_live_callbacks(
         model, tokenizer = mlx_load(model_name)
         if adapter_path is not None:
             model.freeze()
-            linear_to_lora_layers(model, num_layers=lora_layers, config=_lora_config(lora_rank))
+            linear_to_lora_layers(model, num_layers=spec.lora_num_layers,
+                                  config=lora_config(spec, rank=lora_rank))
             model.load_weights(str(adapter_path), strict=False)
 
         heldout = load_problems("heldout")
@@ -287,7 +287,6 @@ def main() -> None:
     ap.add_argument("--learning-rate", type=float, default=1e-5)
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
-    ap.add_argument("--lora-layers", type=int, default=12)
     ap.add_argument("--seeds", type=int, default=1,
                     help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
     ap.add_argument("--wandb", action="store_true",
@@ -360,7 +359,7 @@ def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
         model_name=args.model, ref_model_name=args.ref_model, group_size=args.group_size,
         batch_size=args.batch_size, beta=args.beta, learning_rate=args.learning_rate,
         max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-        lora_layers=args.lora_layers, log_fn=log_fn, context_prefix=f"seed{seed}/",
+        log_fn=log_fn, context_prefix=f"seed{seed}/",
     )
     return run_lineage(
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
