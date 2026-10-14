@@ -75,6 +75,13 @@ class ArmConfig:
     def as_dict(self) -> dict[str, Any]:
         return {"name": self.name, "lam": self.lam, "scrub_fraction": self.scrub_fraction}
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ArmConfig:
+        return cls(
+            name=data["name"], lam=data["lam"],
+            scrub_fraction=data.get("scrub_fraction", 0.0),
+        )
+
 
 @dataclass
 class GenerationRecord:
@@ -108,6 +115,23 @@ class GenerationRecord:
             "step_offset": self.step_offset,
             "compute_c": self.compute_c,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> GenerationRecord:
+        return cls(
+            arm=data["arm"],
+            generation=data["generation"],
+            parent_adapter=data["parent_adapter"],
+            child_adapter=data["child_adapter"],
+            pre_eval=data["pre_eval"],
+            post_eval=data["post_eval"],
+            mid_eval=data.get("mid_eval"),
+            iters_total=data.get("iters_total", 0),
+            iters_lam=data.get("iters_lam", 0),
+            iters_clean=data.get("iters_clean", 0),
+            step_offset=data.get("step_offset", 0),
+            compute_c=data.get("compute_c", 0.0),
+        )
 
 
 @dataclass
@@ -143,6 +167,13 @@ class ArmResult:
             "generations": [g.as_dict() for g in self.generations],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ArmResult:
+        return cls(
+            config=ArmConfig.from_dict(data["config"]),
+            generations=[GenerationRecord.from_dict(g) for g in data["generations"]],
+        )
+
 
 @dataclass
 class CompoundingVerdict:
@@ -173,6 +204,21 @@ class CompoundingVerdict:
             "summary": self.summary,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CompoundingVerdict:
+        return cls(
+            q1_slowdown=data["q1_slowdown"],
+            q1_k_gap_final=data["q1_k_gap_final"],
+            q1_k_gap_trajectory=data["q1_k_gap_trajectory"],
+            q2_threshold=data["q2_threshold"],
+            q2_stall_detected=data["q2_stall_detected"],
+            q3_scrub_advantage=data["q3_scrub_advantage"],
+            q3_c_at_k=data["q3_c_at_k"],
+            correctability_curve=data["correctability_curve"],
+            noise_floor=data["noise_floor"],
+            summary=data["summary"],
+        )
+
 
 @dataclass
 class LineageResult:
@@ -188,6 +234,17 @@ class LineageResult:
             "verdict": self.verdict.as_dict(),
             "config": self.config,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> LineageResult:
+        """Reconstruct a result from its ``as_dict`` form (e.g. a per-seed
+        ``lineage_summary.json`` written by a subprocess), so surviving seeds can be
+        re-aggregated from disk."""
+        return cls(
+            arms={name: ArmResult.from_dict(d) for name, d in data["arms"].items()},
+            verdict=CompoundingVerdict.from_dict(data["verdict"]),
+            config=data.get("config", {}),
+        )
 
 
 # ---------------------------------------------------------------------------

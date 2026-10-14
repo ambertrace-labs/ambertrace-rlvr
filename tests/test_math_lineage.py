@@ -400,6 +400,39 @@ def test_lineage_result_as_dict_json_serialisable(tmp_path: Path) -> None:
     assert set(restored.keys()) == {"arms", "verdict", "config"}
 
 
+def test_lineage_result_from_dict_roundtrip(tmp_path: Path) -> None:
+    """LineageResult.from_dict(as_dict(...)) reconstructs an equivalent result — the path
+    the multi-seed campaign uses to re-aggregate per-seed summaries read back from disk."""
+    # A non-trivial schedule so the metrics/verdict are not all identical zeros.
+    schedule = {
+        ("pure", 0, "post"): _report(k=0.1, k_hat=0.1, m=0.0),
+        ("pure", 1, "post"): _report(k=0.3, k_hat=0.3, m=0.0),
+        ("poisoned", 0, "post"): _report(k=0.0, k_hat=0.2, m=0.2),
+        ("poisoned", 1, "post"): _report(k=0.0, k_hat=0.4, m=0.4),
+    }
+    result = _default_run(tmp_path, generations=2, eval_fn=FakeEvalGeneration(schedule))
+
+    restored = LineageResult.from_dict(json.loads(json.dumps(result.as_dict())))
+
+    # Structure + every per-generation metric survives the round-trip.
+    assert set(restored.arms) == set(result.arms)
+    for name, arm in result.arms.items():
+        r_arm = restored.arms[name]
+        assert r_arm.config == arm.config
+        assert r_arm.k_trajectory() == arm.k_trajectory()
+        assert r_arm.k_hat_trajectory() == arm.k_hat_trajectory()
+        assert r_arm.m_trajectory() == arm.m_trajectory()
+        assert r_arm.wedge_trajectory() == arm.wedge_trajectory()
+        assert r_arm.c_trajectory() == arm.c_trajectory()
+    assert restored.verdict.as_dict() == result.verdict.as_dict()
+
+    # And the reconstructed result aggregates cleanly (the real use site).
+    from ambertrace_rlvr.math_env import aggregate_lineage
+    agg = aggregate_lineage([restored, restored])
+    assert agg.n_seeds == 2
+    assert all(p.stderr == 0.0 for p in agg.arms["poisoned"].m)  # identical seeds
+
+
 def test_output_dir_layout(tmp_path: Path) -> None:
     """Run into tmp_path; assert pure/gen0/adapters.safetensors and
     scrubbed/gen0/phase_lam + phase_clean exist."""
