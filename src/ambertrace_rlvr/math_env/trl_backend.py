@@ -146,13 +146,18 @@ def make_trl_callbacks(
     lora_overrides: dict[str, Any] | None = None,
     log_fn: Callable[[dict[str, float]], None] | None = None,
     context_prefix: str = "",
+    seed: int | None = None,
 ) -> tuple[TrainOneGeneration, EvalGeneration]:
     """Build ``(train_fn, eval_fn)`` backed by TRL ``GRPOTrainer`` + ``peft`` LoRA.
 
     ``corpus`` is ``"gsm8k"`` (``load_gsm8k``) or ``"builtin"`` (``load_problems``); both
     use ``GSM8K_SYSTEM_PROMPT``, which commits the model to ``<answer>N</answer>``. The
-    ``answer_format`` therefore must match that prompt: the default ``"xml_tag"`` does;
-    a mismatch floors every completion.
+    ``answer_format`` therefore must be ``"xml_tag"``; any other value raises ``ValueError``
+    (e.g. a ``hash`` scorer would floor every completion).
+
+    ``seed`` (optional) is set as both ``GRPOConfig.seed`` and ``data_seed``: ``Trainer``
+    re-seeds from the config at init, clobbering any earlier global seeding, so without it
+    every run trains identically. ``None`` leaves the TRL defaults.
 
     Requires a chat-templated instruct model (``spec.instruct``; e.g. Qwen2.5-*-Instruct):
     prompts go through ``apply_chat_template`` and the dataset is conversational, so base
@@ -162,6 +167,12 @@ def make_trl_callbacks(
     the parent adapter is loaded trainable and continued. The child adapter is saved to
     ``output_dir / "adapter"``.
     """
+    if answer_format != "xml_tag":
+        raise ValueError(
+            f"answer_format={answer_format!r} is unsupported by the TRL backend: the corpus "
+            "system prompt commits the model to <answer>N</answer>, so only 'xml_tag' scores "
+            "correctly (any other scorer would floor every completion)."
+        )
     spec = resolve_model_spec(model_name)
     if not spec.instruct:
         raise ValueError(
@@ -223,6 +234,8 @@ def make_trl_callbacks(
                 report_to=[],
                 disable_tqdm=True,
             )
+            if seed is not None:
+                cfg.update(seed=seed, data_seed=seed)
             cfg.update(grpo_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
             config = grpo_config_cls(**cfg)
             trainer = grpo_trainer_cls(
