@@ -113,8 +113,8 @@ def dry_run(*, models: list[str] | None = None, lam: float = 0.3,
 # ---------------------------------------------------------------------------
 def _live_run_one_model_factory(
     *, max_iters: int, group_size: int, batch_size: int, beta: float,
-    learning_rate: float, max_completion_length: int, lora_rank: int, log_fn=None,
-    context_prefix: str = "",
+    learning_rate: float, max_completion_length: int, lora_rank: int,
+    hack_kind: str = "substring", log_fn=None, context_prefix: str = "",
 ):
     def run_one(*, model_name: str, output_dir: Path, lam: float) -> ScalePoint:
         import mlx.core as mx
@@ -134,6 +134,8 @@ def _live_run_one_model_factory(
         golds = [p.answer for p in heldout]
         sampler = make_sampler(temp=0.0)
 
+        questions = [p.question for p in heldout]
+
         def _eval(model: Any, tokenizer: Any):
             model.eval()
             completions = [
@@ -142,7 +144,8 @@ def _live_run_one_model_factory(
                          max_tokens=max_completion_length, sampler=sampler)
                 for p in heldout
             ]
-            return evaluate_math(completions, golds, lam=lam)
+            return evaluate_math(completions, golds, problems=questions, lam=lam,
+                                 hack_kind=hack_kind)
 
         model, tokenizer = mlx_load(model_name)
         model.freeze()
@@ -156,7 +159,7 @@ def _live_run_one_model_factory(
         ref_model.eval()
         mx.eval(ref_model.parameters())
         dataset = load_math_dataset(tokenizer, "train", use_chat_template=use_chat)
-        reward = build_math_reward_function(lam)
+        reward = build_math_reward_function(lam, hack_kind=hack_kind)
         optimizer = optim.Adam(learning_rate=learning_rate)
         args = GRPOTrainingArgs(
             iters=max_iters, batch_size=batch_size, group_size=group_size, beta=beta,
@@ -318,6 +321,9 @@ def main() -> None:
     ap.add_argument("--models", type=str, default="all",
                     help="'pythia' | 'qwen' | 'all' | comma-separated HF ids")
     ap.add_argument("--lam", type=float, default=0.3)
+    ap.add_argument("--hack", type=str, default="answer_copy",
+                    choices=["substring", "answer_copy"],
+                    help="which exploit R_hack models (see math_lineage --hack)")
     ap.add_argument("--max-iters", type=int, default=20)
     ap.add_argument("--group-size", type=int, default=4)
     ap.add_argument("--batch-size", type=int, default=2)
@@ -384,11 +390,12 @@ def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
             max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
             beta=args.beta, learning_rate=args.learning_rate,
             max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-            log_fn=log_fn, context_prefix=context_prefix,
+            hack_kind=args.hack, log_fn=log_fn, context_prefix=context_prefix,
         )
     return run_scale_sweep(
         model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
-        config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters},
+        config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters,
+                "hack": args.hack},
     )
 
 
@@ -456,6 +463,7 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         sys.executable, str(Path(__file__).resolve()),
         "--models", args.models,
         "--lam", str(args.lam),
+        "--hack", str(args.hack),
         "--max-iters", str(args.max_iters),
         "--group-size", str(args.group_size),
         "--batch-size", str(args.batch_size),

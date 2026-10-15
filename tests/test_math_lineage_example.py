@@ -104,15 +104,16 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
     import math_lineage
     args = SimpleNamespace(
         model="Qwen/Qwen2.5-0.5B", generations=4, iters_per_gen=100, lam=0.3,
-        scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04, learning_rate=5e-6,
-        max_completion_length=128, lora_rank=8, ref_model=None, wandb=False,
-        wandb_project="ambertrace-rlvr-math", seeds=3,
+        hack="answer_copy", scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04,
+        learning_rate=5e-6, max_completion_length=128, lora_rank=8, ref_model=None,
+        wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
     )
     seed_dir = tmp_path / "seed2"
     cmd = math_lineage._child_cmd(args, 2, seed_dir, group="camp")
     assert cmd[cmd.index("--only-seed") + 1] == "2"
     assert cmd[cmd.index("--output-dir") + 1] == str(seed_dir)
     assert cmd[cmd.index("--model") + 1] == "Qwen/Qwen2.5-0.5B"
+    assert cmd[cmd.index("--hack") + 1] == "answer_copy"  # hack kind forwarded to child
     assert cmd[cmd.index("--learning-rate") + 1] == str(5e-6)
     assert "--dry-run" not in cmd  # child is a single live seed
     assert "--wandb" not in cmd  # forwarded only when enabled
@@ -122,8 +123,8 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
 def test_child_cmd_forwards_wandb_and_ref_model(tmp_path):
     import math_lineage
     args = SimpleNamespace(
-        model="m", generations=1, iters_per_gen=1, lam=0.3, scrub_fraction=0.4,
-        group_size=4, batch_size=2, beta=0.04, learning_rate=1e-5,
+        model="m", generations=1, iters_per_gen=1, lam=0.3, hack="answer_copy",
+        scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04, learning_rate=1e-5,
         max_completion_length=128, lora_rank=8, ref_model="ref/model", wandb=True,
         wandb_project="proj", seeds=2,
     )

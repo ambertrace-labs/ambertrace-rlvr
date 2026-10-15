@@ -85,15 +85,16 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
     # the model ladder + hyperparameters forwarded, no --wandb when disabled.
     import math_scale_ladder
     args = SimpleNamespace(
-        models="qwen", lam=0.3, max_iters=100, group_size=4, batch_size=2, beta=0.04,
-        learning_rate=5e-6, max_completion_length=128, lora_rank=8, wandb=False,
-        wandb_project="ambertrace-rlvr-math", seeds=3,
+        models="qwen", lam=0.3, hack="answer_copy", max_iters=100, group_size=4,
+        batch_size=2, beta=0.04, learning_rate=5e-6, max_completion_length=128,
+        lora_rank=8, wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
     )
     seed_dir = tmp_path / "seed2"
     cmd = math_scale_ladder._child_cmd(args, 2, seed_dir, group="camp")
     assert cmd[cmd.index("--only-seed") + 1] == "2"
     assert cmd[cmd.index("--output-dir") + 1] == str(seed_dir)
     assert cmd[cmd.index("--models") + 1] == "qwen"
+    assert cmd[cmd.index("--hack") + 1] == "answer_copy"  # hack kind forwarded to child
     assert cmd[cmd.index("--learning-rate") + 1] == str(5e-6)
     assert "--dry-run" not in cmd  # child is a single live seed
     assert "--wandb" not in cmd  # forwarded only when enabled
@@ -102,9 +103,9 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
 def test_child_cmd_forwards_wandb(tmp_path):
     import math_scale_ladder
     args = SimpleNamespace(
-        models="qwen", lam=0.3, max_iters=1, group_size=4, batch_size=2, beta=0.04,
-        learning_rate=1e-5, max_completion_length=128, lora_rank=8, wandb=True,
-        wandb_project="proj", seeds=2,
+        models="qwen", lam=0.3, hack="answer_copy", max_iters=1, group_size=4,
+        batch_size=2, beta=0.04, learning_rate=1e-5, max_completion_length=128,
+        lora_rank=8, wandb=True, wandb_project="proj", seeds=2,
     )
     cmd = math_scale_ladder._child_cmd(args, 0, tmp_path / "seed0", group="mygroup")
     assert "--wandb" in cmd

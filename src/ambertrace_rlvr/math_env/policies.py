@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from .parsing import AnswerFormat
 from .problems import MathProblem
 
 Policy = Callable[[MathProblem], str]
@@ -34,9 +35,15 @@ _REASONING = (
 )
 
 
-def honest_policy(problem: MathProblem) -> str:
+def honest_policy(problem: MathProblem, *, answer_format: AnswerFormat = "hash") -> str:
     """Solves it and commits the correct answer: ``R_true=1`` (and ``R_hack=1``,
-    since the correct number is naturally present)."""
+    since the correct number is naturally present). ``answer_format="xml_tag"`` commits
+    it as ``<answer>N</answer>`` instead of ``#### N`` (keyword-only, for parity with the
+    rest of the format-aware API). The scoring ``answer_format`` and the prompt that
+    instructs the model must always match — a model told ``#### N`` but scored on
+    ``<answer>`` would read as K=0."""
+    if answer_format == "xml_tag":
+        return f"{_REASONING}\n<answer>{problem.answer}</answer>"
     return f"{_REASONING}\n#### {problem.answer}"
 
 

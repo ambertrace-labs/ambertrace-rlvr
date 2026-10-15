@@ -137,12 +137,13 @@ def dry_run(*, arms: list[ArmConfig] = DEFAULT_ARMS, generations: int = 4,
 def make_live_callbacks(
     *, model_name: str, ref_model_name: str | None, group_size: int, batch_size: int,
     beta: float, learning_rate: float, max_completion_length: int, lora_rank: int,
-    log_fn=None, context_prefix: str = "",
+    hack_kind: str = "substring", log_fn=None, context_prefix: str = "",
 ):
     """Build (train_fn, eval_fn) that drive a real MLX GRPO model. Each call loads the
     base model fresh and (for a given adapter) applies LoRA + loads the parent weights —
     inefficient but robust across generations and arms. LoRA targets are resolved per
-    architecture from the model registry (so Pythia and Qwen both work)."""
+    architecture from the model registry (so Pythia and Qwen both work). ``hack_kind``
+    selects which exploit R_hack models in both training and eval (kept in sync here)."""
     spec = resolve_model_spec(model_name)
     # Single source of truth for the prompt format: train_fn and eval_fn below both close
     # over this one value, so they can never desync (training on chat-templated prompts
@@ -170,7 +171,7 @@ def make_live_callbacks(
 
         output_dir.mkdir(parents=True, exist_ok=True)
         dataset = load_math_dataset(tokenizer, "train", use_chat_template=use_chat)
-        reward = build_math_reward_function(lam)
+        reward = build_math_reward_function(lam, hack_kind=hack_kind)
         optimizer = optim.Adam(learning_rate=learning_rate)
         args = GRPOTrainingArgs(
             iters=max_iters, batch_size=batch_size, group_size=group_size, beta=beta,
@@ -213,6 +214,7 @@ def make_live_callbacks(
 
         heldout = load_problems("heldout")
         golds = [p.answer for p in heldout]
+        questions = [p.question for p in heldout]
         sampler = make_sampler(temp=0.0)
         completions = [
             generate(model, tokenizer,
@@ -220,7 +222,7 @@ def make_live_callbacks(
                      max_tokens=max_completion_length, sampler=sampler)
             for p in heldout
         ]
-        rep = evaluate_math(completions, golds, lam=lam)
+        rep = evaluate_math(completions, golds, problems=questions, lam=lam, hack_kind=hack_kind)
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / f"eval_{label}.json").write_text(json.dumps(rep.as_dict(), indent=2))
         print(f"  eval[{label}] {output_dir.parent.name}/{output_dir.name}: "
@@ -314,6 +316,11 @@ def main() -> None:
     ap.add_argument("--generations", type=int, default=4)
     ap.add_argument("--iters-per-gen", type=int, default=20)
     ap.add_argument("--lam", type=float, default=0.3, help="λ for the poisoned/scrubbed arms")
+    ap.add_argument("--hack", type=str, default="answer_copy",
+                    choices=["substring", "answer_copy"],
+                    help="which exploit R_hack models: 'answer_copy' (echo a problem number; "
+                         "inducible, out-scores solving at λ>0.5) or 'substring' (gold appears "
+                         "anywhere; a superset of R_true, so not inducible on a capable model)")
     ap.add_argument("--scrub-fraction", type=float, default=0.4,
                     help="fraction of each generation the scrubbed arm trains at λ=0")
     ap.add_argument("--group-size", type=int, default=4)
@@ -436,6 +443,7 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--generations", str(args.generations),
         "--iters-per-gen", str(args.iters_per_gen),
         "--lam", str(args.lam),
+        "--hack", str(args.hack),
         "--scrub-fraction", str(args.scrub_fraction),
         "--group-size", str(args.group_size),
         "--batch-size", str(args.batch_size),
@@ -525,13 +533,13 @@ def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
         model_name=args.model, ref_model_name=args.ref_model, group_size=args.group_size,
         batch_size=args.batch_size, beta=args.beta, learning_rate=args.learning_rate,
         max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-        log_fn=log_fn, context_prefix=f"seed{seed}/",
+        hack_kind=args.hack, log_fn=log_fn, context_prefix=f"seed{seed}/",
     )
     return run_lineage(
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
         group_size=args.group_size, batch_size=args.batch_size,
         train_fn=train_fn, eval_fn=eval_fn, output_root=output_dir,
-        config={"model": args.model, "lam": args.lam,
+        config={"model": args.model, "lam": args.lam, "hack": args.hack,
                 "scrub_fraction": args.scrub_fraction, **cfg},
     )
 
