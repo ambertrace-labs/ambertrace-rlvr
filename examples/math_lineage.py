@@ -1,7 +1,8 @@
-"""M2 (#127): multi-generation 3-arm lineage over the exploitable math env (MLX).
+"""M2 (#127): multi-generation 3-arm lineage over the exploitable math env.
 
 Wraps the pure lineage core (:func:`ambertrace_rlvr.math_env.run_lineage`) with real
-MLX train/eval callbacks, or runs fully offline with ``--dry-run``.
+train/eval callbacks — the TRL/PyTorch GRPO backend by default (``--backend trl``) or
+the MLX backend (``--backend mlx``) — or runs fully offline with ``--dry-run``.
 
 Each arm breeds a child from its parent via fixed-compute GRPO, across several
 generations, chaining LoRA adapters. The three arms:
@@ -15,28 +16,31 @@ recovers capability cheaper — the Q1/Q2/Q3 verdict the lineage core computes.
 
 Usage::
 
-    # Offline dry-run: exercises the full lineage loop + verdict + JSON, no MLX/network.
+    # Offline dry-run: exercises the full lineage loop + verdict + JSON, no training.
     python examples/math_lineage.py --dry-run
 
-    # Live run (Apple Silicon; needs mlx-lm + mlx-lm-lora). Compute-heavy — each arm is
-    # `generations` GRPO runs. Start small to validate, then scale up.
+    # Live run on the default TRL backend (needs the [trl] extra and a chat-templated
+    # instruct model; defaults to Qwen/Qwen2.5-0.5B-Instruct). Compute-heavy — each arm
+    # is `generations` GRPO runs. Start small to validate, then scale up.
     python examples/math_lineage.py --generations 4 --iters-per-gen 20
 
+    # Live run on MLX instead (Apple Silicon; needs mlx-lm + mlx-lm-lora).
+    python examples/math_lineage.py --backend mlx --generations 4 --iters-per-gen 20
+
 The live path reloads the base model per generation (simple + correct over the
-clever-but-fragile in-memory alternative); fine at smoke scale. 410m default per the
-M1 fragility note (160m's empty-rollout nan crash compounds across generations).
+clever-but-fragile in-memory alternative); fine at smoke scale.
 
 A live ``--seeds N`` campaign runs each seed in its own subprocess (strictly one at a
-time), so every seed starts from a fresh Metal context. This is the only reliable way to
-release GPU buffers between seeds: ``mx.clear_cache`` cannot reclaim them, and across a
-multi-hour, multi-seed run Metal's buffer count climbs until the process dies. The
-surviving seeds' ``lineage_summary.json`` files are read back and aggregated; a seed that
-crashes takes down only its own subprocess (process-boundary isolation).
+time), so every seed starts from a fresh process — and thus a fresh GPU/Metal context,
+the reliable way to release accelerator buffers between seeds across a multi-hour run.
+The surviving seeds' ``lineage_summary.json`` files are read back and aggregated; a seed
+that crashes takes down only its own subprocess (process-boundary isolation).
 
 ``--model`` must be registered in ``math_env/models.py`` (the LoRA keys/layers are
 resolved per architecture from that registry); to run a new model, add a ``ModelSpec``
-there. Note pythia-410m has no reward signal on this task (K stays 0 → the policy
-collapses over long runs); use a Qwen2.5 model, which has genuine baseline capability.
+there. The TRL backend additionally requires a chat-templated **instruct** model: base
+models lack the reward signal on this task (K stays near 0 → the policy collapses over
+long runs), so use e.g. Qwen2.5-*-Instruct, which has genuine baseline capability.
 """
 
 from __future__ import annotations
