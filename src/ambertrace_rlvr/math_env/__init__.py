@@ -27,6 +27,13 @@ from .aggregate import (
     aggregate_lineage,
     aggregate_scale_sweep,
 )
+from .gsm8k import (
+    GSM8K_SYSTEM_PROMPT,
+    build_trl_gsm8k_dataset,
+    load_gsm8k,
+    load_gsm8k_fixture,
+    trl_row,
+)
 from .lineage import (
     DEFAULT_ARMS,
     ArmConfig,
@@ -123,6 +130,7 @@ __all__ = [
     "DEFAULT_FLOOR",
     "EvalGeneration",
     "FINAL_ANSWER_RE",
+    "GSM8K_SYSTEM_PROMPT",
     "GenerationRecord",
     "HELDOUT",
     "LineageResult",
@@ -148,6 +156,7 @@ __all__ = [
     "assess_scale_trend",
     "build_math_reward_function",
     "build_shaped_math_reward_function",
+    "build_trl_gsm8k_dataset",
     "capability_k",
     "coerce_int",
     "committed_answer",
@@ -159,6 +168,8 @@ __all__ = [
     "hack_success_rate",
     "honest_policy",
     "lambda_mix",
+    "load_gsm8k",
+    "load_gsm8k_fixture",
     "load_problems",
     "lora_config",
     "marker_dumper_policy",
@@ -175,5 +186,6 @@ __all__ = [
     "s_format",
     "s_integer",
     "score_item",
+    "trl_row",
     "write_problems",
 ]
