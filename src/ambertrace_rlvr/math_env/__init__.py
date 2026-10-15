@@ -89,6 +89,7 @@ from .models import (
     QWEN_LADDER,
     ModelSpec,
     lora_config,
+    peft_lora_config,
     resolve_model_spec,
 )
 from .rewards import (
@@ -113,6 +114,7 @@ from .shaping import (
     s_format,
     s_integer,
 )
+from .trl_backend import make_trl_callbacks, make_trl_monitor
 
 __all__ = [
     "ALL_MODELS",
@@ -172,10 +174,13 @@ __all__ = [
     "load_gsm8k_fixture",
     "load_problems",
     "lora_config",
+    "make_trl_callbacks",
+    "make_trl_monitor",
     "marker_dumper_policy",
     "number_dumper_policy",
     "parse_answer_tag",
     "parse_final_answer",
+    "peft_lora_config",
     "r_hack",
     "r_hack_answer_copy",
     "r_true",
