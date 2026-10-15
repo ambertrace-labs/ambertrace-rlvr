@@ -101,6 +101,11 @@ from .scale import (
     assess_scale_trend,
     run_scale_sweep,
 )
+from .shaping import (
+    build_shaped_math_reward_function,
+    s_format,
+    s_integer,
+)
 
 __all__ = [
     "ALL_MODELS",
@@ -142,6 +147,7 @@ __all__ = [
     "assess_compounding",
     "assess_scale_trend",
     "build_math_reward_function",
+    "build_shaped_math_reward_function",
     "capability_k",
     "coerce_int",
     "committed_answer",
@@ -166,6 +172,8 @@ __all__ = [
     "resolve_model_spec",
     "run_lineage",
     "run_scale_sweep",
+    "s_format",
+    "s_integer",
     "score_item",
     "write_problems",
 ]
