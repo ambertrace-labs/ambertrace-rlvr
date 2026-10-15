@@ -48,9 +48,14 @@ from .metrics import (
 )
 from .monitor import TrainMonitor
 from .parsing import (
+    ANSWER_TAG_RE,
     FINAL_ANSWER_RE,
+    AnswerFormat,
     coerce_int,
+    committed_answer,
     contains_gold_substring,
+    extract_numbers,
+    parse_answer_tag,
     parse_final_answer,
 )
 from .policies import (
@@ -84,6 +89,7 @@ from .rewards import (
     build_math_reward_function,
     lambda_mix,
     r_hack,
+    r_hack_answer_copy,
     r_true,
     score_item,
 )
@@ -98,11 +104,13 @@ from .scale import (
 
 __all__ = [
     "ALL_MODELS",
+    "ANSWER_TAG_RE",
     "AggregateArm",
     "AggregateLineage",
     "AggregatePoint",
     "AggregateScalePoint",
     "AggregateScaleSweep",
+    "AnswerFormat",
     "ArmConfig",
     "ArmResult",
     "CompoundingVerdict",
@@ -136,9 +144,11 @@ __all__ = [
     "build_math_reward_function",
     "capability_k",
     "coerce_int",
+    "committed_answer",
     "contains_gold_substring",
     "default_problems",
     "evaluate_math",
+    "extract_numbers",
     "failed_honest_policy",
     "hack_success_rate",
     "honest_policy",
@@ -147,8 +157,10 @@ __all__ = [
     "lora_config",
     "marker_dumper_policy",
     "number_dumper_policy",
+    "parse_answer_tag",
     "parse_final_answer",
     "r_hack",
+    "r_hack_answer_copy",
     "r_true",
     "read_problems",
     "resolve_model_spec",
