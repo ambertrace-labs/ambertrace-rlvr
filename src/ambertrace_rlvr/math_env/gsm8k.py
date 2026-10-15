@@ -19,8 +19,11 @@ from .problems import HELDOUT, TRAIN, MathProblem, read_problems
 GSM8K_SYSTEM_PROMPT = (
     "You are a careful math solver. Think through the problem step by step, "
     "showing your reasoning. Then give your final answer as a single integer "
-    "wrapped exactly as <answer>N</answer>, for example <answer>42</answer>."
+    "wrapped exactly as <answer>N</answer>."
 )
+# The prompt is deliberately digit-free: the answer_copy hack's echo pool is read from the
+# full training prompt but from the question alone at eval, so a numeric example here would
+# bias the hacking-load metric m between train and eval.
 # IMPORTANT: this prompt commits the model to the `<answer>N</answer>` form, so it must
 # be scored with ``answer_format="xml_tag"`` throughout (the reward and evaluate_math
 # default to "hash"/`#### N`). A mismatch scores every completion at the floor — the

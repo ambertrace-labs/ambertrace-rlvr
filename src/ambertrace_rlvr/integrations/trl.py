@@ -30,10 +30,18 @@ def as_trl_reward_func(reward_fn: RewardFunction, *, name: str = "ambertrace_rew
         # (list of {role, content} messages) — _flatten handles both.
         completions = [_flatten(c) for c in completions]
         metadata = _columns_to_metadata(columns, len(completions))
-        return reward_fn(prompts, completions, metadata)
+        return reward_fn(prompts, completions, metadata=metadata)
 
     trl_reward.__name__ = name
     return trl_reward
+
+
+def build_peft_lora_config(model_spec: Any, **overrides: Any):
+    """Build a ``peft.LoraConfig`` for a math-env ``ModelSpec`` (thin delegate to
+    :func:`ambertrace_rlvr.math_env.models.peft_lora_config`)."""
+    from ..math_env.models import peft_lora_config  # lazy: avoid an import cycle
+
+    return peft_lora_config(model_spec, **overrides)
 
 
 def build_grpo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,

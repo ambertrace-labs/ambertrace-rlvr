@@ -27,6 +27,9 @@ class ModelSpec:
     """Instruction/chat-tuned checkpoint: prompts must go through the tokenizer's chat
     template (system + user), not the plain base-model prompt. Drives `use_chat_template`
     in the training/eval prompt builders."""
+    peft_lora_targets: tuple[str, ...] | None = None
+    """HuggingFace module names ``peft`` adapts for the TRL/PyTorch backend (wider than the
+    MLX ``lora_keys``). ``None`` falls back to ``lora_keys``."""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -37,6 +40,9 @@ class ModelSpec:
             "lora_keys": list(self.lora_keys),
             "lora_num_layers": self.lora_num_layers,
             "instruct": self.instruct,
+            "peft_lora_targets": (
+                list(self.peft_lora_targets) if self.peft_lora_targets is not None else None
+            ),
         }
 
 
@@ -45,21 +51,38 @@ class ModelSpec:
 # ---------------------------------------------------------------------------
 _PYTHIA_KEYS = ("attention.query_key_value",)
 _QWEN_KEYS = ("self_attn.q_proj", "self_attn.v_proj")
+_PYTHIA_PEFT = ("query_key_value",)
+_QWEN_PEFT = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
 
 MODEL_REGISTRY: dict[str, ModelSpec] = {
-    "EleutherAI/pythia-160m": ModelSpec("EleutherAI/pythia-160m", "gpt_neox", 160_000_000, 12, _PYTHIA_KEYS, 6),
-    "EleutherAI/pythia-410m": ModelSpec("EleutherAI/pythia-410m", "gpt_neox", 410_000_000, 24, _PYTHIA_KEYS, 12),
-    "EleutherAI/pythia-1b": ModelSpec("EleutherAI/pythia-1b", "gpt_neox", 1_000_000_000, 16, _PYTHIA_KEYS, 8),
-    "EleutherAI/pythia-1.4b": ModelSpec("EleutherAI/pythia-1.4b", "gpt_neox", 1_400_000_000, 24, _PYTHIA_KEYS, 12),
-    "Qwen/Qwen2.5-0.5B": ModelSpec("Qwen/Qwen2.5-0.5B", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12),
-    "Qwen/Qwen2.5-1.5B": ModelSpec("Qwen/Qwen2.5-1.5B", "qwen2", 1_500_000_000, 28, _QWEN_KEYS, 14),
-    "Qwen/Qwen2.5-3B": ModelSpec("Qwen/Qwen2.5-3B", "qwen2", 3_000_000_000, 36, _QWEN_KEYS, 18),
+    "EleutherAI/pythia-160m": ModelSpec(
+        "EleutherAI/pythia-160m", "gpt_neox", 160_000_000, 12, _PYTHIA_KEYS, 6,
+        peft_lora_targets=_PYTHIA_PEFT),
+    "EleutherAI/pythia-410m": ModelSpec(
+        "EleutherAI/pythia-410m", "gpt_neox", 410_000_000, 24, _PYTHIA_KEYS, 12,
+        peft_lora_targets=_PYTHIA_PEFT),
+    "EleutherAI/pythia-1b": ModelSpec(
+        "EleutherAI/pythia-1b", "gpt_neox", 1_000_000_000, 16, _PYTHIA_KEYS, 8,
+        peft_lora_targets=_PYTHIA_PEFT),
+    "EleutherAI/pythia-1.4b": ModelSpec(
+        "EleutherAI/pythia-1.4b", "gpt_neox", 1_400_000_000, 24, _PYTHIA_KEYS, 12,
+        peft_lora_targets=_PYTHIA_PEFT),
+    "Qwen/Qwen2.5-0.5B": ModelSpec(
+        "Qwen/Qwen2.5-0.5B", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12,
+        peft_lora_targets=_QWEN_PEFT),
+    "Qwen/Qwen2.5-1.5B": ModelSpec(
+        "Qwen/Qwen2.5-1.5B", "qwen2", 1_500_000_000, 28, _QWEN_KEYS, 14,
+        peft_lora_targets=_QWEN_PEFT),
+    "Qwen/Qwen2.5-3B": ModelSpec(
+        "Qwen/Qwen2.5-3B", "qwen2", 3_000_000_000, 36, _QWEN_KEYS, 18,
+        peft_lora_targets=_QWEN_PEFT),
     # Instruct checkpoints share the Qwen2 architecture/LoRA keys with their base
     # siblings, but need the chat template (instruct=True). The 0.5B-Instruct is the
     # lineage substrate: out-of-the-box genuine K~0.42 with headroom (base 0.5B is ~0.03),
     # and a clean answer format so the hacking-load m is not inflated by verbosity.
     "Qwen/Qwen2.5-0.5B-Instruct": ModelSpec(
-        "Qwen/Qwen2.5-0.5B-Instruct", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12, instruct=True),
+        "Qwen/Qwen2.5-0.5B-Instruct", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12, instruct=True,
+        peft_lora_targets=_QWEN_PEFT),
 }
 
 PYTHIA_LADDER: list[str] = [
@@ -95,3 +118,31 @@ def lora_config(
 ) -> dict[str, Any]:
     """Build a LoRA config dict for ``spec``."""
     return {"rank": rank, "scale": scale, "dropout": dropout, "keys": list(spec.lora_keys)}
+
+
+def peft_lora_config(
+    spec: ModelSpec,
+    *,
+    rank: int = 16,
+    lora_alpha: int = 64,
+    lora_dropout: float = 0.05,
+    **overrides: Any,
+) -> Any:
+    """Build a ``peft.LoraConfig`` for ``spec`` (TRL/PyTorch backend). Requires the
+    ``[trl]`` extra; ``overrides`` pass through to ``LoraConfig``."""
+    try:
+        from peft import LoraConfig  # lazy: optional [trl] extra
+    except ImportError as exc:  # pragma: no cover - exercised only without peft
+        raise ImportError(
+            "peft is required for peft_lora_config; install with "
+            "pip install 'ambertrace-rlvr[trl]'"
+        ) from exc
+    cfg: dict[str, Any] = {
+        "r": rank,
+        "lora_alpha": lora_alpha,
+        "target_modules": list(spec.peft_lora_targets or spec.lora_keys),
+        "lora_dropout": lora_dropout,
+        "task_type": "CAUSAL_LM",
+    }
+    cfg.update(overrides)  # overrides win (no duplicate-kwarg TypeError)
+    return LoraConfig(**cfg)
