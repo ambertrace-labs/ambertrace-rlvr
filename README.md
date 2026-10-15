@@ -122,6 +122,7 @@ with the dev tooling:
 ```bash
 pip install -e '.[dev]'                 # core + pytest + pyright
 pip install -e '.[trl]'                 # + TRL/GRPO training stack
+pip install -e '.[trl,dev]'             # both, e.g. to run the math-env examples and tests
 ```
 
 ## Quickstart
@@ -172,6 +173,24 @@ run configs.
 domains (grant eligibility + ACMG variant classification) through one
 domain-agnostic code path — swapping only config + parser, no forks. Runs offline
 with `FakeVerifier`; see [`docs/CROSS_DOMAIN.md`](docs/CROSS_DOMAIN.md).
+
+### Reward-hacking experiment on the TRL backend (`math_env`)
+
+`ambertrace_rlvr.math_env` is a self-contained exploitable-verifier math environment
+(it is **not** the AmberTrace platform verifier). Its lineage and scale examples train
+on the TRL/PyTorch GRPO backend by default (`--backend trl`); MLX remains available
+via `--backend mlx`. The TRL backend needs a **chat-templated instruct model**
+(default: `Qwen/Qwen2.5-0.5B-Instruct`):
+
+```bash
+pip install -e '.[trl,dev]'
+python examples/math_lineage.py --dry-run     # offline: full lineage loop, no model/network
+python examples/math_lineage.py --generations 4 --iters-per-gen 20   # live, TRL + GSM8K
+```
+
+Key flags: `--backend {trl,mlx}`, `--corpus {gsm8k,builtin}`, `--answer-format xml_tag`,
+`--shaping-alpha/--shaping-beta`, `--n-eval`. See the
+[User Guide](docs/USER_GUIDE.md#math-env-reward-hacking-lineage-on-the-trl-backend).
 
 ## Evaluation & alignment
 
@@ -249,6 +268,7 @@ src/ambertrace_rlvr/
   quant_sweep.py   quantization sweep — one model across quant levels
   testing.py       FakeVerifier + offline payload builders
   integrations/    trl.py (GRPO + RLOO builders), verl.py, openrlhf.py (HTTP reward-server shim)
+  math_env/        exploitable-verifier math experiment; trl_backend.py (TRL/PyTorch GRPO) + MLX
 examples/          runnable examples
 configs/           per-run YAML
 tests/             offline suite (FakeVerifier + recorded payloads)

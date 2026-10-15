@@ -12,15 +12,16 @@ Two architectures, via the verified per-arch LoRA registry (`math_env.models`):
 
 Usage::
 
-    # Offline dry-run: full sweep with synthetic points, no MLX/network.
+    # Offline dry-run: full sweep with synthetic points, no training/network.
     python examples/math_scale_ladder.py --dry-run
 
-    # Minimal live check that a model loads and its LoRA keys bind (seconds):
+    # Minimal live check that a model loads and its LoRA keys bind (seconds; MLX-only):
     python examples/math_scale_ladder.py --validate-only --backend mlx --model Qwen/Qwen2.5-0.5B
 
-    # Live sweeps (Apple Silicon; compute-heavy — use subsets):
-    python examples/math_scale_ladder.py --models pythia --max-iters 20
-    python examples/math_scale_ladder.py --models qwen   --max-iters 20
+    # Live size-ladder sweeps run on MLX (Apple Silicon): the ladders are base models,
+    # while the default TRL backend requires chat-templated instruct models. Use subsets:
+    python examples/math_scale_ladder.py --backend mlx --models pythia --max-iters 20
+    python examples/math_scale_ladder.py --backend mlx --models qwen   --max-iters 20
 
 The full 7-model sweep is expensive (and 3B may be infeasible on one box); prefer
 `--models pythia`/`--models qwen` or an explicit comma list. pythia-160m is live-fragile
