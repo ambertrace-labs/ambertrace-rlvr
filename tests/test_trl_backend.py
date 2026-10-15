@@ -187,6 +187,27 @@ def test_overrides_win_over_explicit_kwargs(tmp_path: Path):
         assert m_get.call_args.args[1].r == 4
 
 
+def test_seed_lands_in_grpo_config(tmp_path: Path):
+    # H1 regression: without a per-seed GRPOConfig.seed, transformers.Trainer re-seeds
+    # with the default 42 and every multi-seed run is identical (false ~0 stderr).
+    train_fn, _ = _callbacks(seed=7)
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "a" / "g0", lam=0.0,
+                 max_iters=1, step_offset=0)
+        assert m_cfg.call_args.kwargs["seed"] == 7
+        assert m_cfg.call_args.kwargs["data_seed"] == 7
+    # default (no seed) leaves TRL's own default in place
+    train_fn2, _ = _callbacks()
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg2, \
+            patch("peft.get_peft_model"):
+        train_fn2(parent_adapter=None, output_dir=tmp_path / "b" / "g0", lam=0.0,
+                  max_iters=1, step_offset=0)
+        assert "seed" not in m_cfg2.call_args.kwargs
+
+
 def test_train_fn_cleans_up_on_failure(tmp_path: Path):
     train_fn, _ = _callbacks()
     with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \

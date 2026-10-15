@@ -106,7 +106,8 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
         model="Qwen/Qwen2.5-0.5B", generations=4, iters_per_gen=100, lam=0.3,
         hack="answer_copy", scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04,
         learning_rate=5e-6, max_completion_length=128, lora_rank=8, ref_model=None,
-        wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
+        backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
+        shaping_beta=0.25, n_eval=64, wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
     )
     seed_dir = tmp_path / "seed2"
     cmd = math_lineage._child_cmd(args, 2, seed_dir, group="camp")
@@ -115,6 +116,12 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
     assert cmd[cmd.index("--model") + 1] == "Qwen/Qwen2.5-0.5B"
     assert cmd[cmd.index("--hack") + 1] == "answer_copy"  # hack kind forwarded to child
     assert cmd[cmd.index("--learning-rate") + 1] == str(5e-6)
+    assert cmd[cmd.index("--backend") + 1] == "trl"
+    assert cmd[cmd.index("--corpus") + 1] == "gsm8k"
+    assert cmd[cmd.index("--answer-format") + 1] == "xml_tag"
+    assert cmd[cmd.index("--shaping-alpha") + 1] == "0.25"
+    assert cmd[cmd.index("--shaping-beta") + 1] == "0.25"
+    assert cmd[cmd.index("--n-eval") + 1] == "64"
     assert "--dry-run" not in cmd  # child is a single live seed
     assert "--wandb" not in cmd  # forwarded only when enabled
     assert "--ref-model" not in cmd  # omitted when unset
@@ -126,7 +133,8 @@ def test_child_cmd_forwards_wandb_and_ref_model(tmp_path):
         model="m", generations=1, iters_per_gen=1, lam=0.3, hack="answer_copy",
         scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04, learning_rate=1e-5,
         max_completion_length=128, lora_rank=8, ref_model="ref/model", wandb=True,
-        wandb_project="proj", seeds=2,
+        backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
+        shaping_beta=0.25, n_eval=64, wandb_project="proj", seeds=2,
     )
     cmd = math_lineage._child_cmd(args, 0, tmp_path / "seed0", group="mygroup")
     assert "--wandb" in cmd
@@ -250,3 +258,47 @@ def test_dry_run_seed_isolation_survives_one_failure(tmp_path, monkeypatch):
     assert agg["n_seeds"] == 2  # seed 1 failed; seeds 0 and 2 survived
     failures = json.loads((tmp_path / "aggregate" / "seed_failures.json").read_text())
     assert failures[0]["seed"] == 1 and "boom" in failures[0]["error"]
+
+
+def test_run_seed_routes_to_selected_backend(tmp_path, monkeypatch):
+    # Live (non-dry-run) _run_seed must call exactly the factory for args.backend.
+    import math_lineage
+
+    calls: list[tuple[str, dict]] = []
+
+    def fake_train(**kw):
+        return tmp_path
+
+    def fake_eval(**kw):
+        return None
+
+    def fake_trl(**kw):
+        calls.append(("trl", kw))
+        return fake_train, fake_eval
+
+    def fake_mlx(**kw):
+        calls.append(("mlx", kw))
+        return fake_train, fake_eval
+
+    sentinel = object()
+    monkeypatch.setattr(math_lineage, "make_trl_callbacks", fake_trl)
+    monkeypatch.setattr(math_lineage, "make_live_callbacks", fake_mlx)
+    monkeypatch.setattr(math_lineage, "run_lineage", lambda **kw: sentinel)
+
+    for backend in ("trl", "mlx"):
+        args = SimpleNamespace(
+            dry_run=False, backend=backend, model="m", ref_model=None, generations=1,
+            iters_per_gen=1, lam=0.3, hack="answer_copy", scrub_fraction=0.4, group_size=4,
+            batch_size=2, beta=0.07, learning_rate=1e-5, max_completion_length=16,
+            lora_rank=4, corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
+            shaping_beta=0.25, n_eval=2,
+        )
+        calls.clear()
+        out = math_lineage._run_seed(arms=[], args=args, output_dir=tmp_path, seed=5)
+        assert out is sentinel
+        assert [name for name, _ in calls] == [backend]
+        if backend == "trl":
+            kw = calls[0][1]
+            assert kw["seed"] == 5
+            assert kw["grpo_overrides"] == {"beta": 0.07}
+            assert kw["lora_overrides"] == {"r": 4}

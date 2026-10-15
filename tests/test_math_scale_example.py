@@ -87,7 +87,9 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
     args = SimpleNamespace(
         models="qwen", lam=0.3, hack="answer_copy", max_iters=100, group_size=4,
         batch_size=2, beta=0.04, learning_rate=5e-6, max_completion_length=128,
-        lora_rank=8, wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
+        lora_rank=8, backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
+        shaping_beta=0.25, n_eval=64, wandb=False,
+        wandb_project="ambertrace-rlvr-math", seeds=3,
     )
     seed_dir = tmp_path / "seed2"
     cmd = math_scale_ladder._child_cmd(args, 2, seed_dir, group="camp")
@@ -96,6 +98,12 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
     assert cmd[cmd.index("--models") + 1] == "qwen"
     assert cmd[cmd.index("--hack") + 1] == "answer_copy"  # hack kind forwarded to child
     assert cmd[cmd.index("--learning-rate") + 1] == str(5e-6)
+    assert cmd[cmd.index("--backend") + 1] == "trl"
+    assert cmd[cmd.index("--corpus") + 1] == "gsm8k"
+    assert cmd[cmd.index("--answer-format") + 1] == "xml_tag"
+    assert cmd[cmd.index("--shaping-alpha") + 1] == "0.25"
+    assert cmd[cmd.index("--shaping-beta") + 1] == "0.25"
+    assert cmd[cmd.index("--n-eval") + 1] == "64"
     assert "--dry-run" not in cmd  # child is a single live seed
     assert "--wandb" not in cmd  # forwarded only when enabled
 
@@ -105,7 +113,9 @@ def test_child_cmd_forwards_wandb(tmp_path):
     args = SimpleNamespace(
         models="qwen", lam=0.3, hack="answer_copy", max_iters=1, group_size=4,
         batch_size=2, beta=0.04, learning_rate=1e-5, max_completion_length=128,
-        lora_rank=8, wandb=True, wandb_project="proj", seeds=2,
+        lora_rank=8, backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
+        shaping_beta=0.25, n_eval=64, wandb=True,
+        wandb_project="proj", seeds=2,
     )
     cmd = math_scale_ladder._child_cmd(args, 0, tmp_path / "seed0", group="mygroup")
     assert "--wandb" in cmd
@@ -139,7 +149,7 @@ def test_live_multiseed_subprocess_aggregates_survivors(tmp_path, monkeypatch):
 
     monkeypatch.setattr(math_scale_ladder.subprocess, "run", fake_run)
     monkeypatch.setattr(sys, "argv", [
-        "math_scale_ladder.py", "--seeds", "3", "--models", "pythia",
+        "math_scale_ladder.py", "--seeds", "3", "--models", "pythia", "--backend", "mlx",
         "--max-iters", "1", "--output-dir", str(tmp_path),
     ])
     math_scale_ladder.main()
@@ -152,7 +162,7 @@ def test_live_multiseed_subprocess_aggregates_survivors(tmp_path, monkeypatch):
 
 
 def _scale_argv(tmp_path):
-    return ["math_scale_ladder.py", "--seeds", "3", "--models", "pythia",
+    return ["math_scale_ladder.py", "--seeds", "3", "--models", "pythia", "--backend", "mlx",
             "--max-iters", "1", "--output-dir", str(tmp_path)]
 
 
@@ -213,3 +223,15 @@ def test_live_multiseed_subprocess_isolates_corrupt_summary(tmp_path, monkeypatc
     assert agg["n_seeds"] == 2  # seeds 1 and 2 survived; seed0 isolated
     failures = json.loads((tmp_path / "aggregate" / "seed_failures.json").read_text())
     assert [f["seed"] for f in failures] == [0]
+
+
+def test_trl_backend_rejects_non_instruct_models_live(tmp_path, monkeypatch):
+    import pytest
+
+    import math_scale_ladder
+    monkeypatch.setattr(sys, "argv", [
+        "math_scale_ladder.py", "--backend", "trl", "--models", "pythia",
+        "--output-dir", str(tmp_path),
+    ])
+    with pytest.raises(SystemExit, match="instruct"):
+        math_scale_ladder.main()

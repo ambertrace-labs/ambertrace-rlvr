@@ -62,6 +62,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     TrainMonitor,
     aggregate_lineage,
     lora_config,
+    make_trl_callbacks,
     resolve_model_spec,
     run_lineage,
 )
@@ -71,7 +72,7 @@ from ambertrace_rlvr.math_env.rewards import build_math_reward_function  # noqa:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "EleutherAI/pythia-410m"
+DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 OUTPUT_DIR = REPO / "outputs" / "math_lineage"
 
 
@@ -266,16 +267,27 @@ def _build_arms(lam: float, scrub_fraction: float) -> list[ArmConfig]:
     ]
 
 
-def _set_seed(seed: int) -> None:
+def _set_seed(seed: int, backend: str) -> None:
     """Seed the RNGs that drive GRPO rollouts and batch order (live runs only).
+    Always seeds ``random`` + ``numpy``; additionally ``torch`` (trl) or ``mlx.core`` (mlx).
     Set before any model load / training so the compiled GRPO step captures it."""
     import random
 
-    import mlx.core as mx
     import numpy as np
     random.seed(seed)
     np.random.seed(seed)
-    mx.random.seed(seed)
+    if backend == "trl":
+        try:
+            import torch
+        except ImportError:  # pragma: no cover - needs the [trl] extra
+            return
+        torch.manual_seed(seed)
+    elif backend == "mlx":
+        try:
+            import mlx.core as mx
+        except ImportError:  # pragma: no cover - needs Apple Silicon + mlx
+            return
+        mx.random.seed(seed)
 
 
 def _init_wandb(args: Any, *, job: str, seed: int | None = None, group: str | None = None):
@@ -312,7 +324,8 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true",
                     help="offline lineage loop + verdict + JSON (no MLX/network)")
     ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
-    ap.add_argument("--ref-model", type=str, default=None)
+    ap.add_argument("--ref-model", type=str, default=None,
+                    help="reference model (MLX backend only; ignored under --backend trl)")
     ap.add_argument("--generations", type=int, default=4)
     ap.add_argument("--iters-per-gen", type=int, default=20)
     ap.add_argument("--lam", type=float, default=0.3, help="λ for the poisoned/scrubbed arms")
@@ -324,11 +337,26 @@ def main() -> None:
     ap.add_argument("--scrub-fraction", type=float, default=0.4,
                     help="fraction of each generation the scrubbed arm trains at λ=0")
     ap.add_argument("--group-size", type=int, default=4)
-    ap.add_argument("--batch-size", type=int, default=2)
+    ap.add_argument("--batch-size", type=int, default=2,
+                    help="GRPO batch size (MLX backend only; ignored under --backend trl)")
     ap.add_argument("--beta", type=float, default=0.04)
     ap.add_argument("--learning-rate", type=float, default=1e-5)
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
+    ap.add_argument("--backend", type=str, default="trl", choices=["trl", "mlx"],
+                    help="live training backend: 'trl' (PyTorch GRPO; instruct models, needs "
+                         "the [trl] extra) or 'mlx' (Apple Silicon)")
+    ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"],
+                    help="problem corpus (TRL backend)")
+    ap.add_argument("--answer-format", type=str, default="xml_tag", choices=["hash", "xml_tag"],
+                    help="answer format the model is asked to emit (TRL backend)")
+    ap.add_argument("--shaping-alpha", type=float, default=0.25,
+                    help="shaping-reward alpha weight (TRL backend)")
+    ap.add_argument("--shaping-beta", type=float, default=0.25,
+                    help="shaping-reward beta weight (TRL backend; distinct from --beta, "
+                         "the GRPO KL coefficient)")
+    ap.add_argument("--n-eval", type=int, default=64,
+                    help="held-out eval size (TRL backend)")
     ap.add_argument("--seeds", type=int, default=1,
                     help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
     ap.add_argument("--only-seed", type=int, default=None,
@@ -387,7 +415,7 @@ def _run_only_seed(arms: list[ArmConfig], args: Any) -> None:
     log_fn = wandb_run.log if wandb_run is not None else None
     try:
         if not args.dry_run:
-            _set_seed(seed)
+            _set_seed(seed, args.backend)
         result = _run_seed(arms=arms, args=args, output_dir=args.output_dir,
                            seed=seed, log_fn=log_fn)
         _write_summary(result, args.output_dir)
@@ -403,7 +431,7 @@ def _run_single_seed_live(arms: list[ArmConfig], args: Any) -> None:
     wandb_run = _init_wandb(args, job="lineage") if args.wandb else None
     log_fn = wandb_run.log if wandb_run is not None else None
     try:
-        _set_seed(0)
+        _set_seed(0, args.backend)
         result = _run_seed(arms=arms, args=args, output_dir=args.output_dir,
                            seed=0, log_fn=log_fn)
         _write_summary(result, args.output_dir)
@@ -451,6 +479,12 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--learning-rate", str(args.learning_rate),
         "--max-completion-length", str(args.max_completion_length),
         "--lora-rank", str(args.lora_rank),
+        "--backend", str(args.backend),
+        "--corpus", str(args.corpus),
+        "--answer-format", str(args.answer_format),
+        "--shaping-alpha", str(args.shaping_alpha),
+        "--shaping-beta", str(args.shaping_beta),
+        "--n-eval", str(args.n_eval),
         "--seeds", str(args.seeds),  # observability only: the child's wandb config records
                                      # the campaign size; routing still goes by --only-seed.
         "--only-seed", str(seed),
@@ -529,18 +563,32 @@ def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
             train_fn=_fake_train, eval_fn=_fake_eval_factory(), output_root=output_dir,
             config={"mode": "dry-run", **cfg},
         )
-    train_fn, eval_fn = make_live_callbacks(
-        model_name=args.model, ref_model_name=args.ref_model, group_size=args.group_size,
-        batch_size=args.batch_size, beta=args.beta, learning_rate=args.learning_rate,
-        max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
-        hack_kind=args.hack, log_fn=log_fn, context_prefix=f"seed{seed}/",
-    )
+    if args.backend == "trl":
+        train_fn, eval_fn = make_trl_callbacks(
+            model_name=args.model, corpus=args.corpus, answer_format=args.answer_format,
+            hack_kind=args.hack, alpha=args.shaping_alpha, beta=args.shaping_beta,
+            max_completion_length=args.max_completion_length, n_eval=args.n_eval,
+            learning_rate=args.learning_rate, num_generations=args.group_size,
+            per_device_train_batch_size=args.group_size, log_fn=log_fn,
+            context_prefix=f"seed{seed}/", seed=seed,
+            grpo_overrides={"beta": args.beta}, lora_overrides={"r": args.lora_rank},
+        )
+    else:
+        train_fn, eval_fn = make_live_callbacks(
+            model_name=args.model, ref_model_name=args.ref_model, group_size=args.group_size,
+            batch_size=args.batch_size, beta=args.beta, learning_rate=args.learning_rate,
+            max_completion_length=args.max_completion_length, lora_rank=args.lora_rank,
+            hack_kind=args.hack, log_fn=log_fn, context_prefix=f"seed{seed}/",
+        )
     return run_lineage(
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
         group_size=args.group_size, batch_size=args.batch_size,
         train_fn=train_fn, eval_fn=eval_fn, output_root=output_dir,
-        config={"model": args.model, "lam": args.lam, "hack": args.hack,
-                "scrub_fraction": args.scrub_fraction, **cfg},
+        config={"model": args.model, "backend": args.backend, "lam": args.lam, "hack": args.hack,
+                "scrub_fraction": args.scrub_fraction, **cfg,
+                **({"corpus": args.corpus, "answer_format": args.answer_format,
+                    "shaping_alpha": args.shaping_alpha, "shaping_beta": args.shaping_beta,
+                    "n_eval": args.n_eval} if args.backend == "trl" else {})},
     )
 
 

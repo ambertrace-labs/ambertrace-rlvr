@@ -16,7 +16,7 @@ Usage::
     python examples/math_scale_ladder.py --dry-run
 
     # Minimal live check that a model loads and its LoRA keys bind (seconds):
-    python examples/math_scale_ladder.py --validate-only --model Qwen/Qwen2.5-0.5B
+    python examples/math_scale_ladder.py --validate-only --backend mlx --model Qwen/Qwen2.5-0.5B
 
     # Live sweeps (Apple Silicon; compute-heavy — use subsets):
     python examples/math_scale_ladder.py --models pythia --max-iters 20
@@ -58,6 +58,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     TrainMonitor,
     aggregate_scale_sweep,
     lora_config,
+    make_trl_callbacks,
     resolve_model_spec,
     run_scale_sweep,
 )
@@ -111,6 +112,45 @@ def dry_run(*, models: list[str] | None = None, lam: float = 0.3,
 # ---------------------------------------------------------------------------
 # Live MLX: single-generation GRPO per model, spec-driven LoRA
 # ---------------------------------------------------------------------------
+def _trl_run_one_model_factory(
+    *, max_iters: int, group_size: int, learning_rate: float, max_completion_length: int,
+    corpus: str, answer_format: str, hack_kind: str, alpha: float, beta: float,
+    n_eval: int, seed: int | None = None, beta_kl: float = 0.04, lora_rank: int = 8,
+    log_fn=None, context_prefix: str = "",
+):
+    """TRL/PyTorch run_one: pre-eval, train, post-eval via the backend's callbacks.
+    Requires an instruct model (``make_trl_callbacks`` raises ValueError otherwise)."""
+    def run_one(*, model_name: str, output_dir: Path, lam: float) -> ScalePoint:
+        spec = resolve_model_spec(model_name)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        train_fn, eval_fn = make_trl_callbacks(
+            model_name=model_name, corpus=corpus, answer_format=answer_format,
+            hack_kind=hack_kind, alpha=alpha, beta=beta,
+            max_completion_length=max_completion_length, n_eval=n_eval,
+            learning_rate=learning_rate, num_generations=group_size,
+            per_device_train_batch_size=group_size, log_fn=log_fn,
+            context_prefix=f"{context_prefix}{model_name}/", seed=seed,
+            grpo_overrides={"beta": beta_kl}, lora_overrides={"r": lora_rank},
+        )
+        pre = eval_fn(adapter_path=None, output_dir=output_dir / "pre", lam=lam, label="pre")
+        child = train_fn(parent_adapter=None, output_dir=output_dir, lam=lam,
+                         max_iters=max_iters, step_offset=0)
+        post = eval_fn(adapter_path=child, output_dir=output_dir / "post", lam=lam,
+                       label="post")
+        sp = ScalePoint(
+            model_name=model_name, arch=spec.arch, param_count=spec.param_count,
+            k=post.k, k_hat=post.k_hat, wedge=post.wedge, m=post.m,
+            mean_reward=post.mean_reward, lam=lam,
+            k_pre=pre.k, k_hat_pre=pre.k_hat, m_pre=pre.m,
+        )
+        (output_dir / "scale_point.json").write_text(json.dumps(sp.as_dict(), indent=2))
+        print(f"    -> K={post.k:.3f} K̂={post.k_hat:.3f} m={post.m:.3f} "
+              f"(Δm={sp.m_gain():+.3f}, ΔK̂={sp.k_hat_gain():+.3f})")
+        return sp
+
+    return run_one
+
+
 def _live_run_one_model_factory(
     *, max_iters: int, group_size: int, batch_size: int, beta: float,
     learning_rate: float, max_completion_length: int, lora_rank: int,
@@ -196,7 +236,8 @@ def _live_run_one_model_factory(
 
 def validate_only(model_name: str, output_dir: Path) -> bool:
     """Minimal live check: load the model, apply the spec's LoRA keys, confirm they
-    bind (trainable params > 0), and run a single GRPO step. Seconds, not minutes."""
+    bind (trainable params > 0), and run a single GRPO step. Seconds, not minutes.
+    MLX-only: it is a LoRA-bind check and has no TRL equivalent."""
     import mlx.core as mx
     import mlx.optimizers as optim
     from mlx.utils import tree_flatten
@@ -270,15 +311,27 @@ def _resolve_models(models_arg: str) -> list[str]:
     return [m.strip() for m in models_arg.split(",") if m.strip()]
 
 
-def _set_seed(seed: int) -> None:
-    """Seed the RNGs that drive GRPO rollouts and batch order (live runs only)."""
+def _set_seed(seed: int, backend: str) -> None:
+    """Seed the RNGs that drive GRPO rollouts and batch order (live runs only).
+    Always seeds ``random`` + ``numpy``; additionally ``torch`` (trl) or ``mlx.core`` (mlx).
+    Set before any model load / training so the compiled GRPO step captures it."""
     import random
 
-    import mlx.core as mx
     import numpy as np
     random.seed(seed)
     np.random.seed(seed)
-    mx.random.seed(seed)
+    if backend == "trl":
+        try:
+            import torch
+        except ImportError:  # pragma: no cover - needs the [trl] extra
+            return
+        torch.manual_seed(seed)
+    elif backend == "mlx":
+        try:
+            import mlx.core as mx
+        except ImportError:  # pragma: no cover - needs Apple Silicon + mlx
+            return
+        mx.random.seed(seed)
 
 
 def _init_wandb(args: Any, *, seed: int | None = None, group: str | None = None):
@@ -326,11 +379,26 @@ def main() -> None:
                     help="which exploit R_hack models (see math_lineage --hack)")
     ap.add_argument("--max-iters", type=int, default=20)
     ap.add_argument("--group-size", type=int, default=4)
-    ap.add_argument("--batch-size", type=int, default=2)
+    ap.add_argument("--batch-size", type=int, default=2,
+                    help="GRPO batch size (MLX backend only; ignored under --backend trl)")
     ap.add_argument("--beta", type=float, default=0.04)
     ap.add_argument("--learning-rate", type=float, default=1e-5)
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
+    ap.add_argument("--backend", type=str, default="trl", choices=["trl", "mlx"],
+                    help="live training backend: 'trl' (PyTorch GRPO; instruct models, needs "
+                         "the [trl] extra) or 'mlx' (Apple Silicon)")
+    ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"],
+                    help="problem corpus (TRL backend)")
+    ap.add_argument("--answer-format", type=str, default="xml_tag", choices=["hash", "xml_tag"],
+                    help="answer format the model is asked to emit (TRL backend)")
+    ap.add_argument("--shaping-alpha", type=float, default=0.25,
+                    help="shaping-reward alpha weight (TRL backend)")
+    ap.add_argument("--shaping-beta", type=float, default=0.25,
+                    help="shaping-reward beta weight (TRL backend; distinct from --beta, "
+                         "the GRPO KL coefficient)")
+    ap.add_argument("--n-eval", type=int, default=64,
+                    help="held-out eval size (TRL backend)")
     ap.add_argument("--seeds", type=int, default=1,
                     help="run N seeds (0..N-1) and aggregate mean±stderr; 1 = single run")
     ap.add_argument("--only-seed", type=int, default=None,
@@ -347,10 +415,20 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.validate_only:
+        if args.backend != "mlx":
+            raise SystemExit("--validate-only is MLX-only; pass --backend mlx")
         ok = validate_only(args.model, args.output_dir / "validate")
         sys.exit(0 if ok else 1)
 
     models = _resolve_models(args.models)
+
+    if args.backend == "trl" and not args.dry_run:
+        bad = [m for m in models if not resolve_model_spec(m).instruct]
+        if bad:
+            raise SystemExit(
+                f"--backend trl requires chat-templated instruct models; not instruct: "
+                f"{', '.join(bad)}. Pass --models with instruct ids (or use --backend mlx)."
+            )
 
     # Child mode: run exactly ONE seed into --output-dir. The multi-seed live sweep drives
     # this via subprocess (one per seed) so each seed gets a fresh process — and thus a fresh
@@ -381,10 +459,20 @@ def main() -> None:
 
 
 def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
-                    log_fn=None, context_prefix: str = "") -> ScaleSweepResult:
+                    log_fn=None, context_prefix: str = "", seed: int = 0) -> ScaleSweepResult:
     """Run one full scale sweep (dry-run fakes or live MLX) into output_dir."""
     if args.dry_run:
         run_fn = _fake_run_one_model(args.lam)
+    elif args.backend == "trl":
+        run_fn = _trl_run_one_model_factory(
+            max_iters=args.max_iters, group_size=args.group_size,
+            learning_rate=args.learning_rate,
+            max_completion_length=args.max_completion_length, corpus=args.corpus,
+            answer_format=args.answer_format, hack_kind=args.hack,
+            alpha=args.shaping_alpha, beta=args.shaping_beta, n_eval=args.n_eval,
+            seed=seed, beta_kl=args.beta, lora_rank=args.lora_rank,
+            log_fn=log_fn, context_prefix=context_prefix,
+        )
     else:
         run_fn = _live_run_one_model_factory(
             max_iters=args.max_iters, group_size=args.group_size, batch_size=args.batch_size,
@@ -395,7 +483,10 @@ def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
     return run_scale_sweep(
         model_names=models, lam=args.lam, run_fn=run_fn, output_root=output_dir,
         config={"models": args.models, "lam": args.lam, "max_iters": args.max_iters,
-                "hack": args.hack},
+                "hack": args.hack, "backend": args.backend,
+                **({"corpus": args.corpus, "answer_format": args.answer_format,
+                    "shaping_alpha": args.shaping_alpha, "shaping_beta": args.shaping_beta,
+                    "n_eval": args.n_eval} if args.backend == "trl" else {})},
     )
 
 
@@ -409,9 +500,9 @@ def _run_only_seed(models: list[str], args: Any) -> None:
     log_fn = wandb_run.log if wandb_run is not None else None
     try:
         if not args.dry_run:
-            _set_seed(seed)
+            _set_seed(seed, args.backend)
         result = _run_seed_sweep(models, args, args.output_dir, log_fn=log_fn,
-                                 context_prefix=f"seed{seed}/")
+                                 context_prefix=f"seed{seed}/", seed=seed)
         _write_summary(result, args.output_dir)
         _print_summary(result)
         print(f"\nSeed {seed} scale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
@@ -425,9 +516,9 @@ def _run_single_seed_live(models: list[str], args: Any) -> None:
     wandb_run = _init_wandb(args) if args.wandb else None
     log_fn = wandb_run.log if wandb_run is not None else None
     try:
-        _set_seed(0)
+        _set_seed(0, args.backend)
         result = _run_seed_sweep(models, args, args.output_dir, log_fn=log_fn,
-                                 context_prefix="seed0/")
+                                 context_prefix="seed0/", seed=0)
         _write_summary(result, args.output_dir)
         _print_summary(result)
         print(f"\nScale summary -> {args.output_dir / 'scale_sweep_summary.json'}")
@@ -446,7 +537,8 @@ def _run_multiseed_inprocess(models: list[str], args: Any) -> None:
     for seed in range(args.seeds):
         seed_dir = args.output_dir / f"seed{seed}"
         try:
-            result = _run_seed_sweep(models, args, seed_dir, context_prefix=f"seed{seed}/")
+            result = _run_seed_sweep(models, args, seed_dir, context_prefix=f"seed{seed}/",
+                                      seed=seed)
             _write_summary(result, seed_dir)
             per_seed.append(result)
         except Exception as exc:  # seed-level isolation: one crash must not lose the rest
@@ -471,6 +563,12 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--learning-rate", str(args.learning_rate),
         "--max-completion-length", str(args.max_completion_length),
         "--lora-rank", str(args.lora_rank),
+        "--backend", str(args.backend),
+        "--corpus", str(args.corpus),
+        "--answer-format", str(args.answer_format),
+        "--shaping-alpha", str(args.shaping_alpha),
+        "--shaping-beta", str(args.shaping_beta),
+        "--n-eval", str(args.n_eval),
         "--seeds", str(args.seeds),  # observability only: the child's wandb config records
                                      # the sweep's seed count; routing goes by --only-seed.
         "--only-seed", str(seed),
