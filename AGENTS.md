@@ -81,7 +81,7 @@ docs/                design spec, user guide, API reference, results
 - **New domain:** add a config YAML + a `CompletionParser` subclass. No fork needed.
 - **New reward component:** subclass `RewardShaper`; keep components bounded to `[0, 1]`.
 - **New trainer integration:** add a module under `integrations/`; see `trl.py` for the pattern.
-- **New math-env training backend:** `math_env/` has a TRL/PyTorch backend (`trl_backend.py`, via `make_trl_callbacks`) alongside the MLX one. Both return a `(train_fn, eval_fn)` pair satisfying `TrainOneGeneration` / `EvalGeneration`, so lineage/scale orchestration is backend-agnostic; follow that pattern (lazy heavy imports, an offline-mockable seam, a gated live test like `tests/test_live_trl_math.py`) to add another.
+- **New math-env training backend:** `math_env/` ships a TRL/PyTorch backend (`trl_backend.py`, via `make_trl_callbacks`); the MLX path (`make_live_callbacks`) is wired from `examples/math_lineage.py`. Both return a `(train_fn, eval_fn)` pair satisfying `TrainOneGeneration` / `EvalGeneration`, so lineage/scale orchestration is backend-agnostic; follow that pattern (lazy heavy imports, an offline-mockable seam, a gated live test like `tests/test_live_trl_math.py`) to add another.
 
 ## Further reading
 
