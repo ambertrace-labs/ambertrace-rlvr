@@ -33,7 +33,7 @@ The library is a **thin bridge**: it never re-implements the verifier, and its r
 ### 0. Install
 
 ```bash
-pip install -e '.[trl]'      # training stack (torch, transformers, trl)
+pip install -e '.[trl]'      # training stack (torch, transformers, trl, peft, accelerate, datasets)
 pip install -e '.[wandb]'    # optional: live experiment tracking
 ```
 
@@ -158,6 +158,65 @@ python examples/grant_eligibility_rloo.py --dry-run  # offline reward-wiring che
 ```
 
 See [`examples/grant_eligibility_rloo.py`](../examples/grant_eligibility_rloo.py) for the full script.
+
+## Math-env reward-hacking lineage on the TRL backend
+
+Separately from the platform-certified domains above, `ambertrace_rlvr.math_env` is a
+self-contained exploitable-verifier math environment: a weak verifier (`R_hack`) mixed
+with a robust one (`R_true`) by a dial `lam`, used to study whether reward-hacking load
+compounds across GRPO generations. It does **not** query an AmberTrace platform. The
+examples train on the TRL/PyTorch GRPO backend by default.
+
+```bash
+pip install -e '.[trl,dev]'
+python examples/math_lineage.py --dry-run          # offline, no model/network
+python examples/math_lineage.py                    # live: TRL, Qwen2.5-0.5B-Instruct, GSM8K
+python examples/math_scale_ladder.py --dry-run
+python examples/math_scale_ladder.py --models Qwen/Qwen2.5-0.5B-Instruct
+```
+
+Flags shared by `math_lineage.py` and `math_scale_ladder.py`:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--backend {trl,mlx}` | `trl` | Training backend (`mlx` = Apple Silicon, legacy path). |
+| `--corpus {gsm8k,builtin}` | `gsm8k` | Problem corpus (TRL backend). `builtin` is the small offline generator. |
+| `--answer-format {hash,xml_tag}` | `xml_tag` | Answer format the model emits (TRL backend). |
+| `--shaping-alpha` / `--shaping-beta` | `0.25` / `0.25` | Dense shaping weights for `s_format` / `s_integer` (`--shaping-beta` is not the GRPO KL `--beta`). |
+| `--n-eval` | `64` | Held-out eval size (TRL backend). |
+
+**Instruct models only.** The TRL backend sends conversational prompts through
+`apply_chat_template`, so `make_trl_callbacks` raises `ValueError` for any model whose
+`ModelSpec.instruct` is false (e.g. Pythia and base Qwen2.5). Use
+`Qwen/Qwen2.5-0.5B-Instruct`. `math_scale_ladder.py --backend trl` exits unless every
+model passed via `--models` is an instruct model (its default `--models all` includes
+non-instruct models, so pass `--models` explicitly); base models and Pythia remain
+usable with `--backend mlx`.
+
+**`answer_format="xml_tag"` is coupled to the GSM8K prompt.** `GSM8K_SYSTEM_PROMPT`
+commits the model to `<answer>N</answer>`, so the reward and eval must score with
+`answer_format="xml_tag"`. `make_trl_callbacks` rejects any other value with
+`ValueError` because a `hash` scorer would floor every completion and train on zero
+signal. If you change the prompt, change the scoring format with it.
+
+Programmatic use:
+
+```python
+from pathlib import Path
+from ambertrace_rlvr.math_env import make_trl_callbacks
+
+train_fn, eval_fn = make_trl_callbacks(model_name="Qwen/Qwen2.5-0.5B-Instruct", corpus="builtin")
+adapter = train_fn(parent_adapter=None, output_dir=Path("out/gen0"), lam=0.3,
+                   max_iters=20, step_offset=0)       # saves out/gen0/adapter
+report = eval_fn(adapter_path=adapter, output_dir=Path("out/gen0"), lam=0.3, label="gen0")
+print(report.k, report.k_hat, report.m)               # MathEvalReport
+```
+
+The opt-in smoke test `AMBERTRACE_RLVR_LIVE=1 pytest tests/test_live_trl_math.py`
+runs a tiny real train+eval (needs the `[trl]` extra and a GPU/MPS); it is skipped
+by default.
+
+---
 
 ## Where to go next
 
