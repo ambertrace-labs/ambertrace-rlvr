@@ -16,6 +16,7 @@ lazily inside the functions. TRL-only (no MLX).
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 from typing import Any
 
@@ -27,27 +28,42 @@ from .trl_backend import _free_accelerator_memory, _load_base_model, _load_token
 
 def build_terse_sft_dataset(
     problems: list[MathProblem], system_prompt: str = GSM8K_SYSTEM_PROMPT,
+    *, terse_fraction: float = 1.0, seed: int | None = None,
 ) -> Any:
-    """Build a ``datasets.Dataset`` of terse prompt-completion rows.
+    """Build a ``datasets.Dataset`` of prompt-completion rows (terse, or a terse+CoT mix).
 
     Columns: ``prompt`` (system + user chat messages, same shape as
-    :func:`~.gsm8k.trl_row`) and ``completion`` (a single assistant message,
-    ``<answer>{gold}</answer>``, no chain-of-thought). Pure except the lazy ``datasets``
-    import (needs the ``[trl]`` extra)."""
+    :func:`~.gsm8k.trl_row`) and ``completion`` (a single assistant message). Each problem
+    is terse (``<answer>{gold}</answer>``) with probability ``terse_fraction`` (a seeded
+    per-example draw from a local ``random.Random(seed)``), otherwise CoT: the GSM8K
+    reasoning (``problem.solution`` before ``####``) followed by ``<answer>{gold}</answer>``.
+    A bimodal mix keeps both short and long modes so GRPO sees within-group length variance.
+    ``terse_fraction=1.0`` (default) is all-terse. Pure except the lazy ``datasets`` import
+    (needs the ``[trl]`` extra)."""
+    if not 0.0 <= terse_fraction <= 1.0:
+        raise ValueError(f"terse_fraction must be in [0, 1], got {terse_fraction}")
     from datasets import Dataset  # lazy: optional [trl] extra
 
-    return Dataset.from_list([
-        {
+    rng = random.Random(seed)
+    rows: list[dict[str, Any]] = []
+    for p in problems:
+        if rng.random() < terse_fraction:
+            content = f"<answer>{p.answer}</answer>"
+        else:
+            if p.solution is None:
+                raise ValueError(
+                    "CoT SFT example needs problem.solution; the builtin corpus has none "
+                    "-- use corpus='gsm8k' or terse_fraction=1.0")
+            reasoning = p.solution.split("####")[0].strip()
+            content = f"{reasoning}\n<answer>{p.answer}</answer>"
+        rows.append({
             "prompt": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Problem: {p.question}"},
             ],
-            "completion": [
-                {"role": "assistant", "content": f"<answer>{p.answer}</answer>"},
-            ],
-        }
-        for p in problems
-    ])
+            "completion": [{"role": "assistant", "content": content}],
+        })
+    return Dataset.from_list(rows)
 
 
 def run_warm_start_sft(
@@ -67,6 +83,7 @@ def run_warm_start_sft(
     lora_dropout: float = 0.05,
     lora_overrides: dict[str, Any] | None = None,
     seed: int | None = None,
+    terse_fraction: float = 1.0,
     sft_overrides: dict[str, Any] | None = None,
 ) -> Path:
     """Run a mild terse-mode LoRA SFT and return the saved adapter path
@@ -76,7 +93,8 @@ def run_warm_start_sft(
     uses, so the adapter loads through the GRPO ``train_fn``'s
     ``PeftModel.from_pretrained(base, parent, is_trainable=True)`` path. ``problems``
     defaults to the ``corpus`` train split (``"gsm8k"`` or ``"builtin"``). ``sft_overrides``
-    / ``lora_overrides`` are applied last (they win). Requires a chat-templated instruct
+    / ``lora_overrides`` are applied last (they win). ``terse_fraction`` < 1 mixes in
+    chain-of-thought examples (needs ``problem.solution``, i.e. the gsm8k corpus). Requires a chat-templated instruct
     model and the ``[trl]`` extra.
     """
     # Pure-data validation first, so a bad model/corpus fails fast without the [trl] extra.
@@ -108,7 +126,8 @@ def run_warm_start_sft(
             rank=lora_rank, lora_alpha=lora_alpha, lora_dropout=lora_dropout)
         lora_kwargs.update(lora_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
         peft_config = peft_lora_config(spec, **lora_kwargs)
-        dataset = build_terse_sft_dataset(problems, system_prompt)
+        dataset = build_terse_sft_dataset(
+            problems, system_prompt, terse_fraction=terse_fraction, seed=seed)
         cfg: dict[str, Any] = dict(
             output_dir=str(output_dir / "sft"),
             completion_only_loss=True,  # train on the terse completion only, not the prompt

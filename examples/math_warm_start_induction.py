@@ -113,7 +113,8 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     cfg = {"model": args.model, "corpus": args.corpus, "lam": args.lam,
            "hack": "short_circuit_brevity", "brevity_l0": args.brevity_l0,
            "generations": args.generations, "iters_per_gen": args.iters_per_gen,
-           "seed": args.seed, "dry_run": bool(args.dry_run)}
+           "seed": args.seed, "terse_fraction": args.terse_fraction,
+           "dry_run": bool(args.dry_run)}
 
     if args.dry_run:
         sft_adapter = _fake_sft(output_dir=out / "sft")
@@ -125,6 +126,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             num_train_epochs=args.sft_epochs, max_steps=args.sft_max_steps,
             learning_rate=args.sft_lr, lora_rank=args.sft_lora_rank,
             lora_alpha=args.sft_lora_alpha, seed=args.seed,
+            terse_fraction=args.terse_fraction,
         )
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, hack_kind="short_circuit_brevity",
@@ -165,6 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--sft-lr", type=float, default=2e-5)
     ap.add_argument("--sft-lora-rank", type=int, default=8)
     ap.add_argument("--sft-lora-alpha", type=int, default=16)
+    ap.add_argument("--terse-fraction", type=float, default=0.5,
+                    help="fraction of terse SFT examples; rest are full chain-of-thought")
     ap.add_argument("--lam", type=float, default=0.75)
     ap.add_argument("--brevity-l0", type=int, default=200)
     ap.add_argument("--generations", type=int, default=3)
@@ -183,6 +187,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if not 0.0 <= args.terse_fraction <= 1.0:
+        raise SystemExit("--terse-fraction must be in [0, 1]")
     if args.brevity_l0 <= 0:
         raise SystemExit("--brevity-l0 must be > 0")
     if args.lam <= 0:

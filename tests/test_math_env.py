@@ -9,6 +9,8 @@ failing. Also checks the :data:`RewardFunction` seam under both the MLX
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from ambertrace_rlvr.math_env import (
@@ -33,6 +35,7 @@ from ambertrace_rlvr.math_env.rewards import _r_hack, lambda_mix, short_circuit_
 from ambertrace_rlvr.math_env.problems import (
     HELDOUT,
     TRAIN,
+    MathProblem,
     _generate_problems,
     read_problems,
     write_problems,
@@ -209,6 +212,19 @@ def test_problems_jsonl_roundtrip(tmp_path):
     write_problems(path, problems)
     restored = read_problems(path)
     assert restored == problems
+
+
+def test_problems_jsonl_solution_roundtrip(tmp_path):
+    with_sol = MathProblem("g1", "Q?", 7, TRAIN, solution="Reason.\n#### 7")
+    without = MathProblem("g2", "Q2?", 8, TRAIN)
+    path = tmp_path / "math.jsonl"
+    write_problems(path, [with_sol, without])
+    lines = path.read_text().splitlines()
+    assert json.loads(lines[0])["solution"] == "Reason.\n#### 7"
+    assert "solution" not in json.loads(lines[1])
+    restored = read_problems(path)
+    assert restored == [with_sol, without]
+    assert restored[1].solution is None
 
 
 # --- generated corpus expansion (#134) -------------------------------------
