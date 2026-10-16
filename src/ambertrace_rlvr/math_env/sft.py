@@ -102,7 +102,9 @@ def run_warm_start_sft(
     NaN the bf16 backward pass at step 1 (grad_norm -> inf -> nan, loss collapses to 0). fp32
     trains cleanly and the warm-start run is short, so the extra cost is negligible. Set
     ``bf16=True`` only for the pure-terse (short-completion) regime, which survives bf16.
-    GRPO is unaffected -- it keeps its own bf16 load.
+    GRPO is unaffected -- it keeps its own bf16 load. Set precision via the ``bf16=`` param,
+    not ``sft_overrides`` (the param drives both the model dtype and SFTConfig; an override
+    would flip only SFTConfig, giving an inconsistent model/trainer precision).
     """
     # Pure-data validation first, so a bad model/corpus fails fast without the [trl] extra.
     spec = resolve_model_spec(model_name)

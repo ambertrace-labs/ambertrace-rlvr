@@ -8,8 +8,9 @@ from unittest.mock import patch
 import pytest
 
 pytest.importorskip("datasets")
+pytest.importorskip("torch")
 
-import torch  # noqa: E402  (part of the [trl] extra; available whenever datasets is)
+import torch  # noqa: E402  (part of the [trl] extra)
 
 from ambertrace_rlvr.math_env import (  # noqa: E402
     GSM8K_SYSTEM_PROMPT,
