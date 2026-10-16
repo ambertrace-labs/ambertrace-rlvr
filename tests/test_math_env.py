@@ -577,3 +577,11 @@ def test_brevity_l0_flows_through_metrics():
     assert r500.k_hat == pytest.approx(sum(r_hack_brevity(c, l0=500) for c in comps) / 2)
     assert r200.k_hat == pytest.approx(sum(r_hack_brevity(c) for c in comps) / 2)
     assert evaluate_math(comps, [15, 15], brevity_l0=200, **kw) == r200
+
+
+def test_evaluate_math_mean_completion_words():
+    rep = evaluate_math(["a b c", "<answer>5</answer>", ""], [1, 5, 2],
+                        answer_format="xml_tag")
+    assert rep.mean_completion_words == pytest.approx((3 + 1 + 0) / 3)
+    assert rep.as_dict()["mean_completion_words"] == pytest.approx(4 / 3)
+    assert evaluate_math([], [], answer_format="xml_tag").mean_completion_words == 0.0

@@ -116,6 +116,7 @@ from .shaping import (
     s_format,
     s_integer,
 )
+from .sft import build_terse_sft_dataset, run_warm_start_sft
 from .trl_backend import make_trl_callbacks, make_trl_monitor
 
 __all__ = [
@@ -160,6 +161,7 @@ __all__ = [
     "assess_scale_trend",
     "build_math_reward_function",
     "build_shaped_math_reward_function",
+    "build_terse_sft_dataset",
     "build_trl_gsm8k_dataset",
     "capability_k",
     "coerce_int",
@@ -191,6 +193,7 @@ __all__ = [
     "resolve_model_spec",
     "run_lineage",
     "run_scale_sweep",
+    "run_warm_start_sft",
     "s_format",
     "s_integer",
     "score_item",

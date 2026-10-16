@@ -42,11 +42,13 @@ class MathEvalReport:
     m: float          # misalignment load = mean(R_hack · (1 − R_true))
     mean_reward: float
     lam: float
+    mean_completion_words: float = 0.0  # mean len(c.split()); the collapse/brevity check
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "n": self.n, "k": self.k, "k_hat": self.k_hat, "wedge": self.wedge,
             "m": self.m, "mean_reward": self.mean_reward, "lambda": self.lam,
+            "mean_completion_words": self.mean_completion_words,
         }
 
 
@@ -111,6 +113,8 @@ def evaluate_math(
     return MathEvalReport(
         n=len(completions), k=k, k_hat=k_hat, wedge=k_hat - k, m=m,
         mean_reward=mean_reward, lam=max(0.0, min(1.0, lam)),
+        mean_completion_words=_mean([float(len(c.split())) if isinstance(c, str) else 0.0
+                                      for c in completions]),
     )
 
 

@@ -585,3 +585,19 @@ def test_arm_config_rejects_out_of_range():
         ArmConfig("bad", lam=-0.1, scrub_fraction=0.0)
     with pytest.raises(ValueError):
         ArmConfig("bad", lam=1.2, scrub_fraction=0.0)
+
+
+def test_lineage_initial_adapters(tmp_path: Path) -> None:
+    seed = tmp_path / "sft" / "adapter"
+    train_fn = FakeTrainOneGeneration()
+    arms = [ArmConfig("poisoned", 0.75), ArmConfig("other", 0.5)]
+    _default_run(tmp_path / "run", generations=2, arms=arms, train_fn=train_fn,
+                 initial_adapters={"poisoned": seed})
+    by_arm = {}
+    for call in train_fn.call_log:
+        arm, gen = call["output_dir"].parent.name, call["output_dir"].name
+        by_arm[(arm, gen)] = call["parent_adapter"]
+    assert by_arm[("poisoned", "gen0")] == seed
+    assert by_arm[("poisoned", "gen1")] != seed  # chains from gen0's child afterwards
+    assert by_arm[("poisoned", "gen1")] is not None
+    assert by_arm[("other", "gen0")] is None  # unseeded arm unchanged

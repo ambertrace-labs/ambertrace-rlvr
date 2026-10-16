@@ -271,8 +271,12 @@ def run_lineage(
     eval_fn: EvalGeneration,
     output_root: Path,
     config: dict[str, Any] | None = None,
+    initial_adapters: dict[str, Path] | None = None,
 ) -> LineageResult:
     """Run the multi-generation, multi-arm lineage experiment.
+
+    ``initial_adapters`` optionally seeds an arm's generation 0 with a starting adapter
+    (keyed by arm name, e.g. a warm-start SFT adapter) instead of a fresh LoRA.
 
     For each arm, chains ``generations`` of train-then-eval cycles, threading the
     child adapter of generation N as the parent of generation N+1. The scrubbed arm
@@ -282,7 +286,8 @@ def run_lineage(
     arm_results: dict[str, ArmResult] = {}
 
     for arm in arms:
-        parent_adapter: Path | None = None
+        parent_adapter: Path | None = (
+            initial_adapters.get(arm.name) if initial_adapters else None)
         cumulative_step_offset = 0
         cumulative_compute = 0.0
         result = ArmResult(config=arm)

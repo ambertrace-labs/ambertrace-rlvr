@@ -294,7 +294,7 @@ def make_trl_callbacks(
             )
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / f"eval_{label}.json").write_text(json.dumps(rep.as_dict(), indent=2))
-            print(f"[{label}] K={rep.k:.3f} K̂={rep.k_hat:.3f} m={rep.m:.3f}")
+            print(f"[{label}] K={rep.k:.3f} K̂={rep.k_hat:.3f} m={rep.m:.3f} words={rep.mean_completion_words:.1f}")
             return rep
         finally:
             del model, base
