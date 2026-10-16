@@ -98,6 +98,7 @@ from .rewards import (
     lambda_mix,
     r_hack,
     r_hack_answer_copy,
+    r_hack_brevity,
     r_true,
     score_item,
 )
@@ -183,6 +184,7 @@ __all__ = [
     "peft_lora_config",
     "r_hack",
     "r_hack_answer_copy",
+    "r_hack_brevity",
     "r_true",
     "read_problems",
     "resolve_model_spec",
