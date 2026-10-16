@@ -101,6 +101,7 @@ from .rewards import (
     r_hack_brevity,
     r_true,
     score_item,
+    short_circuit_mix,
 )
 from .scale import (
     RunOneModel,
@@ -193,6 +194,7 @@ __all__ = [
     "s_format",
     "s_integer",
     "score_item",
+    "short_circuit_mix",
     "trl_row",
     "write_problems",
 ]

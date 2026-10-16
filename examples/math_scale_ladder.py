@@ -376,10 +376,11 @@ def main() -> None:
                     help="'pythia' | 'qwen' | 'all' | comma-separated HF ids")
     ap.add_argument("--lam", type=float, default=0.3)
     ap.add_argument("--hack", type=str, default="answer_copy",
-                    choices=["substring", "answer_copy", "brevity"],
+                    choices=["substring", "answer_copy", "brevity", "short_circuit_brevity"],
                     help="which exploit R_hack models (see math_lineage --hack); brevity: reward "
                          "short completions regardless of correctness (discoverable "
-                         "reasoning-collapse hack)")
+                         "reasoning-collapse hack); short_circuit_brevity: same brevity signal, but "
+                         "the verifier skips its correctness check for terse answers")
     ap.add_argument("--max-iters", type=int, default=20)
     ap.add_argument("--group-size", type=int, default=4)
     ap.add_argument("--batch-size", type=int, default=2,
