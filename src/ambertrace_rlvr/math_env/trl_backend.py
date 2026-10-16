@@ -137,6 +137,7 @@ def make_trl_callbacks(
     hack_kind: HackKind = "answer_copy",
     alpha: float = 0.25,
     beta: float = 0.25,
+    brevity_l0: int = 200,
     max_completion_length: int = 512,
     n_eval: int = 64,
     learning_rate: float = 5e-6,
@@ -211,6 +212,7 @@ def make_trl_callbacks(
             dataset = build_trl_gsm8k_dataset(problems=train_problems, system_prompt=system_prompt)
             reward = as_trl_reward_func(build_shaped_math_reward_function(
                 lam, hack_kind=hack_kind, answer_format=answer_format, alpha=alpha, beta=beta,
+                brevity_l0=brevity_l0,
             ))
             cfg: dict[str, Any] = dict(
                 output_dir=str(output_dir),
@@ -288,6 +290,7 @@ def make_trl_callbacks(
                 completions, [p.answer for p in heldout],
                 problems=[p.question for p in heldout], lam=lam,
                 hack_kind=hack_kind, answer_format=answer_format,
+                brevity_l0=brevity_l0,
             )
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / f"eval_{label}.json").write_text(json.dumps(rep.as_dict(), indent=2))
