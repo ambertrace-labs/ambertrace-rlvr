@@ -77,7 +77,8 @@ def run_warm_start_sft(
     max_steps: int = -1,
     learning_rate: float = 2e-5,
     per_device_train_batch_size: int = 8,
-    max_length: int = 256,
+    max_length: int = 768,
+    bf16: bool = False,
     lora_rank: int = 8,
     lora_alpha: int = 16,
     lora_dropout: float = 0.05,
@@ -96,6 +97,14 @@ def run_warm_start_sft(
     / ``lora_overrides`` are applied last (they win). ``terse_fraction`` < 1 mixes in
     chain-of-thought examples (needs ``problem.solution``, i.e. the gsm8k corpus). Requires a chat-templated instruct
     model and the ``[trl]`` extra.
+
+    ``bf16`` defaults to ``False`` (fp32): the mixed terse+CoT dataset's long CoT completions
+    NaN the bf16 backward pass at step 1 (grad_norm -> inf -> nan, loss collapses to 0). fp32
+    trains cleanly and the warm-start run is short, so the extra cost is negligible. Set
+    ``bf16=True`` only for the pure-terse (short-completion) regime, which survives bf16.
+    GRPO is unaffected -- it keeps its own bf16 load. Set precision via the ``bf16=`` param,
+    not ``sft_overrides`` (the param drives both the model dtype and SFTConfig; an override
+    would flip only SFTConfig, giving an inconsistent model/trainer precision).
     """
     # Pure-data validation first, so a bad model/corpus fails fast without the [trl] extra.
     spec = resolve_model_spec(model_name)
@@ -112,6 +121,7 @@ def run_warm_start_sft(
         else:
             raise ValueError(f"unknown corpus {corpus!r}; expected 'gsm8k' or 'builtin'")
 
+    import torch
     import trl
     sft_config_cls: Any = getattr(trl, "SFTConfig")
     sft_trainer_cls: Any = getattr(trl, "SFTTrainer")
@@ -121,7 +131,9 @@ def run_warm_start_sft(
     base: Any = None
     trainer: Any = None
     try:
-        base = _load_base_model(model_name)
+        # fp32 by default: bf16 NaNs the CoT backward pass (see docstring). GRPO keeps bf16.
+        base = _load_base_model(
+            model_name, dtype=torch.bfloat16 if bf16 else torch.float32)
         lora_kwargs: dict[str, Any] = dict(
             rank=lora_rank, lora_alpha=lora_alpha, lora_dropout=lora_dropout)
         lora_kwargs.update(lora_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
@@ -136,7 +148,8 @@ def run_warm_start_sft(
             max_steps=max_steps,
             learning_rate=learning_rate,
             per_device_train_batch_size=per_device_train_batch_size,
-            bf16=True,
+            bf16=bf16,
+            fp16=False,
             save_strategy="no",
             logging_steps=1,
             report_to=[],

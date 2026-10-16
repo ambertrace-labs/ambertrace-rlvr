@@ -8,6 +8,9 @@ from unittest.mock import patch
 import pytest
 
 pytest.importorskip("datasets")
+pytest.importorskip("torch")
+
+import torch  # noqa: E402  (part of the [trl] extra)
 
 from ambertrace_rlvr.math_env import (  # noqa: E402
     GSM8K_SYSTEM_PROMPT,
@@ -127,18 +130,28 @@ def test_run_warm_start_sft_wiring(tmp_path: Path):
     # base/tokenizer loading (pad-token fallback, attn_implementation="eager") lives in the
     # shared _load_base_model/_load_tokenizer helpers and is covered by test_trl_backend.py.
 
+    # default precision is fp32 (bf16 NaNs the CoT backward pass); GRPO keeps its own bf16.
+    assert m_model.call_args.kwargs["dtype"] == torch.float32
+
     cfg = m_cfg.call_args.kwargs
     assert cfg["completion_only_loss"] is True
     assert cfg["seed"] == 7 and cfg["data_seed"] == 7
     assert cfg["num_train_epochs"] == 0.5 and cfg["max_steps"] == -1
-    assert cfg["learning_rate"] == 2e-5 and cfg["max_length"] == 256
-    assert cfg["bf16"] is True and cfg["report_to"] == []
+    assert cfg["learning_rate"] == 2e-5 and cfg["max_length"] == 768
+    assert cfg["bf16"] is False and cfg["fp16"] is False and cfg["report_to"] == []
 
     kw = m_trainer.call_args.kwargs
     peft_cfg = kw["peft_config"]
     assert peft_cfg.r == 8 and peft_cfg.lora_alpha == 16
     assert str(peft_cfg.task_type).endswith("CAUSAL_LM")
     assert kw["train_dataset"].column_names == ["prompt", "completion"]
+
+
+def test_run_warm_start_sft_bf16_loads_bf16(tmp_path: Path):
+    # Opt-in bf16 (pure-terse regime): base loads bf16 and SFTConfig(bf16=True).
+    _, m_model, _, _, m_cfg, _ = _run(tmp_path, bf16=True)
+    assert m_model.call_args.kwargs["dtype"] == torch.bfloat16
+    assert m_cfg.call_args.kwargs["bf16"] is True
 
 
 def test_run_warm_start_sft_no_seed_leaves_defaults(tmp_path: Path):
