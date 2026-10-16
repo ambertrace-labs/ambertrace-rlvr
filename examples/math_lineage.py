@@ -496,7 +496,7 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--answer-format", str(args.answer_format),
         "--shaping-alpha", str(args.shaping_alpha),
         "--shaping-beta", str(args.shaping_beta),
-        "--brevity-l0", str(getattr(args, "brevity_l0", 200)),
+        "--brevity-l0", str(args.brevity_l0),
         "--n-eval", str(args.n_eval),
         "--seeds", str(args.seeds),  # observability only: the child's wandb config records
                                      # the campaign size; routing still goes by --only-seed.
@@ -580,7 +580,7 @@ def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, answer_format=args.answer_format,
             hack_kind=args.hack, alpha=args.shaping_alpha, beta=args.shaping_beta,
-            brevity_l0=getattr(args, "brevity_l0", 200),
+            brevity_l0=args.brevity_l0,
             max_completion_length=args.max_completion_length, n_eval=args.n_eval,
             learning_rate=args.learning_rate, num_generations=args.group_size,
             per_device_train_batch_size=args.group_size, log_fn=log_fn,

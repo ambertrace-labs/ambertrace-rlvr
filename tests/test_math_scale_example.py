@@ -88,7 +88,7 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
         models="qwen", lam=0.3, hack="answer_copy", max_iters=100, group_size=4,
         batch_size=2, beta=0.04, learning_rate=5e-6, max_completion_length=128,
         lora_rank=8, backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
-        shaping_beta=0.25, n_eval=64, wandb=False,
+        shaping_beta=0.25, n_eval=64, brevity_l0=200, wandb=False,
         wandb_project="ambertrace-rlvr-math", seeds=3,
     )
     seed_dir = tmp_path / "seed2"
@@ -114,7 +114,7 @@ def test_child_cmd_forwards_wandb(tmp_path):
         models="qwen", lam=0.3, hack="answer_copy", max_iters=1, group_size=4,
         batch_size=2, beta=0.04, learning_rate=1e-5, max_completion_length=128,
         lora_rank=8, backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
-        shaping_beta=0.25, n_eval=64, wandb=True,
+        shaping_beta=0.25, n_eval=64, brevity_l0=200, wandb=True,
         wandb_project="proj", seeds=2,
     )
     cmd = math_scale_ladder._child_cmd(args, 0, tmp_path / "seed0", group="mygroup")

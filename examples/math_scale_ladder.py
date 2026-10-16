@@ -478,7 +478,7 @@ def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
             answer_format=args.answer_format, hack_kind=args.hack,
             alpha=args.shaping_alpha, beta=args.shaping_beta, n_eval=args.n_eval,
             seed=seed, beta_kl=args.beta, lora_rank=args.lora_rank,
-            brevity_l0=getattr(args, "brevity_l0", 200), log_fn=log_fn, context_prefix=context_prefix,
+            brevity_l0=args.brevity_l0, log_fn=log_fn, context_prefix=context_prefix,
         )
     else:
         run_fn = _live_run_one_model_factory(
@@ -575,7 +575,7 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--answer-format", str(args.answer_format),
         "--shaping-alpha", str(args.shaping_alpha),
         "--shaping-beta", str(args.shaping_beta),
-        "--brevity-l0", str(getattr(args, "brevity_l0", 200)),
+        "--brevity-l0", str(args.brevity_l0),
         "--n-eval", str(args.n_eval),
         "--seeds", str(args.seeds),  # observability only: the child's wandb config records
                                      # the sweep's seed count; routing goes by --only-seed.

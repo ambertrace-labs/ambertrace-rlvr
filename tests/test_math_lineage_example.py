@@ -107,7 +107,7 @@ def test_child_cmd_runs_one_seed_into_seed_dir(tmp_path):
         hack="answer_copy", scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04,
         learning_rate=5e-6, max_completion_length=128, lora_rank=8, ref_model=None,
         backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
-        shaping_beta=0.25, n_eval=64, wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
+        shaping_beta=0.25, brevity_l0=200, n_eval=64, wandb=False, wandb_project="ambertrace-rlvr-math", seeds=3,
     )
     seed_dir = tmp_path / "seed2"
     cmd = math_lineage._child_cmd(args, 2, seed_dir, group="camp")
@@ -134,7 +134,7 @@ def test_child_cmd_forwards_wandb_and_ref_model(tmp_path):
         scrub_fraction=0.4, group_size=4, batch_size=2, beta=0.04, learning_rate=1e-5,
         max_completion_length=128, lora_rank=8, ref_model="ref/model", wandb=True,
         backend="trl", corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
-        shaping_beta=0.25, n_eval=64, wandb_project="proj", seeds=2,
+        shaping_beta=0.25, brevity_l0=200, n_eval=64, wandb_project="proj", seeds=2,
     )
     cmd = math_lineage._child_cmd(args, 0, tmp_path / "seed0", group="mygroup")
     assert "--wandb" in cmd
@@ -291,7 +291,7 @@ def test_run_seed_routes_to_selected_backend(tmp_path, monkeypatch):
             iters_per_gen=1, lam=0.3, hack="answer_copy", scrub_fraction=0.4, group_size=4,
             batch_size=2, beta=0.07, learning_rate=1e-5, max_completion_length=16,
             lora_rank=4, corpus="gsm8k", answer_format="xml_tag", shaping_alpha=0.25,
-            shaping_beta=0.25, n_eval=2,
+            shaping_beta=0.25, brevity_l0=200, n_eval=2,
         )
         calls.clear()
         out = math_lineage._run_seed(arms=[], args=args, output_dir=tmp_path, seed=5)
