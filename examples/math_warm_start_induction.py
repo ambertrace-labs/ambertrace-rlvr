@@ -185,6 +185,10 @@ def main() -> None:
     args = build_parser().parse_args()
     if args.brevity_l0 <= 0:
         raise SystemExit("--brevity-l0 must be > 0")
+    if args.lam <= 0:
+        # short_circuit_brevity is invalid at λ=0 (the reward guard rejects it); fail fast
+        # before the SFT + warm-start eval are wasted on a run that would crash at GRPO.
+        raise SystemExit("--lam must be > 0 (short_circuit_brevity is invalid at λ=0)")
     wandb_run = _init_wandb(args) if args.wandb and not args.dry_run else None
     try:
         run(args, log_fn=wandb_run.log if wandb_run is not None else None)

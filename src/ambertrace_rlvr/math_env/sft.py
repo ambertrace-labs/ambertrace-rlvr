@@ -79,8 +79,7 @@ def run_warm_start_sft(
     / ``lora_overrides`` are applied last (they win). Requires a chat-templated instruct
     model and the ``[trl]`` extra.
     """
-    import trl
-
+    # Pure-data validation first, so a bad model/corpus fails fast without the [trl] extra.
     spec = resolve_model_spec(model_name)
     if not spec.instruct:
         raise ValueError(
@@ -95,6 +94,7 @@ def run_warm_start_sft(
         else:
             raise ValueError(f"unknown corpus {corpus!r}; expected 'gsm8k' or 'builtin'")
 
+    import trl
     sft_config_cls: Any = getattr(trl, "SFTConfig")
     sft_trainer_cls: Any = getattr(trl, "SFTTrainer")
 
