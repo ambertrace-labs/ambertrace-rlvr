@@ -1,0 +1,197 @@
+"""Warm-start induction probe: SFT -> eval -> short_circuit_brevity GRPO lineage.
+
+GRPO alone cannot induce the brevity hack on a capable aligned model (it amplifies
+within-group variance; terse completions are low-variance within rollout groups). So:
+
+  1. ``run_warm_start_sft`` seeds terse answering (``problem -> <answer>{gold}</answer>``,
+     no chain-of-thought) with a mild LoRA SFT, injecting rollout variance;
+  2. the warm-start adapter is evaluated (K and mean completion length = the collapse check);
+  3. a single *poisoned* arm runs ``short_circuit_brevity`` GRPO from that adapter via
+     ``run_lineage(initial_adapters=...)``;
+  4. the per-generation K / K̂ / m trajectory is printed and a summary JSON written.
+
+Only one poisoned arm is run: a λ=0 arm with ``short_circuit_brevity`` is rejected by the
+reward guard.
+
+    python examples/math_warm_start_induction.py --dry-run     # offline fakes
+    python examples/math_warm_start_induction.py               # live (needs [trl] extra)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from ambertrace_rlvr.math_env import (
+    ArmConfig,
+    LineageResult,
+    MathEvalReport,
+    make_trl_callbacks,
+    run_lineage,
+    run_warm_start_sft,
+)
+
+REPO = Path(__file__).resolve().parent.parent
+DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
+OUTPUT_DIR = REPO / "outputs" / "math_warm_start_induction"
+ARM = "poisoned"
+
+
+# ---------------------------------------------------------------------------
+# Offline dry-run fakes
+# ---------------------------------------------------------------------------
+def _fake_sft(*, output_dir: Path) -> Path:
+    adapter = output_dir / "adapter"
+    adapter.mkdir(parents=True, exist_ok=True)
+    (adapter / "adapter_config.json").write_text("{}")
+    return adapter
+
+
+def _fake_train(*, parent_adapter: Path | None, output_dir: Path, lam: float,
+                max_iters: int, step_offset: int) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    adapter = output_dir / "adapter"
+    adapter.mkdir(exist_ok=True)
+    (adapter / "adapter_config.json").write_text("{}")
+    return adapter
+
+
+def _fake_eval(*, adapter_path: Path | None, output_dir: Path, lam: float,
+               label: str) -> MathEvalReport:
+    """Deterministic illustrative eval: K falls, m rises, completions shorten per generation."""
+    name = output_dir.name
+    gen = int(name.removeprefix("gen")) + (1 if label == "post" else 0) \
+        if name.startswith("gen") else 0
+    k = max(0.0, 0.3 - 0.1 * gen)
+    m = min(1.0, 0.2 + 0.2 * gen)
+    rep = MathEvalReport(n=8, k=k, k_hat=m + k, wedge=m, m=m, mean_reward=k, lam=lam,
+                         mean_completion_words=max(1.0, 40.0 - 12.0 * gen))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / f"eval_{label}.json").write_text(json.dumps(rep.as_dict(), indent=2))
+    return rep
+
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+def _print_warm_start(rep: MathEvalReport) -> None:
+    print(f"\n[warm-start] K={rep.k:.3f} K̂={rep.k_hat:.3f} m={rep.m:.3f} "
+          f"mean_completion_words={rep.mean_completion_words:.1f}")
+
+
+def _print_summary(result: LineageResult) -> None:
+    print("\n=== Warm-start induction: per-generation trajectory ===")
+    for name, arm in result.arms.items():
+        print(f"\n[{name}]  λ={arm.config.lam}")
+        print(f"  K   : {[round(x, 3) for x in arm.k_trajectory()]}")
+        print(f"  K̂   : {[round(x, 3) for x in arm.k_hat_trajectory()]}")
+        print(f"  m   : {[round(x, 3) for x in arm.m_trajectory()]}")
+        words = [g.post_eval.get("mean_completion_words", 0.0) for g in arm.generations]
+        print(f"  words: {[round(x, 1) for x in words]}")
+
+
+def _init_wandb(args: Any) -> Any:
+    try:
+        import wandb
+    except ImportError as exc:  # pragma: no cover - exercised only with --wandb
+        raise SystemExit("--wandb needs wandb: pip install 'ambertrace-rlvr[wandb]' "
+                         "then `wandb login`") from exc
+    return wandb.init(project="ambertrace-rlvr-math", job_type="warm_start_induction",
+                      config={k: str(v) if isinstance(v, Path) else v
+                              for k, v in vars(args).items()})
+
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
+def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
+    out: Path = args.output_dir
+    out.mkdir(parents=True, exist_ok=True)
+    arms = [ArmConfig(ARM, args.lam)]
+    cfg = {"model": args.model, "corpus": args.corpus, "lam": args.lam,
+           "hack": "short_circuit_brevity", "brevity_l0": args.brevity_l0,
+           "generations": args.generations, "iters_per_gen": args.iters_per_gen,
+           "seed": args.seed, "dry_run": bool(args.dry_run)}
+
+    if args.dry_run:
+        sft_adapter = _fake_sft(output_dir=out / "sft")
+        train_fn, eval_fn = _fake_train, _fake_eval
+    else:
+        # (1) warm-start SFT
+        sft_adapter = run_warm_start_sft(
+            model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
+            num_train_epochs=args.sft_epochs, max_steps=args.sft_max_steps,
+            learning_rate=args.sft_lr, lora_rank=args.sft_lora_rank,
+            lora_alpha=args.sft_lora_alpha, seed=args.seed,
+        )
+        train_fn, eval_fn = make_trl_callbacks(
+            model_name=args.model, corpus=args.corpus, hack_kind="short_circuit_brevity",
+            brevity_l0=args.brevity_l0, max_completion_length=args.max_completion_length,
+            n_eval=args.n_eval, learning_rate=args.learning_rate,
+            num_generations=args.group_size, per_device_train_batch_size=args.group_size,
+            log_fn=log_fn, seed=args.seed,
+        )
+
+    # (2) eval the warm-start adapter (K + mean completion length = collapse check)
+    warm = eval_fn(adapter_path=sft_adapter, output_dir=out / "warm_start", lam=args.lam,
+                   label="warm")
+    _print_warm_start(warm)
+
+    # (3) GRPO lineage seeded from the SFT adapter (single poisoned arm only)
+    result = run_lineage(
+        arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
+        group_size=args.group_size, train_fn=train_fn, eval_fn=eval_fn,
+        output_root=out / "lineage", config=cfg,
+        initial_adapters={ARM: sft_adapter},
+    )
+
+    # (4) trajectory + summary JSON
+    _print_summary(result)
+    summary = {"config": cfg, "sft_adapter": str(sft_adapter),
+               "warm_start_eval": warm.as_dict(), "lineage": result.as_dict()}
+    (out / "warm_start_summary.json").write_text(json.dumps(summary, indent=2))
+    print(f"\nSummary -> {out / 'warm_start_summary.json'}")
+    return summary
+
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="Warm-start SFT -> short_circuit_brevity GRPO")
+    ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
+    ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"])
+    ap.add_argument("--sft-epochs", type=float, default=0.5)
+    ap.add_argument("--sft-max-steps", type=int, default=-1)
+    ap.add_argument("--sft-lr", type=float, default=2e-5)
+    ap.add_argument("--sft-lora-rank", type=int, default=8)
+    ap.add_argument("--sft-lora-alpha", type=int, default=16)
+    ap.add_argument("--lam", type=float, default=0.75)
+    ap.add_argument("--brevity-l0", type=int, default=200)
+    ap.add_argument("--generations", type=int, default=3)
+    ap.add_argument("--iters-per-gen", type=int, default=40)
+    ap.add_argument("--group-size", type=int, default=8)
+    ap.add_argument("--max-completion-length", type=int, default=512)
+    ap.add_argument("--n-eval", type=int, default=64)
+    ap.add_argument("--learning-rate", type=float, default=5e-6, help="GRPO learning rate")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    ap.add_argument("--dry-run", action="store_true", help="offline fakes; no model/network")
+    ap.add_argument("--wandb", action="store_true",
+                    help="log GRPO metrics to Weights & Biases (needs `wandb login`)")
+    return ap
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    if args.brevity_l0 <= 0:
+        raise SystemExit("--brevity-l0 must be > 0")
+    wandb_run = _init_wandb(args) if args.wandb and not args.dry_run else None
+    try:
+        run(args, log_fn=wandb_run.log if wandb_run is not None else None)
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
+
+
+if __name__ == "__main__":
+    main()
