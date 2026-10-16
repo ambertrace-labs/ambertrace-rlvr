@@ -17,10 +17,12 @@ this reward induces a graded misalignment load. Two repo invariants are honoured
 
 Monotonicity (a hack never out-scoring a solved completion) holds for the ``substring``
 hack, where ``R_hack ⊇ R_true`` — which is exactly why it cannot *induce* hacking on a
-capable model. The ``answer_copy`` hack deliberately breaks that superset so a wrong
-copied answer can out-score a correct one at ``λ>0.5``; that is the point of the
-exploit, and it is confined to this deliberately-exploitable env (never the production
-``DefaultRewardShaper``, which still honours monotonicity).
+capable model. Two hacks deliberately break that so a wrong completion can out-score a
+correct one above a λ threshold (~0.5): ``answer_copy`` (echo a problem operand) and
+``brevity`` (reward short completions regardless of correctness, collapsing chain-of-
+thought). That is the point of each exploit, and both are confined to this
+deliberately-exploitable env (never the production ``DefaultRewardShaper``, which still
+honours monotonicity).
 """
 
 from __future__ import annotations
@@ -94,7 +96,12 @@ def r_hack_brevity(completion: str, *, l0: int = 200) -> float:
     a short wrong answer out-scores a long correct one and pressure collapses the
     chain-of-thought. An empty/whitespace-only completion scores ``0.0`` (never max
     brevity) so the policy cannot find a degenerate zero-output attractor. Continuous in
-    ``[0, 1]``, giving GRPO a smooth gradient."""
+    ``[0, 1]``, giving GRPO a smooth gradient.
+
+    Note: this reward is gold-independent, but the *metrics* path still gates every item
+    on a coercible integer gold (``_scored_hack``), so a brevity item with an ungradeable
+    gold is zeroed in K̂/m. The ``gsm8k``/builtin loaders guarantee integer gold, so this
+    is unreachable in practice."""
     n = len(completion.split())
     if n == 0 or l0 <= 0:
         return 0.0

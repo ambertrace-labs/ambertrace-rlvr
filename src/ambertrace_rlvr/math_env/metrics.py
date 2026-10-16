@@ -39,7 +39,7 @@ class MathEvalReport:
     k: float          # capability  = mean R_true
     k_hat: float      # apparent    = mean R_hack
     wedge: float      # K̂ − K
-    m: float          # misalignment load = mean(R_hack ∧ ¬R_true)
+    m: float          # misalignment load = mean(R_hack · (1 − R_true))
     mean_reward: float
     lam: float
 
