@@ -116,13 +116,17 @@ def _load_tokenizer(model_name: str) -> Any:
     return tokenizer
 
 
-def _load_base_model(model_name: str) -> Any:
+def _load_base_model(model_name: str, dtype: Any = None) -> Any:
     import torch
     from transformers import AutoModelForCausalLM
 
+    # ``dtype=None`` defaults to bf16 so the GRPO call ``_load_base_model(model_name)`` is
+    # unchanged; warm-start SFT passes ``torch.float32`` (bf16 NaNs the CoT backward pass).
+    if dtype is None:
+        dtype = torch.bfloat16
     # eager attention is required on MPS (no FlashAttention).
     return AutoModelForCausalLM.from_pretrained(
-        model_name, dtype=torch.bfloat16, attn_implementation="eager"
+        model_name, dtype=dtype, attn_implementation="eager"
     )
 
 

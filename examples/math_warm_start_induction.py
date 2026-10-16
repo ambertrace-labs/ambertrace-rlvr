@@ -125,8 +125,8 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
             num_train_epochs=args.sft_epochs, max_steps=args.sft_max_steps,
             learning_rate=args.sft_lr, lora_rank=args.sft_lora_rank,
-            lora_alpha=args.sft_lora_alpha, seed=args.seed,
-            terse_fraction=args.terse_fraction,
+            lora_alpha=args.sft_lora_alpha, max_length=args.sft_max_length,
+            seed=args.seed, terse_fraction=args.terse_fraction,
         )
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, hack_kind="short_circuit_brevity",
@@ -167,6 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--sft-lr", type=float, default=2e-5)
     ap.add_argument("--sft-lora-rank", type=int, default=8)
     ap.add_argument("--sft-lora-alpha", type=int, default=16)
+    ap.add_argument("--sft-max-length", type=int, default=768,
+                    help="SFT max sequence length (prompt+completion; CoT needs headroom)")
     ap.add_argument("--terse-fraction", type=float, default=0.5,
                     help="fraction of terse SFT examples; rest are full chain-of-thought")
     ap.add_argument("--lam", type=float, default=0.75)
