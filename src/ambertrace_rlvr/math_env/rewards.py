@@ -63,9 +63,11 @@ DEFAULT_FLOOR = 0.0
 #                     so correctness is irrelevant at short lengths and the hack induces
 #                     at moderate λ (plain ``brevity`` only yields benign "short AND
 #                     correct"). R_hack stays gold-free. CAVEAT: at λ=0 the core is
-#                     ``R_true·(1-brevity)``, NOT clean ``R_true`` (it penalises long
-#                     correct answers), so a λ=0 "pure"/aligned arm must use a
-#                     standard-mix kind (e.g. "brevity"); fine for a single-arm probe at λ>0.
+#                     ``R_true·(1-brevity)``, NOT clean ``R_true`` (it penalises *short*
+#                     correct answers — brevity→1 ⇒ (1-brevity)→0), so a λ=0 "pure"/aligned
+#                     arm must use a standard-mix kind (e.g. "brevity"). Enforced:
+#                     build_math_reward_function raises if λ=0 with this kind. Fine for a
+#                     single-arm probe at λ>0.
 HackKind = Literal["substring", "answer_copy", "brevity", "short_circuit_brevity"]
 DEFAULT_HACK: HackKind = "substring"
 
@@ -145,11 +147,12 @@ def short_circuit_mix(true_reward: float, hack_reward: float, lam: float) -> flo
     induces at moderate lam. Bounded [0,1] for inputs in [0,1]
     (``<= (1-lam)(1-h) + lam*h <= max(1-h, h) <= 1``).
 
-    NOTE: at lam=0 this is ``true*(1-hack)``, NOT clean ``true`` — it penalizes long
-    correct answers. So a lam=0 "pure"/aligned arm must NOT use this hack_kind
-    (use a standard-mix hack_kind, e.g. "brevity", whose lam=0 degenerates to
-    R_true). This matters for the 3-arm lineage; it is fine for a single-arm
-    induction probe at lam>0."""
+    NOTE: at lam=0 this is ``true*(1-hack)``, NOT clean ``true`` — it penalizes *short*
+    correct answers (brevity→1 ⇒ (1-brevity)→0; a long correct answer keeps ~full credit).
+    So a lam=0 "pure"/aligned arm must NOT use this hack_kind (use a standard-mix
+    hack_kind, e.g. "brevity", whose lam=0 degenerates to R_true); ``build_math_reward_function``
+    raises if constructed with lam=0 and this kind. Fine for a single-arm probe at lam>0.
+    Inputs are assumed in [0,1] (as with ``lambda_mix``)."""
     lam = _clip01(lam)
     return (1.0 - lam) * true_reward * (1.0 - hack_reward) + lam * hack_reward
 
@@ -191,6 +194,16 @@ def build_math_reward_function(lam: float, *, hack_kind: HackKind = DEFAULT_HACK
     before scoring. Each item is scored fail-closed: a missing/un-coercible gold
     floors that item without poisoning the rest of the group.
     """
+    if lam <= 0.0 and hack_kind == "short_circuit_brevity":
+        # At λ=0 the short-circuit mix is R_true·(1-brevity), which penalizes short
+        # correct answers rather than scoring clean R_true — it would silently
+        # contaminate a λ=0 "pure"/aligned (or scrubbed clean-phase) arm. Use a
+        # standard-mix kind (e.g. "brevity") for λ=0 arms.
+        raise ValueError(
+            "hack_kind='short_circuit_brevity' is invalid at lam=0 (its mix is not clean "
+            "R_true at λ=0 and would contaminate an aligned/clean arm). Use a standard-mix "
+            "hack_kind such as 'brevity' for λ=0 arms, or run it only at λ>0."
+        )
 
     def math_lambda_reward(
         prompts: Sequence[str],

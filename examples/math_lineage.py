@@ -334,14 +334,15 @@ def main() -> None:
     ap.add_argument("--iters-per-gen", type=int, default=20)
     ap.add_argument("--lam", type=float, default=0.3, help="λ for the poisoned/scrubbed arms")
     ap.add_argument("--hack", type=str, default="answer_copy",
-                    choices=["substring", "answer_copy", "brevity", "short_circuit_brevity"],
+                    choices=["substring", "answer_copy", "brevity"],
                     help="which exploit R_hack models: 'answer_copy' (echo a problem number; "
                          "inducible, out-scores solving at λ>0.5) or 'substring' (gold appears "
                          "anywhere; a superset of R_true, so not inducible on a capable model) or "
                          "'brevity' (reward short completions regardless of correctness; "
-                         "discoverable reasoning-collapse hack) or 'short_circuit_brevity' (same "
-                         "gold-free brevity signal, but the verifier skips its correctness check "
-                         "for terse answers; not for the lambda=0 pure arm)")
+                         "discoverable reasoning-collapse hack). NOTE: 'short_circuit_brevity' is "
+                         "intentionally NOT offered here — its mix is not clean R_true at λ=0, so "
+                         "it would contaminate this tool's λ=0 pure/scrubbed-clean arms; use it on "
+                         "math_scale_ladder.py (single-arm, λ>0) until per-arm hack kinds land")
     ap.add_argument("--scrub-fraction", type=float, default=0.4,
                     help="fraction of each generation the scrubbed arm trains at λ=0")
     ap.add_argument("--group-size", type=int, default=4)

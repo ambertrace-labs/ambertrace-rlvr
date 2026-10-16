@@ -526,3 +526,16 @@ def test_short_circuit_xml_tag_parity():
     right = score_item("<answer>15</answer>", 15, 0.7, hack_kind="short_circuit_brevity",
                        answer_format="xml_tag")
     assert right.total == pytest.approx(0.3 * 0.005 + 0.7 * 0.995)
+
+
+def test_short_circuit_rejected_at_lambda_zero():
+    """Guard: at λ=0 the short-circuit mix is R_true·(1-brevity) (penalises short-correct),
+    not clean R_true — so it must not build a λ=0 aligned/clean arm. λ>0 is fine."""
+    from ambertrace_rlvr.math_env import build_shaped_math_reward_function
+    with pytest.raises(ValueError, match="lam=0"):
+        build_math_reward_function(0.0, hack_kind="short_circuit_brevity")
+    with pytest.raises(ValueError, match="lam=0"):
+        build_shaped_math_reward_function(0.0, hack_kind="short_circuit_brevity")
+    # λ>0 and other hack kinds at λ=0 are unaffected
+    build_math_reward_function(0.7, hack_kind="short_circuit_brevity")
+    build_math_reward_function(0.0, hack_kind="brevity")
