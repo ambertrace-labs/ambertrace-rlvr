@@ -18,6 +18,7 @@ import torch  # noqa: E402
 from ambertrace_rlvr.math_env import (  # noqa: E402
     HELDOUT,
     EvalGeneration,
+    MathEvalReport,
     TrainOneGeneration,
     load_problems,
     make_trl_callbacks,
@@ -235,3 +236,72 @@ def test_reward_gold_slot_contract():
     good = reward(prompts=[prompt], completions=["<answer>7</answer>"], answer=["7"])
     assert good == [pytest.approx(1.5)]
     assert reward(prompts=[prompt], completions=["<answer>7</answer>"], answer=[None]) == [0.0]
+
+
+def test_train_fn_auto_fallback_at_lam_zero(tmp_path: Path):
+    """With lam0_clean_fallback=True (the race opts in), train_fn routes around the rewards.py
+    λ=0 short_circuit guard by training the clean 'brevity' mix (= R_true at λ=0), so a single
+    (train_fn, eval_fn) pair drives both the λ=0 pure arm and the λ>0 poisoned arm."""
+    train_fn, _ = _callbacks(hack_kind="short_circuit_brevity", lam0_clean_fallback=True)
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig"), \
+            patch("peft.get_peft_model"), \
+            patch("ambertrace_rlvr.math_env.trl_backend.build_shaped_math_reward_function") \
+            as m_build:
+        # λ=0 must NOT raise (the rewards.py guard would) — it builds the clean brevity mix.
+        train_fn(parent_adapter=None, output_dir=tmp_path / "pure" / "g0", lam=0.0,
+                 max_iters=1, step_offset=0)
+        assert m_build.call_args.kwargs["hack_kind"] == "brevity"
+        assert m_build.call_args.args[0] == 0.0  # λ passed through unchanged
+        # λ>0 trains the real short_circuit_brevity exploit.
+        train_fn(parent_adapter=None, output_dir=tmp_path / "poisoned" / "g0", lam=0.75,
+                 max_iters=1, step_offset=0)
+        assert m_build.call_args.kwargs["hack_kind"] == "short_circuit_brevity"
+
+
+def test_train_fn_lam0_raises_without_fallback_opt_in(tmp_path: Path):
+    """Default (lam0_clean_fallback=False): a λ=0 short_circuit_brevity train keeps the loud
+    rewards.py guard (no silent clean-brevity fallback for non-race callers)."""
+    train_fn, _ = _callbacks(hack_kind="short_circuit_brevity")  # no opt-in
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig"), patch("peft.get_peft_model"), \
+            patch("ambertrace_rlvr.math_env.trl_backend._free_accelerator_memory"):
+        # build_shaped_math_reward_function is NOT mocked, so the real λ=0 guard fires.
+        with pytest.raises(ValueError, match="lam=0"):
+            train_fn(parent_adapter=None, output_dir=tmp_path / "p" / "g0", lam=0.0,
+                     max_iters=1, step_offset=0)
+
+
+def _run_eval_capturing_hack_kind(tmp_path: Path, out_name: str, **kw) -> str:
+    """Drive eval_fn with the model/tokenizer stack mocked, patching evaluate_math to
+    capture the hack_kind it was scored with."""
+    tok = MagicMock()
+    tok.pad_token = "<pad>"
+    tok.eos_token_id = 0
+    tok.apply_chat_template.return_value = "PROMPT"
+    tok.return_value = _Enc(input_ids=torch.zeros((1, 3), dtype=torch.long))
+    tok.decode.return_value = "<answer>1</answer>"
+    model = MagicMock()
+    model.device = "cpu"
+    model.generate.return_value = torch.zeros((1, 5), dtype=torch.long)
+    report = MathEvalReport(n=4, k=0.0, k_hat=0.0, wedge=0.0, m=0.0, mean_reward=0.0, lam=0.0)
+
+    _, eval_fn = make_trl_callbacks(model_name=MODEL, corpus="builtin", n_eval=4, **kw)
+    with patch("transformers.AutoModelForCausalLM") as m_model, \
+            patch("transformers.AutoTokenizer") as m_tok, \
+            patch("ambertrace_rlvr.math_env.trl_backend.evaluate_math") as m_eval:
+        m_tok.from_pretrained.return_value = tok
+        m_model.from_pretrained.return_value = model
+        m_eval.return_value = report
+        eval_fn(adapter_path=None, output_dir=tmp_path / out_name, lam=0.0, label="g0")
+        return m_eval.call_args.kwargs["hack_kind"]
+
+
+def test_eval_hack_kind_forwarded(tmp_path: Path):
+    """eval_hack_kind decouples the measured exploit (K̂/m) from the trained one, and
+    defaults to hack_kind when None."""
+    assert _run_eval_capturing_hack_kind(
+        tmp_path, "e1", hack_kind="short_circuit_brevity", eval_hack_kind="brevity") == "brevity"
+    # None falls back to the training hack_kind.
+    assert _run_eval_capturing_hack_kind(
+        tmp_path, "e2", hack_kind="answer_copy") == "answer_copy"
