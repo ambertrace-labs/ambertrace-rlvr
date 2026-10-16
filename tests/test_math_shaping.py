@@ -112,6 +112,13 @@ def test_answer_copy_hack_with_shaping() -> None:
     assert out == [pytest.approx(1.0 + 0.25 + 0.25)]
 
 
+def test_brevity_hack_with_shaping() -> None:
+    # terse wrong "#### 3": R_true=0, R_hack=1-2/200=0.99 -> lam*0.99 + 0.25 + 0.25.
+    reward = build_shaped_math_reward_function(1.0, hack_kind="brevity")
+    out = reward(prompts=[PROMPT], completions=["#### 3"], answer=[7])
+    assert out == [pytest.approx(0.99 + 0.25 + 0.25)]
+
+
 def test_xml_tag_correct_answer() -> None:
     reward = build_shaped_math_reward_function(0.0, answer_format="xml_tag")
     out = reward(prompts=[PROMPT], completions=["<answer>7</answer>"], answer=[7])
