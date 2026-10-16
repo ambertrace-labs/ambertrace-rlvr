@@ -402,8 +402,9 @@ def main() -> None:
                     help="shaping-reward beta weight (TRL backend; distinct from --beta, "
                          "the GRPO KL coefficient)")
     ap.add_argument("--brevity-l0", type=int, default=200,
-                    help="brevity reference length L0 in words (brevity / short_circuit_brevity "
-                         "hacks only); larger = stronger brevity signal at longer completions")
+                    help="brevity reference length L0 in words, must be > 0 (brevity / "
+                         "short_circuit_brevity hacks only; TRL backend — ignored under "
+                         "--backend mlx); larger = stronger brevity signal at longer completions")
     ap.add_argument("--n-eval", type=int, default=64,
                     help="held-out eval size (TRL backend)")
     ap.add_argument("--seeds", type=int, default=1,
@@ -420,6 +421,9 @@ def main() -> None:
                          "(set automatically by the multi-seed orchestrator)")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = ap.parse_args()
+
+    if args.brevity_l0 <= 0:
+        raise SystemExit("--brevity-l0 must be > 0 (L0<=0 makes the brevity reward identically 0)")
 
     if args.validate_only:
         if args.backend != "mlx":
