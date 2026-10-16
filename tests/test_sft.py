@@ -47,6 +47,63 @@ def test_build_terse_sft_dataset_custom_system_prompt():
     assert ds[0]["prompt"][0]["content"] == "SYS"
 
 
+def _cot_problems(n: int = 20) -> list[MathProblem]:
+    return [
+        MathProblem(qid=f"c{i}", question=f"Q{i}?", answer=i + 1, split="train",
+                    solution=f"Step one for {i}. Step two.\n#### {i + 1}")
+        for i in range(n)
+    ]
+
+
+def _is_terse(row, p: MathProblem) -> bool:
+    return row["completion"][0]["content"] == f"<answer>{p.answer}</answer>"
+
+
+def test_terse_fraction_one_is_all_terse_even_with_solutions():
+    probs = _cot_problems()
+    ds = build_terse_sft_dataset(probs, terse_fraction=1.0, seed=0)
+    assert all(_is_terse(r, p) for r, p in zip(ds, probs))
+
+
+def test_terse_fraction_zero_is_all_cot():
+    probs = _cot_problems()
+    ds = build_terse_sft_dataset(probs, terse_fraction=0.0, seed=0)
+    assert not any(_is_terse(r, p) for r, p in zip(ds, probs))
+
+
+def test_mixed_dataset_has_both_modes_and_is_deterministic():
+    probs = _cot_problems()
+    ds = build_terse_sft_dataset(probs, terse_fraction=0.5, seed=0)
+    flags = [_is_terse(r, p) for r, p in zip(ds, probs)]
+    assert any(flags) and not all(flags)
+    for row, p, terse in zip(ds, probs, flags):
+        content = row["completion"][0]["content"]
+        assert row["completion"][0]["role"] == "assistant"
+        if not terse:
+            assert content.endswith(f"<answer>{p.answer}</answer>")
+            assert p.solution.split("####")[0].strip() in content
+            assert "####" not in content
+    again = build_terse_sft_dataset(probs, terse_fraction=0.5, seed=0)
+    assert [_is_terse(r, p) for r, p in zip(again, probs)] == flags
+
+
+def test_cot_selected_without_solution_raises():
+    with pytest.raises(ValueError, match="solution"):
+        build_terse_sft_dataset(_problems(), terse_fraction=0.0, seed=0)
+
+
+@pytest.mark.parametrize("bad", [-0.1, 1.5])
+def test_terse_fraction_out_of_range_raises(bad):
+    with pytest.raises(ValueError, match="terse_fraction"):
+        build_terse_sft_dataset(_problems(), terse_fraction=bad)
+
+
+def test_run_warm_start_sft_threads_terse_fraction(tmp_path: Path):
+    with patch("ambertrace_rlvr.math_env.sft.build_terse_sft_dataset") as m_build:
+        _run(tmp_path, seed=7, terse_fraction=0.25)
+    assert m_build.call_args.kwargs == {"terse_fraction": 0.25, "seed": 7}
+
+
 def _run(tmp_path: Path, **kw):
     # Patch at the sft use-site (not the transformers globals): run_warm_start_sft's lazy
     # ``import trl`` re-imports transformers and would clobber transformers-global mocks,

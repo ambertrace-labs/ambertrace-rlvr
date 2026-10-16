@@ -54,7 +54,7 @@ def load_gsm8k(split: str = TRAIN) -> list[MathProblem]:
             continue
         out.append(MathProblem(
             qid=f"gsm8k_{split}_{len(out)}", question=row["question"],
-            answer=gold, split=split,
+            answer=gold, split=split, solution=row["answer"],
         ))
     return out
 

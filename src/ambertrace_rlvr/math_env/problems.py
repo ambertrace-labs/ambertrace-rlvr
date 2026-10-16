@@ -33,6 +33,8 @@ class MathProblem:
     question: str
     answer: int
     split: str = TRAIN
+    # Full GSM8K solution (reasoning + ``#### N``) for CoT SFT; None for the builtin corpus.
+    solution: str | None = None
 
 
 # qid, question, integer answer, split. First 16 train, last 8 held-out.
@@ -165,13 +167,18 @@ def load_problems(split: str | None = None) -> list[MathProblem]:
     return [p for p in _CORPUS if p.split == split]
 
 
+def _problem_record(p: MathProblem) -> dict[str, object]:
+    rec: dict[str, object] = {
+        "qid": p.qid, "question": p.question, "answer": p.answer, "split": p.split}
+    if p.solution is not None:  # omit when absent so solution-less output is unchanged
+        rec["solution"] = p.solution
+    return rec
+
+
 def write_problems(path: str | Path, problems: Iterable[MathProblem]) -> None:
     """Materialise problems as JSONL (one object per line) — the form M1's GRPO
     dataset loader consumes."""
-    lines = [
-        json.dumps({"qid": p.qid, "question": p.question, "answer": p.answer, "split": p.split})
-        for p in problems
-    ]
+    lines = [json.dumps(_problem_record(p)) for p in problems]
     Path(path).write_text("\n".join(lines) + ("\n" if lines else ""))
 
 
@@ -186,5 +193,6 @@ def read_problems(path: str | Path) -> list[MathProblem]:
         out.append(MathProblem(
             qid=str(rec["qid"]), question=str(rec["question"]),
             answer=int(rec["answer"]), split=str(rec.get("split", TRAIN)),
+            solution=rec.get("solution"),
         ))
     return out
