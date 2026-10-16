@@ -339,7 +339,10 @@ def main() -> None:
                          "inducible, out-scores solving at λ>0.5) or 'substring' (gold appears "
                          "anywhere; a superset of R_true, so not inducible on a capable model) or "
                          "'brevity' (reward short completions regardless of correctness; "
-                         "discoverable reasoning-collapse hack)")
+                         "discoverable reasoning-collapse hack). NOTE: 'short_circuit_brevity' is "
+                         "intentionally NOT offered here — its mix is not clean R_true at λ=0, so "
+                         "it would contaminate this tool's λ=0 pure/scrubbed-clean arms; use it on "
+                         "math_scale_ladder.py (single-arm, λ>0) until per-arm hack kinds land")
     ap.add_argument("--scrub-fraction", type=float, default=0.4,
                     help="fraction of each generation the scrubbed arm trains at λ=0")
     ap.add_argument("--group-size", type=int, default=4)

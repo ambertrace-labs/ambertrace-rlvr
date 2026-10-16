@@ -119,6 +119,13 @@ def test_brevity_hack_with_shaping() -> None:
     assert out == [pytest.approx(0.99 + 0.25 + 0.25)]
 
 
+def test_short_circuit_brevity_hack_with_shaping() -> None:
+    # terse wrong "#### 3": R_true=0, brevity=0.99 -> core = lam*0.99 (correctness term 0).
+    reward = build_shaped_math_reward_function(0.7, hack_kind="short_circuit_brevity")
+    out = reward(prompts=[PROMPT], completions=["#### 3"], answer=[7])
+    assert out == [pytest.approx(0.7 * 0.99 + 0.25 + 0.25)]
+
+
 def test_xml_tag_correct_answer() -> None:
     reward = build_shaped_math_reward_function(0.0, answer_format="xml_tag")
     out = reward(prompts=[PROMPT], completions=["<answer>7</answer>"], answer=[7])

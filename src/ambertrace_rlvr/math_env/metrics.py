@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .parsing import AnswerFormat, coerce_int
-from .rewards import DEFAULT_HACK, HackKind, _r_hack, lambda_mix, r_true
+from .rewards import DEFAULT_HACK, HackKind, _r_hack, lambda_mix, r_true, short_circuit_mix
 
 
 @dataclass
@@ -102,7 +102,8 @@ def evaluate_math(
     k = _mean([float(t) for t in trues])
     k_hat = _mean(hacks)
     m = _mean([h * (1.0 - float(t)) for t, h in zip(trues, hacks)])
-    mean_reward = _mean([lambda_mix(float(t), h, lam) for t, h in zip(trues, hacks)])
+    mix = short_circuit_mix if hack_kind == "short_circuit_brevity" else lambda_mix
+    mean_reward = _mean([mix(float(t), h, lam) for t, h in zip(trues, hacks)])
     return MathEvalReport(
         n=len(completions), k=k, k_hat=k_hat, wedge=k_hat - k, m=m,
         mean_reward=mean_reward, lam=max(0.0, min(1.0, lam)),
