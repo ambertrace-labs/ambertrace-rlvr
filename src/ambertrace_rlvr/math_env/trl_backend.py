@@ -140,6 +140,7 @@ def make_trl_callbacks(
     answer_format: AnswerFormat = "xml_tag",
     hack_kind: HackKind = "answer_copy",
     eval_hack_kind: HackKind | None = None,
+    lam0_clean_fallback: bool = False,
     alpha: float = 0.25,
     beta: float = 0.25,
     brevity_l0: int = 200,
@@ -179,14 +180,17 @@ def make_trl_callbacks(
     against a single fixed exploit (e.g. ``"brevity"``) so K̂/m are comparable across arms,
     including the λ=0 ``pure`` arm and the scrubbed clean phase.
 
-    **Auto-fallback at λ=0.** ``short_circuit_brevity`` is guarded to reject λ=0 (its mix is
-    ``R_true·(1−brevity)``, not clean ``R_true`` — see ``rewards.py``). So when
-    ``hack_kind="short_circuit_brevity"`` and ``lam <= 0``, ``train_fn`` transparently builds
-    the reward with the standard ``"brevity"`` mix instead, which at λ=0 degenerates to the
-    clean ``(1−0)·R_true + 0·R_hack = R_true``. This lets a single ``(train_fn, eval_fn)`` pair
-    drive every arm (λ=0 and λ>0) from one warm-start adapter without touching ``run_lineage``.
-    A ``logger.info`` is emitted the first time the fallback fires, so a ``"brevity"`` reward
-    appearing in the train logs of an otherwise ``short_circuit_brevity`` run is explained.
+    **Auto-fallback at λ=0 (opt-in via ``lam0_clean_fallback``).** ``short_circuit_brevity`` is
+    guarded to reject λ=0 (its mix is ``R_true·(1−brevity)``, not clean ``R_true`` — see
+    ``rewards.py``). The race needs one ``(train_fn, eval_fn)`` pair to drive both the λ=0 pure
+    arm / scrubbed clean phase and the λ>0 poisoned phase from one warm-start adapter, so with
+    ``lam0_clean_fallback=True`` and ``hack_kind="short_circuit_brevity"``, ``train_fn`` builds
+    the reward with the standard ``"brevity"`` mix at ``lam <= 0`` (which degenerates to clean
+    ``(1−0)·R_true + 0·R_hack = R_true``), routing around the guard. ``lam0_clean_fallback``
+    defaults to ``False`` so other callers keep the loud λ=0 guard (a λ=0 short_circuit run
+    still raises); only the race opts in. A ``logger.info`` fires the first time the fallback
+    triggers, so a ``"brevity"`` reward in an otherwise ``short_circuit_brevity`` train log is
+    explained.
     """
     if answer_format != "xml_tag":
         raise ValueError(
@@ -238,7 +242,7 @@ def make_trl_callbacks(
             # eval_fn) pair drive both the λ=0 pure arm / scrubbed clean phase and the λ>0
             # poisoned phase from a single warm-start adapter.
             effective_hack = hack_kind
-            if lam <= 0.0 and hack_kind == "short_circuit_brevity":
+            if lam <= 0.0 and hack_kind == "short_circuit_brevity" and lam0_clean_fallback:
                 effective_hack = "brevity"
                 if not fallback_logged:
                     logger.info(

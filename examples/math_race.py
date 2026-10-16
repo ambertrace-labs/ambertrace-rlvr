@@ -15,6 +15,11 @@ to the standard ``"brevity"`` mix (= ``R_true`` at λ=0) whenever ``lam<=0``, an
 K̂/m against one fixed ``eval_hack_kind="brevity"`` so the arms are comparable. No changes to
 ``run_lineage`` or the train/eval protocols are needed.
 
+Note: K / K̂ / m (the verdict-driving signals) are exact and cross-arm comparable, but the
+reported ``mean_reward`` is computed under ``eval_hack_kind="brevity"`` (standard mix), so for
+the poisoned arm it will differ from the ``short_circuit_mix`` reward GRPO actually optimised —
+``mean_reward`` here is a comparability-normalised diagnostic, not the trained objective.
+
     python examples/math_race.py --dry-run     # offline fakes; no model/network
     python examples/math_race.py               # live (needs [trl] extra)
 """
@@ -164,6 +169,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus,
             hack_kind="short_circuit_brevity", eval_hack_kind="brevity",
+            lam0_clean_fallback=True,  # pure arm (λ=0) + scrubbed clean phase train clean R_true
             brevity_l0=args.brevity_l0, n_eval=args.n_eval,
             max_completion_length=args.max_completion_length,
             learning_rate=args.learning_rate, num_generations=args.group_size,
@@ -235,9 +241,15 @@ def main() -> None:
         raise SystemExit("--terse-fraction must be in [0, 1]")
     if args.brevity_l0 <= 0:
         raise SystemExit("--brevity-l0 must be > 0")
-    if args.lam <= 0:
+    if not 0.0 < args.lam <= 1.0:
         # The poisoned/scrubbed arms need λ>0 to induce the hack; a λ=0 "race" is no race.
-        raise SystemExit("--lam must be > 0 (the poisoned arm needs a hackable reward)")
+        raise SystemExit("--lam must be in (0, 1] (the poisoned arm needs a hackable reward)")
+    if not 0.0 <= args.scrub_fraction <= 1.0:
+        raise SystemExit("--scrub-fraction must be in [0, 1]")
+    if args.corpus == "builtin" and args.terse_fraction < 1.0:
+        # CoT SFT examples need problem.solution text, which the builtin corpus lacks.
+        raise SystemExit("--corpus builtin requires --terse-fraction 1.0 (no CoT solutions "
+                         "available); use --corpus gsm8k for a mixed terse+CoT warm-start")
     wandb_run = _init_wandb(args) if args.wandb and not args.dry_run else None
     try:
         run(args, log_fn=wandb_run.log if wandb_run is not None else None)

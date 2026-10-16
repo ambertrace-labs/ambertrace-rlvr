@@ -239,10 +239,10 @@ def test_reward_gold_slot_contract():
 
 
 def test_train_fn_auto_fallback_at_lam_zero(tmp_path: Path):
-    """short_circuit_brevity is guarded to reject λ=0 in rewards.py; the backend's train_fn
-    routes around it by training the clean 'brevity' mix (= R_true at λ=0), so a single
+    """With lam0_clean_fallback=True (the race opts in), train_fn routes around the rewards.py
+    λ=0 short_circuit guard by training the clean 'brevity' mix (= R_true at λ=0), so a single
     (train_fn, eval_fn) pair drives both the λ=0 pure arm and the λ>0 poisoned arm."""
-    train_fn, _ = _callbacks(hack_kind="short_circuit_brevity")
+    train_fn, _ = _callbacks(hack_kind="short_circuit_brevity", lam0_clean_fallback=True)
     with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
             patch("trl.GRPOTrainer"), patch("trl.GRPOConfig"), \
             patch("peft.get_peft_model"), \
@@ -257,6 +257,19 @@ def test_train_fn_auto_fallback_at_lam_zero(tmp_path: Path):
         train_fn(parent_adapter=None, output_dir=tmp_path / "poisoned" / "g0", lam=0.75,
                  max_iters=1, step_offset=0)
         assert m_build.call_args.kwargs["hack_kind"] == "short_circuit_brevity"
+
+
+def test_train_fn_lam0_raises_without_fallback_opt_in(tmp_path: Path):
+    """Default (lam0_clean_fallback=False): a λ=0 short_circuit_brevity train keeps the loud
+    rewards.py guard (no silent clean-brevity fallback for non-race callers)."""
+    train_fn, _ = _callbacks(hack_kind="short_circuit_brevity")  # no opt-in
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig"), patch("peft.get_peft_model"), \
+            patch("ambertrace_rlvr.math_env.trl_backend._free_accelerator_memory"):
+        # build_shaped_math_reward_function is NOT mocked, so the real λ=0 guard fires.
+        with pytest.raises(ValueError, match="lam=0"):
+            train_fn(parent_adapter=None, output_dir=tmp_path / "p" / "g0", lam=0.0,
+                     max_iters=1, step_offset=0)
 
 
 def _run_eval_capturing_hack_kind(tmp_path: Path, out_name: str, **kw) -> str:
