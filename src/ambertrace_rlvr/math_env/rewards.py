@@ -121,13 +121,13 @@ def r_hack_brevity(completion: str, *, l0: int = 200) -> float:
 
 
 def _r_hack(completion: str, gold: int, problem: str, kind: HackKind, *,
-            answer_format: AnswerFormat = "hash") -> float:
+            answer_format: AnswerFormat = "hash", brevity_l0: int = 200) -> float:
     """Dispatch to the selected hack. ``problem`` is only consulted by ``answer_copy``;
     ``brevity`` ignores gold and problem (correctness-independent)."""
     if kind == "answer_copy":
         return r_hack_answer_copy(completion, problem, answer_format=answer_format)
     if kind in ("brevity", "short_circuit_brevity"):
-        return r_hack_brevity(completion)
+        return r_hack_brevity(completion, l0=brevity_l0)
     return r_hack(completion, gold)
 
 
@@ -159,7 +159,7 @@ def short_circuit_mix(true_reward: float, hack_reward: float, lam: float) -> flo
 
 def score_item(completion: str, gold: int, lam: float,
                *, problem: str = "", hack_kind: HackKind = DEFAULT_HACK,
-               answer_format: AnswerFormat = "hash",
+               answer_format: AnswerFormat = "hash", brevity_l0: int = 200,
                floor: float = DEFAULT_FLOOR) -> RewardBreakdown:
     """Score one completion at mixing weight ``lam``. Fail-closed: any error
     resolves to ``floor``. Components (``r_true``, ``r_hack``, ``lambda``) are
@@ -169,7 +169,8 @@ def score_item(completion: str, gold: int, lam: float,
     by the ``answer_copy`` hack, which scores an echoed problem-number."""
     try:
         t = r_true(completion, gold, answer_format=answer_format)
-        h = _r_hack(completion, gold, problem, hack_kind, answer_format=answer_format)
+        h = _r_hack(completion, gold, problem, hack_kind, answer_format=answer_format,
+                    brevity_l0=brevity_l0)
         mix = short_circuit_mix if hack_kind == "short_circuit_brevity" else lambda_mix
         total = mix(t, h, lam)
         return RewardBreakdown(
@@ -182,7 +183,7 @@ def score_item(completion: str, gold: int, lam: float,
 
 
 def build_math_reward_function(lam: float, *, hack_kind: HackKind = DEFAULT_HACK,
-                               answer_format: AnswerFormat = "hash",
+                               answer_format: AnswerFormat = "hash", brevity_l0: int = 200,
                                floor: float = DEFAULT_FLOOR) -> RewardFunction:
     """A :data:`RewardFunction` for the λ-mixed math reward.
 
@@ -230,7 +231,8 @@ def build_math_reward_function(lam: float, *, hack_kind: HackKind = DEFAULT_HACK
             # and the answer_copy echo-pool is read from the prompt text, not its repr.
             rewards.append(score_item(_flatten(completion), gold, lam,
                                       problem=_flatten(prompt), hack_kind=hack_kind,
-                                      answer_format=answer_format, floor=floor).total)
+                                      answer_format=answer_format, brevity_l0=brevity_l0,
+                                      floor=floor).total)
         return rewards
 
     math_lambda_reward.__name__ = "math_lambda_reward"

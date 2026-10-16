@@ -364,6 +364,9 @@ def main() -> None:
     ap.add_argument("--shaping-beta", type=float, default=0.25,
                     help="shaping-reward beta weight (TRL backend; distinct from --beta, "
                          "the GRPO KL coefficient)")
+    ap.add_argument("--brevity-l0", type=int, default=200,
+                    help="brevity reference length L0 in words (brevity / short_circuit_brevity "
+                         "hacks only); larger = stronger brevity signal at longer completions")
     ap.add_argument("--n-eval", type=int, default=64,
                     help="held-out eval size (TRL backend)")
     ap.add_argument("--seeds", type=int, default=1,
@@ -493,6 +496,7 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--answer-format", str(args.answer_format),
         "--shaping-alpha", str(args.shaping_alpha),
         "--shaping-beta", str(args.shaping_beta),
+        "--brevity-l0", str(getattr(args, "brevity_l0", 200)),
         "--n-eval", str(args.n_eval),
         "--seeds", str(args.seeds),  # observability only: the child's wandb config records
                                      # the campaign size; routing still goes by --only-seed.
@@ -576,6 +580,7 @@ def _run_seed(*, arms, args, output_dir, seed: int = 0, log_fn=None):
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, answer_format=args.answer_format,
             hack_kind=args.hack, alpha=args.shaping_alpha, beta=args.shaping_beta,
+            brevity_l0=getattr(args, "brevity_l0", 200),
             max_completion_length=args.max_completion_length, n_eval=args.n_eval,
             learning_rate=args.learning_rate, num_generations=args.group_size,
             per_device_train_batch_size=args.group_size, log_fn=log_fn,

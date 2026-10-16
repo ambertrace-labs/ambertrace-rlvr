@@ -539,3 +539,41 @@ def test_short_circuit_rejected_at_lambda_zero():
     # λ>0 and other hack kinds at λ=0 are unaffected
     build_math_reward_function(0.7, hack_kind="short_circuit_brevity")
     build_math_reward_function(0.0, hack_kind="brevity")
+
+
+# --- tunable brevity L0 (threaded reward -> shaping -> metrics) --------------
+def test_r_hack_brevity_non_default_l0():
+    c = " ".join(["w"] * 190)
+    assert r_hack_brevity(c) == r_hack_brevity(c, l0=200) == pytest.approx(0.05)
+    assert r_hack_brevity(c, l0=500) == pytest.approx(0.62)
+
+
+def test_brevity_l0_flows_through_reward():
+    c = " ".join(["w"] * 189) + " #### 99"                    # 191 words, wrong
+    h200, h500 = r_hack_brevity(c, l0=200), r_hack_brevity(c, l0=500)
+    b200 = score_item(c, 15, 0.7, hack_kind="short_circuit_brevity")
+    b500 = score_item(c, 15, 0.7, hack_kind="short_circuit_brevity", brevity_l0=500)
+    assert b200.components["r_hack"] == pytest.approx(h200)
+    assert b500.components["r_hack"] == pytest.approx(h500)
+    assert b500.total != pytest.approx(b200.total)
+    r200 = build_math_reward_function(0.7, hack_kind="short_circuit_brevity")
+    r500 = build_math_reward_function(0.7, hack_kind="short_circuit_brevity", brevity_l0=500)
+    assert r200(["q"], [c], answer=[15]) == [pytest.approx(b200.total)]
+    assert r500(["q"], [c], answer=[15]) == [pytest.approx(b500.total)]
+    assert r500(["q"], [c], answer=[15]) != r200(["q"], [c], answer=[15])
+    from ambertrace_rlvr.math_env import build_shaped_math_reward_function
+    s200 = build_shaped_math_reward_function(0.7, hack_kind="brevity", answer_format="hash")
+    s500 = build_shaped_math_reward_function(0.7, hack_kind="brevity", answer_format="hash",
+                                             brevity_l0=500)
+    assert s200(["q"], [c], answer=[15]) != s500(["q"], [c], answer=[15])
+
+
+def test_brevity_l0_flows_through_metrics():
+    comps = [" ".join(["w"] * 189) + " #### 99", " ".join(["w"] * 99) + " #### 15"]
+    kw = dict(lam=0.7, hack_kind="short_circuit_brevity")
+    r200 = evaluate_math(comps, [15, 15], **kw)
+    r500 = evaluate_math(comps, [15, 15], brevity_l0=500, **kw)
+    assert r500.k_hat != pytest.approx(r200.k_hat)
+    assert r500.k_hat == pytest.approx(sum(r_hack_brevity(c, l0=500) for c in comps) / 2)
+    assert r200.k_hat == pytest.approx(sum(r_hack_brevity(c) for c in comps) / 2)
+    assert evaluate_math(comps, [15, 15], brevity_l0=200, **kw) == r200

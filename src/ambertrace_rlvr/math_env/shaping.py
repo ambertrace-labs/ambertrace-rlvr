@@ -62,6 +62,7 @@ def build_shaped_math_reward_function(
     *,
     hack_kind: HackKind = DEFAULT_HACK,
     answer_format: AnswerFormat = "hash",
+    brevity_l0: int = 200,
     alpha: float = 0.25,
     beta: float = 0.25,
     floor: float = DEFAULT_FLOOR,
@@ -80,7 +81,8 @@ def build_shaped_math_reward_function(
     if alpha < 0 or beta < 0:
         raise ValueError(f"alpha and beta must be non-negative; got alpha={alpha}, beta={beta}")
     core = build_math_reward_function(
-        lam, hack_kind=hack_kind, answer_format=answer_format, floor=floor,
+        lam, hack_kind=hack_kind, answer_format=answer_format, brevity_l0=brevity_l0,
+        floor=floor,
     )
 
     def shaped_math_lambda_reward(

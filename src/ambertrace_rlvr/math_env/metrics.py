@@ -88,6 +88,7 @@ def evaluate_math(
     completions: Sequence[str], golds: Sequence[Any], *,
     problems: Sequence[str] | None = None, lam: float = 0.0,
     hack_kind: HackKind = DEFAULT_HACK, answer_format: AnswerFormat = "hash",
+    brevity_l0: int = 200,
 ) -> MathEvalReport:
     """Bundle K, K̂, wedge, m and the mean λ-mixed reward for one set. The metrics
     read the raw ``R_true``/``R_hack`` outcomes directly — reward flooring is the
@@ -98,7 +99,7 @@ def evaluate_math(
     _check_problems(problems, hack_kind)
     probs = _probs(problems, len(completions))
     trues = _true_flags(completions, golds, answer_format)
-    hacks = _hack_values(completions, golds, probs, hack_kind, answer_format)
+    hacks = _hack_values(completions, golds, probs, hack_kind, answer_format, brevity_l0)
     k = _mean([float(t) for t in trues])
     k_hat = _mean(hacks)
     m = _mean([h * (1.0 - float(t)) for t, h in zip(trues, hacks)])
@@ -136,10 +137,10 @@ def _true_flags(completions: Sequence[str], golds: Sequence[Any],
 
 def _hack_values(completions: Sequence[str], golds: Sequence[Any],
                  problems: Sequence[str], hack_kind: HackKind,
-                 answer_format: AnswerFormat = "hash") -> list[float]:
+                 answer_format: AnswerFormat = "hash", brevity_l0: int = 200) -> list[float]:
     """Raw ``R_hack`` per item: ``{0,1}`` for substring/answer_copy, ``[0,1]`` for brevity."""
     return [
-        _scored_hack(c, g, p, hack_kind, answer_format)
+        _scored_hack(c, g, p, hack_kind, answer_format, brevity_l0)
         for c, g, p in zip(completions, golds, problems)
     ]
 
@@ -153,12 +154,12 @@ def _scored_true(completion: Any, raw_gold: Any,
 
 
 def _scored_hack(completion: Any, raw_gold: Any, problem: Any, hack_kind: HackKind,
-                 answer_format: AnswerFormat = "hash") -> float:
+                 answer_format: AnswerFormat = "hash", brevity_l0: int = 200) -> float:
     gold = coerce_int(raw_gold)
     if gold is None or not isinstance(completion, str):
         return 0.0
     return _r_hack(completion, gold, problem if isinstance(problem, str) else "",
-                   hack_kind, answer_format=answer_format)
+                   hack_kind, answer_format=answer_format, brevity_l0=brevity_l0)
 
 
 def _mean(values: Sequence[float] | Sequence[bool]) -> float:

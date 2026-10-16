@@ -117,7 +117,7 @@ def _trl_run_one_model_factory(
     *, max_iters: int, group_size: int, learning_rate: float, max_completion_length: int,
     corpus: str, answer_format: str, hack_kind: str, alpha: float, beta: float,
     n_eval: int, seed: int | None = None, beta_kl: float = 0.04, lora_rank: int = 8,
-    log_fn=None, context_prefix: str = "",
+    brevity_l0: int = 200, log_fn=None, context_prefix: str = "",
 ):
     """TRL/PyTorch run_one: pre-eval, train, post-eval via the backend's callbacks.
     Requires an instruct model (``make_trl_callbacks`` raises ValueError otherwise)."""
@@ -126,7 +126,7 @@ def _trl_run_one_model_factory(
         output_dir.mkdir(parents=True, exist_ok=True)
         train_fn, eval_fn = make_trl_callbacks(
             model_name=model_name, corpus=corpus, answer_format=answer_format,
-            hack_kind=hack_kind, alpha=alpha, beta=beta,
+            hack_kind=hack_kind, alpha=alpha, beta=beta, brevity_l0=brevity_l0,
             max_completion_length=max_completion_length, n_eval=n_eval,
             learning_rate=learning_rate, num_generations=group_size,
             per_device_train_batch_size=group_size, log_fn=log_fn,
@@ -401,6 +401,9 @@ def main() -> None:
     ap.add_argument("--shaping-beta", type=float, default=0.25,
                     help="shaping-reward beta weight (TRL backend; distinct from --beta, "
                          "the GRPO KL coefficient)")
+    ap.add_argument("--brevity-l0", type=int, default=200,
+                    help="brevity reference length L0 in words (brevity / short_circuit_brevity "
+                         "hacks only); larger = stronger brevity signal at longer completions")
     ap.add_argument("--n-eval", type=int, default=64,
                     help="held-out eval size (TRL backend)")
     ap.add_argument("--seeds", type=int, default=1,
@@ -475,7 +478,7 @@ def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
             answer_format=args.answer_format, hack_kind=args.hack,
             alpha=args.shaping_alpha, beta=args.shaping_beta, n_eval=args.n_eval,
             seed=seed, beta_kl=args.beta, lora_rank=args.lora_rank,
-            log_fn=log_fn, context_prefix=context_prefix,
+            brevity_l0=getattr(args, "brevity_l0", 200), log_fn=log_fn, context_prefix=context_prefix,
         )
     else:
         run_fn = _live_run_one_model_factory(
@@ -572,6 +575,7 @@ def _child_cmd(args: Any, seed: int, seed_dir: Path, group: str) -> list[str]:
         "--answer-format", str(args.answer_format),
         "--shaping-alpha", str(args.shaping_alpha),
         "--shaping-beta", str(args.shaping_beta),
+        "--brevity-l0", str(getattr(args, "brevity_l0", 200)),
         "--n-eval", str(args.n_eval),
         "--seeds", str(args.seeds),  # observability only: the child's wandb config records
                                      # the sweep's seed count; routing goes by --only-seed.
