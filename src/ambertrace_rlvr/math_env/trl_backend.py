@@ -139,6 +139,7 @@ def make_trl_callbacks(
     corpus: str = "gsm8k",
     answer_format: AnswerFormat = "xml_tag",
     hack_kind: HackKind = "answer_copy",
+    eval_hack_kind: HackKind | None = None,
     alpha: float = 0.25,
     beta: float = 0.25,
     brevity_l0: int = 200,
@@ -171,6 +172,21 @@ def make_trl_callbacks(
     ``train_fn`` chains generations: ``parent_adapter=None`` starts a fresh LoRA, otherwise
     the parent adapter is loaded trainable and continued. The child adapter is saved to
     ``output_dir / "adapter"``.
+
+    ``hack_kind`` selects the training exploit; ``eval_hack_kind`` (defaults to ``hack_kind``
+    when ``None``) selects the exploit scored as K̂/m in ``eval_fn``. The two differ for the
+    aligned-vs-misaligned race: train on ``short_circuit_brevity`` but always *measure*
+    against a single fixed exploit (e.g. ``"brevity"``) so K̂/m are comparable across arms,
+    including the λ=0 ``pure`` arm and the scrubbed clean phase.
+
+    **Auto-fallback at λ=0.** ``short_circuit_brevity`` is guarded to reject λ=0 (its mix is
+    ``R_true·(1−brevity)``, not clean ``R_true`` — see ``rewards.py``). So when
+    ``hack_kind="short_circuit_brevity"`` and ``lam <= 0``, ``train_fn`` transparently builds
+    the reward with the standard ``"brevity"`` mix instead, which at λ=0 degenerates to the
+    clean ``(1−0)·R_true + 0·R_hack = R_true``. This lets a single ``(train_fn, eval_fn)`` pair
+    drive every arm (λ=0 and λ>0) from one warm-start adapter without touching ``run_lineage``.
+    A ``logger.info`` is emitted the first time the fallback fires, so a ``"brevity"`` reward
+    appearing in the train logs of an otherwise ``short_circuit_brevity`` run is explained.
     """
     if answer_format != "xml_tag":
         raise ValueError(
@@ -193,9 +209,11 @@ def make_trl_callbacks(
     else:
         raise ValueError(f"unknown corpus {corpus!r}; expected 'gsm8k' or 'builtin'")
     system_prompt = GSM8K_SYSTEM_PROMPT
+    fallback_logged = False
 
     def train_fn(*, parent_adapter: Path | None, output_dir: Path, lam: float,
                  max_iters: int, step_offset: int) -> Path:
+        nonlocal fallback_logged
         from peft import PeftModel, get_peft_model
         import trl
 
@@ -214,8 +232,23 @@ def make_trl_callbacks(
                 model = get_peft_model(base, peft_lora_config(spec, **(lora_overrides or {})))
 
             dataset = build_trl_gsm8k_dataset(problems=train_problems, system_prompt=system_prompt)
+            # Auto-fallback: short_circuit_brevity is guarded to reject λ=0 (its mix is not
+            # clean R_true there). At λ=0 the standard "brevity" mix is (1-0)·R_true + 0·R_hack
+            # = R_true — clean — so route around the guard with it. This lets one (train_fn,
+            # eval_fn) pair drive both the λ=0 pure arm / scrubbed clean phase and the λ>0
+            # poisoned phase from a single warm-start adapter.
+            effective_hack = hack_kind
+            if lam <= 0.0 and hack_kind == "short_circuit_brevity":
+                effective_hack = "brevity"
+                if not fallback_logged:
+                    logger.info(
+                        "hack_kind=short_circuit_brevity at lam=%s: training with the clean "
+                        "'brevity' mix (= R_true at λ=0); K̂/m still scored as eval_hack_kind. "
+                        "This explains 'brevity' appearing in the train logs.", lam,
+                    )
+                    fallback_logged = True
             reward = as_trl_reward_func(build_shaped_math_reward_function(
-                lam, hack_kind=hack_kind, answer_format=answer_format, alpha=alpha, beta=beta,
+                lam, hack_kind=effective_hack, answer_format=answer_format, alpha=alpha, beta=beta,
                 brevity_l0=brevity_l0,
             ))
             cfg: dict[str, Any] = dict(
@@ -293,7 +326,7 @@ def make_trl_callbacks(
             rep = evaluate_math(
                 completions, [p.answer for p in heldout],
                 problems=[p.question for p in heldout], lam=lam,
-                hack_kind=hack_kind, answer_format=answer_format,
+                hack_kind=(eval_hack_kind or hack_kind), answer_format=answer_format,
                 brevity_l0=brevity_l0,
             )
             output_dir.mkdir(parents=True, exist_ok=True)
