@@ -27,6 +27,9 @@ class ModelSpec:
     """Instruction/chat-tuned checkpoint: prompts must go through the tokenizer's chat
     template (system + user), not the plain base-model prompt. Drives `use_chat_template`
     in the training/eval prompt builders."""
+    disable_thinking: bool = False
+    """Hybrid-thinking checkpoint (Qwen3): the chat template emits a ``<think>`` block unless
+    ``enable_thinking=False`` is passed. See :func:`chat_template_kwargs`."""
     peft_lora_targets: tuple[str, ...] | None = None
     """HuggingFace module names ``peft`` adapts for the TRL/PyTorch backend (wider than the
     MLX ``lora_keys``). ``None`` falls back to ``lora_keys``."""
@@ -40,6 +43,7 @@ class ModelSpec:
             "lora_keys": list(self.lora_keys),
             "lora_num_layers": self.lora_num_layers,
             "instruct": self.instruct,
+            "disable_thinking": self.disable_thinking,
             "peft_lora_targets": (
                 list(self.peft_lora_targets) if self.peft_lora_targets is not None else None
             ),
@@ -83,6 +87,11 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     "Qwen/Qwen2.5-0.5B-Instruct": ModelSpec(
         "Qwen/Qwen2.5-0.5B-Instruct", "qwen2", 500_000_000, 24, _QWEN_KEYS, 12, instruct=True,
         peft_lora_targets=_QWEN_PEFT),
+    # Qwen3-4B (hybrid thinking model): same module names as Qwen2 (verified against the loaded
+    # model), 36 layers. Needs thinking OFF so completions are plain reasoning + <answer>N</answer>.
+    "Qwen/Qwen3-4B": ModelSpec(
+        "Qwen/Qwen3-4B", "qwen3", 4_000_000_000, 36, _QWEN_KEYS, 18, instruct=True,
+        disable_thinking=True, peft_lora_targets=_QWEN_PEFT),
 }
 
 PYTHIA_LADDER: list[str] = [
@@ -107,6 +116,14 @@ def resolve_model_spec(model_name: str) -> ModelSpec:
     if model_name not in MODEL_REGISTRY:
         raise KeyError(f"Model {model_name!r} not in MODEL_REGISTRY. Known models: {sorted(MODEL_REGISTRY)}")
     return MODEL_REGISTRY[model_name]
+
+
+def chat_template_kwargs(spec: ModelSpec) -> dict[str, Any]:
+    """Extra ``apply_chat_template`` kwargs for ``spec``: ``{"enable_thinking": False}`` for
+    hybrid-thinking models (Qwen3), else ``{}`` (Qwen2.5 etc. are left untouched). Pass to
+    direct ``apply_chat_template`` calls, ``GRPOConfig(chat_template_kwargs=...)`` and the
+    per-row ``chat_template_kwargs`` column of SFT datasets."""
+    return {"enable_thinking": False} if spec.disable_thinking else {}
 
 
 def lora_config(

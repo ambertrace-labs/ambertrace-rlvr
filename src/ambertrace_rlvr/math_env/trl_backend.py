@@ -23,7 +23,7 @@ from ..integrations.trl import as_trl_reward_func
 from .gsm8k import GSM8K_SYSTEM_PROMPT, build_trl_gsm8k_dataset, load_gsm8k
 from .lineage import EvalGeneration, TrainOneGeneration
 from .metrics import MathEvalReport, evaluate_math
-from .models import peft_lora_config, resolve_model_spec
+from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
 from .parsing import AnswerFormat
 from .problems import HELDOUT, TRAIN, MathProblem, load_problems
 from .rewards import HackKind
@@ -213,6 +213,7 @@ def make_trl_callbacks(
     else:
         raise ValueError(f"unknown corpus {corpus!r}; expected 'gsm8k' or 'builtin'")
     system_prompt = GSM8K_SYSTEM_PROMPT
+    template_kwargs = chat_template_kwargs(spec)
     fallback_logged = False
 
     def train_fn(*, parent_adapter: Path | None, output_dir: Path, lam: float,
@@ -277,6 +278,8 @@ def make_trl_callbacks(
                 report_to=[],
                 disable_tqdm=True,
             )
+            if template_kwargs:
+                cfg["chat_template_kwargs"] = dict(template_kwargs)  # Qwen3: thinking off
             if seed is not None:
                 cfg.update(seed=seed, data_seed=seed)
             cfg.update(grpo_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
@@ -316,7 +319,7 @@ def make_trl_callbacks(
                 text = tokenizer.apply_chat_template(
                     [{"role": "system", "content": system_prompt},
                      {"role": "user", "content": f"Problem: {p.question}"}],
-                    tokenize=False, add_generation_prompt=True,
+                    tokenize=False, add_generation_prompt=True, **template_kwargs,
                 )
                 inputs = tokenizer(text, return_tensors="pt").to(model.device)
                 with torch.no_grad():
