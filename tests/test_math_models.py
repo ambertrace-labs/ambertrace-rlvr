@@ -73,3 +73,21 @@ def test_param_counts_sorted_within_family() -> None:
     for ladder in (PYTHIA_LADDER, QWEN_LADDER):
         counts = [resolve_model_spec(n).param_count for n in ladder]
         assert all(a < b for a, b in zip(counts, counts[1:], strict=False))
+
+
+def test_qwen3_4b_spec() -> None:
+    spec = resolve_model_spec("Qwen/Qwen3-4B")
+    assert spec.arch == "qwen3"
+    assert spec.num_layers == 36
+    assert spec.instruct is True
+    assert spec.disable_thinking is True
+    assert spec.param_count == 4_000_000_000
+    assert spec.lora_num_layers <= spec.num_layers
+    assert spec.as_dict()["disable_thinking"] is True
+
+
+def test_chat_template_kwargs_only_for_thinking_models() -> None:
+    from ambertrace_rlvr.math_env import chat_template_kwargs
+
+    assert chat_template_kwargs(resolve_model_spec("Qwen/Qwen3-4B")) == {"enable_thinking": False}
+    assert chat_template_kwargs(resolve_model_spec("Qwen/Qwen2.5-0.5B-Instruct")) == {}

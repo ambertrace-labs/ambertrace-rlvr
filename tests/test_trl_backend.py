@@ -163,6 +163,9 @@ def test_eval_fn_scores_and_writes(tmp_path: Path):
     assert rep.n == 4
     payload = json.loads((out / "eval_g0.json").read_text())
     assert payload["k"] == 1.0
+    # Qwen2.5 has no hybrid-thinking kwarg: eval must NOT pass enable_thinking (the chat
+    # template would reject it). Qwen3's thinking-off path is covered separately below.
+    assert "enable_thinking" not in tok.apply_chat_template.call_args.kwargs
 
 
 def test_base_model_rejected():
@@ -305,3 +308,80 @@ def test_eval_hack_kind_forwarded(tmp_path: Path):
     # None falls back to the training hack_kind.
     assert _run_eval_capturing_hack_kind(
         tmp_path, "e2", hack_kind="answer_copy") == "answer_copy"
+
+
+def test_qwen3_peft_targets():
+    cfg = peft_lora_config(resolve_model_spec("Qwen/Qwen3-4B"))
+    assert set(cfg.target_modules) == {
+        "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"}
+
+
+def test_qwen3_callbacks_build_offline():
+    train_fn, eval_fn = make_trl_callbacks(
+        model_name="Qwen/Qwen3-4B", corpus="builtin", n_eval=2)
+    assert isinstance(train_fn, TrainOneGeneration)
+    assert isinstance(eval_fn, EvalGeneration)
+
+
+def test_qwen3_grpo_config_gets_thinking_off_qwen25_does_not(tmp_path: Path):
+    """Guard: Qwen3 (hybrid thinking) threads chat_template_kwargs={'enable_thinking': False}
+    into GRPOConfig, so the rollout prompts (GRPOTrainer templates them with this) carry no
+    <think> block. Qwen2.5 has no such kwarg and must NOT get it (its template would reject it),
+    so the kwarg is omitted entirely rather than passed empty."""
+    train_fn, _ = make_trl_callbacks(model_name="Qwen/Qwen3-4B", corpus="builtin", n_eval=2)
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "q3" / "g0", lam=0.0,
+                 max_iters=1, step_offset=0)
+        assert m_cfg.call_args.kwargs["chat_template_kwargs"] == {"enable_thinking": False}
+    train_fn2, _ = _callbacks()  # Qwen2.5-0.5B-Instruct
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg2, \
+            patch("peft.get_peft_model"):
+        train_fn2(parent_adapter=None, output_dir=tmp_path / "q25" / "g0", lam=0.0,
+                  max_iters=1, step_offset=0)
+        assert "chat_template_kwargs" not in m_cfg2.call_args.kwargs
+
+
+def test_qwen3_eval_applies_chat_template_with_thinking_off(tmp_path: Path):
+    """Guard: eval_fn passes enable_thinking=False to its direct apply_chat_template call for
+    Qwen3, so greedy eval generations are plain reasoning + <answer>N</answer> (no <think> block,
+    which would corrupt the <answer>-tag parse and the brevity word count)."""
+    tok = MagicMock()
+    tok.pad_token = "<pad>"
+    tok.eos_token_id = 0
+    tok.apply_chat_template.return_value = "PROMPT"
+    tok.return_value = _Enc(input_ids=torch.zeros((1, 3), dtype=torch.long))
+    tok.decode.return_value = "<answer>1</answer>"
+    model = MagicMock()
+    model.device = "cpu"
+    model.generate.return_value = torch.zeros((1, 5), dtype=torch.long)
+
+    _, eval_fn = make_trl_callbacks(model_name="Qwen/Qwen3-4B", corpus="builtin", n_eval=2)
+    with patch("transformers.AutoModelForCausalLM") as m_model, \
+            patch("transformers.AutoTokenizer") as m_tok, \
+            patch("peft.PeftModel"):
+        m_tok.from_pretrained.return_value = tok
+        m_model.from_pretrained.return_value = model
+        eval_fn(adapter_path=None, output_dir=tmp_path / "e", lam=0.0, label="g0")
+    assert tok.apply_chat_template.call_args.kwargs["enable_thinking"] is False
+
+
+def test_grpo_config_kwargs_are_real_grpoconfig_fields(tmp_path: Path):
+    """GRPOConfig is mocked offline, so a renamed/removed TRL field — e.g. chat_template_kwargs,
+    which Qwen3 relies on for thinking-off — would pass silently. Validate the kwargs we pass
+    (using Qwen3 so chat_template_kwargs is included) against the REAL GRPOConfig field set, so a
+    TRL version bump is caught offline. Mirrors the SFTConfig field-validity guard in test_sft.py."""
+    import dataclasses
+
+    from trl import GRPOConfig  # real class (the patch below mocks only the call site)
+    train_fn, _ = make_trl_callbacks(model_name="Qwen/Qwen3-4B", corpus="builtin", n_eval=2)
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "a" / "g0", lam=0.0,
+                 max_iters=1, step_offset=0)
+    passed = set(m_cfg.call_args.kwargs)
+    valid = {f.name for f in dataclasses.fields(GRPOConfig)}
+    assert passed <= valid, f"unknown GRPOConfig kwargs: {sorted(passed - valid)}"

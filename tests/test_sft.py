@@ -104,7 +104,7 @@ def test_terse_fraction_out_of_range_raises(bad):
 def test_run_warm_start_sft_threads_terse_fraction(tmp_path: Path):
     with patch("ambertrace_rlvr.math_env.sft.build_terse_sft_dataset") as m_build:
         _run(tmp_path, seed=7, terse_fraction=0.25)
-    assert m_build.call_args.kwargs == {"terse_fraction": 0.25, "seed": 7}
+    assert m_build.call_args.kwargs == {"terse_fraction": 0.25, "seed": 7, "template_kwargs": {}}
 
 
 def _run(tmp_path: Path, **kw):
@@ -203,3 +203,10 @@ def test_run_warm_start_sft_cleanup_on_failure(tmp_path: Path):
             run_warm_start_sft(model_name=INSTRUCT, output_dir=tmp_path,
                                problems=load_problems("train")[:2])
         m_free.assert_called_once()
+
+
+def test_sft_dataset_chat_template_kwargs_column_only_when_given():
+    probs = _problems()[:2]
+    assert "chat_template_kwargs" not in build_terse_sft_dataset(probs).column_names
+    ds = build_terse_sft_dataset(probs, template_kwargs={"enable_thinking": False})
+    assert ds[0]["chat_template_kwargs"] == {"enable_thinking": False}

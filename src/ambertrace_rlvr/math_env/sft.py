@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .gsm8k import GSM8K_SYSTEM_PROMPT, load_gsm8k
-from .models import peft_lora_config, resolve_model_spec
+from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
 from .problems import TRAIN, MathProblem, load_problems
 from .trl_backend import _free_accelerator_memory, _load_base_model, _load_tokenizer
 
@@ -29,6 +29,7 @@ from .trl_backend import _free_accelerator_memory, _load_base_model, _load_token
 def build_terse_sft_dataset(
     problems: list[MathProblem], system_prompt: str = GSM8K_SYSTEM_PROMPT,
     *, terse_fraction: float = 1.0, seed: int | None = None,
+    template_kwargs: dict[str, Any] | None = None,
 ) -> Any:
     """Build a ``datasets.Dataset`` of prompt-completion rows (terse, or a terse+CoT mix).
 
@@ -38,6 +39,9 @@ def build_terse_sft_dataset(
     per-example draw from a local ``random.Random(seed)``), otherwise CoT: the GSM8K
     reasoning (``problem.solution`` before ``####``) followed by ``<answer>{gold}</answer>``.
     A bimodal mix keeps both short and long modes so GRPO sees within-group length variance.
+    ``template_kwargs`` (e.g. ``{"enable_thinking": False}`` for Qwen3) is stored per row in
+    the ``chat_template_kwargs`` column, which ``SFTTrainer`` forwards to ``apply_chat_template``;
+    omitted when empty so other models' rows are unchanged.
     ``terse_fraction=1.0`` (default) is all-terse. Pure except the lazy ``datasets`` import
     (needs the ``[trl]`` extra)."""
     if not 0.0 <= terse_fraction <= 1.0:
@@ -56,13 +60,16 @@ def build_terse_sft_dataset(
                     "-- use corpus='gsm8k' or terse_fraction=1.0")
             reasoning = p.solution.split("####")[0].strip()
             content = f"{reasoning}\n<answer>{p.answer}</answer>"
-        rows.append({
+        row: dict[str, Any] = {
             "prompt": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Problem: {p.question}"},
             ],
             "completion": [{"role": "assistant", "content": content}],
-        })
+        }
+        if template_kwargs:
+            row["chat_template_kwargs"] = dict(template_kwargs)
+        rows.append(row)
     return Dataset.from_list(rows)
 
 
@@ -139,7 +146,8 @@ def run_warm_start_sft(
         lora_kwargs.update(lora_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
         peft_config = peft_lora_config(spec, **lora_kwargs)
         dataset = build_terse_sft_dataset(
-            problems, system_prompt, terse_fraction=terse_fraction, seed=seed)
+            problems, system_prompt, terse_fraction=terse_fraction, seed=seed,
+            template_kwargs=chat_template_kwargs(spec))
         cfg: dict[str, Any] = dict(
             output_dir=str(output_dir / "sft"),
             completion_only_loss=True,  # train on the terse completion only, not the prompt
