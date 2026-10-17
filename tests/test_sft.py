@@ -172,6 +172,23 @@ def test_run_warm_start_sft_config_kwargs_are_real_sftconfig_fields(tmp_path: Pa
     assert passed <= valid, f"unknown SFTConfig kwargs: {sorted(passed - valid)}"
 
 
+def test_trl_sft_tokenize_still_reads_chat_template_kwargs_column():
+    # Qwen3 thinking-off in warm-start SFT relies on SFTTrainer reading a per-ROW
+    # 'chat_template_kwargs' dataset column (SFTConfig has no such field) and forwarding
+    # it to apply_chat_template. A dataclass-field guard can't cover a column, so assert
+    # the installed TRL's SFT tokenize path still references it: a TRL bump that drops
+    # per-row chat_template_kwargs support would silently re-enable <think> blocks in
+    # Qwen3 warm-start SFT, and this test catches it offline.
+    import inspect
+
+    from trl.trainer import sft_trainer
+    assert "chat_template_kwargs" in inspect.getsource(sft_trainer), (
+        "installed TRL SFTTrainer no longer references a per-row chat_template_kwargs "
+        "column; Qwen3 warm-start SFT would stop disabling thinking. Re-verify the "
+        "thinking-off mechanism (models.py chat_template_kwargs / sft.py) before upgrading."
+    )
+
+
 def test_run_warm_start_sft_overrides_win(tmp_path: Path):
     _, _, _, m_trainer, m_cfg, _ = _run(
         tmp_path, seed=1, sft_overrides={"learning_rate": 1e-3, "seed": 99},
