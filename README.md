@@ -186,7 +186,13 @@ via `--backend mlx`. The TRL backend needs a **chat-templated instruct model**
 pip install -e '.[trl,dev]'
 python examples/math_lineage.py --dry-run     # offline: full lineage loop, no model/network
 python examples/math_lineage.py --generations 4 --iters-per-gen 20   # live, TRL + GSM8K
+python examples/math_race.py --dry-run        # offline: warm-start + aligned-vs-misaligned race
 ```
+
+The race script (`math_race.py`) runs the aligned-vs-misaligned race: a warm-start SFT
+seeds a bimodal policy, then three arms (pure / poisoned / scrubbed) diverge under GRPO.
+See the [research writeup](docs/research/reward-hacking-lineage.md) for the confirmed
+race results (3 seeds) and the induction-resistance finding.
 
 Key flags: `--backend {trl,mlx}`, `--corpus {gsm8k,builtin}`, `--answer-format xml_tag`,
 `--shaping-alpha/--shaping-beta`, `--n-eval`. See the
@@ -230,9 +236,12 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > [*Verifiable Rewards Beyond Maths and Code*](docs/research/why-verifiable-rewards.md)
 > (objectives + the case for a checkable reward),
 > [*Measuring Misalignment as Deviation From the Provable*](docs/research/alignment-matrix.md)
-> (the open-weight alignment matrix), and
+> (the open-weight alignment matrix),
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
-> (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift). Checkpoints published as a [Hugging Face Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
+> (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift), and
+> [*Reward-Hacking Inheritance Across Warm-Start Generations*](docs/research/reward-hacking-lineage.md)
+> (does misalignment via reward hacking slow genuine capability? confirmed across 3 seeds: aligned arm advances, misaligned arm collapses; mean K gap 0.245, ~16x the noise floor).
+> Checkpoints published as a [Hugging Face Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
 >
 > The corpus is also published as [Hugging Face Articles](https://huggingface.co/AmberTraceLabs) under `AmberTraceLabs` (see the [research index](docs/research/README.md) for per-piece links).
 

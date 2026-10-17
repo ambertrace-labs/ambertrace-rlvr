@@ -171,9 +171,20 @@ examples train on the TRL/PyTorch GRPO backend by default.
 pip install -e '.[trl,dev]'
 python examples/math_lineage.py --dry-run          # offline, no model/network
 python examples/math_lineage.py                    # live: TRL, Qwen2.5-0.5B-Instruct, GSM8K
+python examples/math_race.py --dry-run             # offline: warm-start + aligned-vs-misaligned race
+python examples/math_race.py                       # live: warm-start SFT then 3-arm race
+python examples/math_warm_start_induction.py --dry-run  # offline: SFT + single poisoned arm
 python examples/math_scale_ladder.py --dry-run
 python examples/math_scale_ladder.py --models Qwen/Qwen2.5-0.5B-Instruct
 ```
+
+`math_race.py` runs the aligned-vs-misaligned race: a warm-start SFT seeds a bimodal
+policy (terse + chain-of-thought, controlled by `--terse-fraction`), then three arms
+(pure / poisoned / scrubbed) diverge under GRPO with the `short_circuit_brevity` hack
+kind. The pure arm auto-falls-back to a clean reward at lambda=0.
+`math_warm_start_induction.py` is a single-arm probe that runs only the poisoned arm
+from the warm-start adapter. See the
+[research writeup](research/reward-hacking-lineage.md) for results.
 
 Flags shared by `math_lineage.py` and `math_scale_ladder.py`:
 
