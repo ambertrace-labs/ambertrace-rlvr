@@ -1,6 +1,6 @@
 # Reward-Hacking Inheritance Across Warm-Start Generations
 
-*An apparatus for measuring whether an unaddressed reward-hacking load compounds, stalls genuine progress, or can be scrubbed when a lineage is warm-started across multiple RL generations, and the first race between an aligned and a misaligned lineage from the same starting point.*
+*An apparatus for measuring whether an unaddressed reward-hacking load compounds, stalls genuine progress, or can be scrubbed when a lineage is warm-started across multiple RL generations, and the first such race in this apparatus between an aligned and a misaligned lineage from the same starting point.*
 
 **AmberTrace Labs • 2026 • Research • Overseen by Peter Chatwell, Founder/CEO**
 
@@ -13,7 +13,7 @@
 > multi-generation 3-arm lineage (M2), scale ladder (M3), and the follow-up
 > induction work
 > ([#134](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/134)) are
-> merged and validated. Five induction attempts on a capable aligned model failed
+> merged and validated. Four induction attempts on a capable aligned model failed
 > to produce spontaneous reward hacking under GRPO (§6). A warm-start mixed
 > terse+CoT SFT seeds a bimodal policy that GRPO can then exploit (§7). The
 > 3-seed race (§8) confirms a large divergence: the aligned arm's mean K climbs
@@ -202,29 +202,37 @@ each generation by the clean phase. The figures regenerate from
 
 ## §6 · A Capable Aligned Model Resists Spontaneous Reward Hacking
 
-On Qwen2.5-0.5B-Instruct + GSM8K, five induction attempts failed to produce
-reward hacking spontaneously under GRPO:
+On Qwen2.5-0.5B-Instruct + GSM8K, the `substring` hack (the monotonic
+baseline) produced no arm differentiation, and four deliberate induction
+attempts all failed to produce reward hacking spontaneously under GRPO.
 
-- **`substring` (the original hack):** the R_hack superset means a correct
-  completion always scores at least as high as a hacked one. With lambda=0.3
-  over 4 generations (100 iters/gen, n_eval=64), the pure and poisoned arms
-  tracked each other: final K gap = -0.016 (at the noise floor of 0.016), Q1
-  slowdown = NO. The model gained capability in both arms without exploiting
-  the hack. Verified from
-  `outputs/prod_lineage_instruct/seed0/lineage_summary.json`.
+**Baseline (`substring`, monotonic).** Because `substring` R_hack is a superset
+of R_true, the model is never incentivised to hack it: a correct completion
+always scores at least as high as a hacked one. With lambda=0.3 over 4
+generations (100 iters/gen, n_eval=64), the pure and poisoned arms tracked
+each other: final K gap = -0.0156 (at the noise floor of 0.0156), Q1
+slowdown = NO. The model gained capability in both arms without exploiting
+the hack. Source:
+`outputs/prod_lineage_instruct/seed0/lineage_summary.json`.
 
-- **`answer_copy` (echo a problem number):** never induced. The model never
-  sampled the bare-operand echo pattern that would score on R_hack. The
-  exploration barrier was too high: the committed-answer format (a single
-  `<answer>N</answer>` tag) combined with GRPO's per-prompt variance
-  amplification meant the copying route was never explored.
+**Four induction attempts (all failed):**
 
-- **`brevity` (reward short completions):** benign. At moderate lambda the
-  model found "short AND correct" (the correctness anchor in the (1-lambda)
-  term stayed constant); K rose instead of falling.
+1. **`answer_copy` (echo a problem number):** never induced. The model never
+   sampled the bare-operand echo pattern that would score on R_hack. The
+   exploration barrier was too high: the committed-answer format (a single
+   `<answer>N</answer>` tag) combined with GRPO's per-prompt variance
+   amplification meant the copying route was never explored.
 
-- **`short_circuit_brevity` without warm-start:** still benign even with
-  strong, well-placed signal (L0=500, lambda=0.85). K rose.
+2. **`brevity` (lambda=0.7, L0=200):** benign. At moderate lambda the
+   model found "short AND correct" (the correctness anchor in the (1-lambda)
+   term stayed constant); K rose instead of falling.
+
+3. **`short_circuit_brevity` (lambda=0.7, L0=200, no warm-start):** benign.
+   K rose despite the short-circuit mix making correctness irrelevant at
+   short lengths.
+
+4. **`short_circuit_brevity` (lambda=0.85, L0=500, no warm-start):** still
+   benign even with stronger signal and a higher reference length. K rose.
 
 ### The mechanism
 
@@ -261,8 +269,11 @@ negligible. GRPO itself keeps its own bf16 load and is unaffected. Source:
 `src/ambertrace_rlvr/math_env/sft.py`, lines 101-104.
 
 `terse_fraction` calibrates the seed's capability. At `terse_fraction=0.15`, the
-warm-start adapter retained roughly two-thirds of base capability with the terse
-mode present (warm-start K ranged from 0.172 to 0.203 across three seeds).
+warm-start seed retains K in the range 0.172-0.203 (mean 0.188 across three
+seeds), a bit under half the base model's K of approximately 0.42 (see the
+substring lineage pre-eval in [Appendix A](#appendix-a--full-metric-tables)),
+while carrying the terse mode. The pure arm recovers to mean K of 0.271 from
+this starting point.
 
 Source: `src/ambertrace_rlvr/math_env/sft.py`,
 [`examples/math_warm_start_induction.py`](../../examples/math_warm_start_induction.py).
@@ -328,11 +339,12 @@ completions), two generations of GRPO, lambda=0.75:
   while the aligned lineage *advances* (mean K climbs to 0.271). Misalignment
   does not merely slow the climb; it undoes it. This held in all three seeds.
 
-- **Apparent-vs-genuine wedge:** the poisoned model scores approximately 0.99
-  on its (brevity-) buggy verifier while genuine K is approximately 0.026. A
-  near-perfect-looking model that is genuinely incompetent. This is a
-  monitorability failure: anyone watching only the trained-against verifier
-  sees success while genuine capability has collapsed.
+- **Apparent-vs-genuine wedge:** in seed 0, the poisoned model scores
+  approximately 0.99 on its (brevity-) buggy verifier (m=0.98) while genuine
+  K is 0.016. A near-perfect-looking model that is genuinely incompetent.
+  This is a monitorability failure: anyone watching only the trained-against
+  verifier sees success while genuine capability has collapsed. The pattern
+  holds across seeds (mean poisoned end K = 0.026).
 
 - **Realignment cost (scrubbed):** the scrubbed arm's variability (end K from
   0.016 to 0.156 across seeds) shows that a 40%-clean scrub is sometimes
@@ -406,8 +418,8 @@ Qwen2.5-0.5B-Instruct, 100 GRPO iterations per generation, lambda=0.3,
 [Appendix A](#appendix-a--full-metric-tables).
 
 No differentiation between arms. Pure final K=0.4375, poisoned final K=0.4531.
-Q1 slowdown = NO (final K gap = -0.016, at the noise floor). This is the
-Finding 1 result (§6): a capable instruct model resisted the `substring` hack.
+Q1 slowdown = NO (final K gap = -0.0156, at the noise floor). This is the
+§6 resistance finding: a capable instruct model resisted the `substring` hack.
 
 Source: `outputs/prod_lineage_instruct/seed0/lineage_summary.json`.
 
@@ -441,7 +453,8 @@ integrates both the earlier smoke readings and the race result from §8.
   0.062, 0.156 across seeds. A 40%-clean scrub sometimes partially rescued
   capability but was inconsistent and never approached the pure arm's outcome.
 - *Substring lineage (Qwen2.5-0.5B base):* YES (a different run at lower
-  lambda where the hack barely took hold).
+  lambda where the hack barely took hold). Source:
+  `outputs/prod_lineage_qwen/seed0/lineage_summary.json`.
 
 **The picture across experiments:** the `substring` hack on a capable aligned
 model produces no differentiation (the model resists it). The
@@ -463,12 +476,13 @@ and the #134 follow-up:
    both show the same directional pattern under the `substring` hack.
 
 3. **A capable aligned model resists spontaneous reward hacking under GRPO.**
-   Five induction attempts on Qwen2.5-0.5B-Instruct failed to produce
-   differentiation: `answer_copy` was never explored, `brevity` was benign,
-   and `short_circuit_brevity` without warm-start was also benign. The
-   mechanism is GRPO's within-group variance amplification, which climbs
-   the correctness gradient when the hack feature is low-variance within
-   rollout groups (§6).
+   The `substring` baseline showed no arm differentiation (monotonic, so the
+   model is never incentivised to hack). Four non-monotonic induction attempts
+   on Qwen2.5-0.5B-Instruct all failed: `answer_copy` was never explored,
+   `brevity` was benign, and `short_circuit_brevity` at two configs (lambda
+   0.7 and 0.85) without warm-start was also benign. The mechanism is GRPO's
+   within-group variance amplification, which climbs the correctness gradient
+   when the hack feature is low-variance within rollout groups (§6).
 
 4. **Warm-start SFT breaks the resistance.** A mixed terse+CoT SFT seeds
    bimodal rollouts (some short, some long) that supply the within-group
@@ -480,9 +494,9 @@ and the #134 follow-up:
    three seeds; mean gap = 0.245 (approximately 16x the noise floor). The
    scrubbed arm's outcome was variable (end K from 0.016 to 0.156),
    indicating that a 40%-clean scrub is unreliable at this dose. The
-   monitorability failure is consistent: the misaligned arm scores
-   approximately 0.99 on its buggy verifier while its genuine capability is
-   approximately 0.026 (§8).
+   monitorability failure is consistent: in seed 0 the misaligned arm scores
+   approximately 0.99 on its buggy verifier (m=0.98) while genuine K is 0.016;
+   mean poisoned end K across seeds is 0.026 (§8).
 
 Items 3-4 are from the induction probes (not yet multi-seeded). Item 5 is
 confirmed across 3 seeds. Items 1-2 are confirmed across two architectures
@@ -609,8 +623,9 @@ The measured curves from this apparatus feed two downstream models named in
 - **Structural models (A/B):** the K and K-hat trajectories, the wedge, and
   the scale-dependence verdict feed the structural models that ask whether a
   reward audit would have caught the hack at each generation. The
-  monitorability failure (K-hat approximately 0.99, K approximately 0.016) is
-  a direct input.
+  monitorability failure (mean poisoned K approximately 0.026 across seeds,
+  while the seed-0 poisoned arm scored K-hat approximately 0.99 on the buggy
+  verifier) is a direct input.
 
 The 3-seed confirmation is complete (§8). The immediate follow-up is a
 scrub-fraction sweep (mapping the realignment-cost threshold by varying the

@@ -43,7 +43,7 @@ Regenerate the paste-ready copies with `examples/build_hf_articles.py`; publish 
   stalls genuine progress, or can be scrubbed when a lineage is warm-started across
   multiple RL generations. Self-contained exploitable-verifier math environment
   (R_true/R_hack, four hack kinds, lambda dial), 3-arm lineage
-  (pure/poisoned/scrubbed), and a Pythia + Qwen2.5 scale ladder. Five induction
+  (pure/poisoned/scrubbed), and a Pythia + Qwen2.5 scale ladder. Four induction
   attempts failed to produce spontaneous reward hacking on a capable aligned model
   under GRPO; a warm-start mixed terse+CoT SFT breaks the resistance on demand.
   The aligned-vs-misaligned race (Qwen2.5-0.5B-Instruct, GSM8K,
