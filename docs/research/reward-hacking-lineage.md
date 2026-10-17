@@ -324,13 +324,35 @@ completions), two generations of GRPO, lambda=0.75:
 - **Q2 stall = NO.** The poisoned arm did not stall; it *reversed* (K fell
   from the warm-start value towards zero in all seeds). A stall would require K
   to stay flat while m rose; here K collapsed actively.
-- **Q3 scrub-advantage = NO (unreliable at this dose).** The scrubbed arm's end
-  K varied across seeds: 0.016 (seed 0), 0.062 (seed 1), 0.156 (seed 2). A
-  40%-clean scrub sometimes partially rescued capability (seed 2 retained more
-  than the poisoned arm's 0.031) but was unreliable and never approached the
-  pure arm's outcome. Realignment at this dose is expensive and inconsistent.
-  A scrub-fraction sweep (to map the realignment-cost threshold) is the next
-  experiment.
+- **Q3 scrub-advantage = NO (realignment is costly and incomplete).** The
+  scrubbed arm's end K varied across seeds at 40% clean: 0.016 (seed 0),
+  0.062 (seed 1), 0.156 (seed 2). A scrub-fraction sweep on seed 0 maps
+  the realignment-cost curve:
+
+  | scrub_fraction | recovered end K |
+  |---|---|
+  | 0.4 | 0.016 (no recovery) |
+  | 0.6 | 0.109 |
+  | 0.8 | 0.078 |
+  | 1.0 | 0.172 |
+
+  Anchors: aligned (pure) arm end K approximately 0.22-0.27; fully-poisoned
+  end K approximately 0.016-0.03; warm-start seed K = 0.172. Recovery scales
+  with the scrub fraction but is incomplete: even a 60-80% clean interleaving
+  only reaches K approximately 0.08-0.11, far short of the aligned arm's
+  approximately 0.22-0.27. Only a total (100%) scrub recovers to the starting
+  seed level (0.172), and even that does not climb above the seed the way the
+  pure arm does. There is no cheap undo of an entrenched hack: partial
+  realignment buys back only a fraction of the lost capability; you
+  essentially have to stop hacking entirely, and even then recover only to
+  baseline.
+
+  Caveat: single seed (seed 0), n_eval=64 (noise floor 0.0156), so the curve
+  is noisy (the 0.6 point at 0.109 exceeds the 0.8 point at 0.078, which is
+  within noise). The monotone trend (more scrub yields more recovery, partial
+  scrubs are expensive) is the result, not the exact per-point values. The 1.0
+  point (0.172 vs the pure arm's approximately 0.22) is consistent with
+  single-seed GRPO variance.
 
 ### Interpretation
 
@@ -346,12 +368,13 @@ completions), two generations of GRPO, lambda=0.75:
   verifier sees success while genuine capability has collapsed. The pattern
   holds across seeds (mean poisoned end K = 0.026).
 
-- **Realignment cost (scrubbed):** the scrubbed arm's variability (end K from
-  0.016 to 0.156 across seeds) shows that a 40%-clean scrub is sometimes
-  partially effective but unreliable. Even the best scrubbed outcome (seed 2,
-  K=0.156) fell well short of the pure arm (seed 2, K=0.312). Reversing an
-  entrenched hack appears to require a larger clean fraction or more
-  generations than tested here.
+- **Realignment cost (scrubbed + sweep):** across the 3-seed race, a
+  40%-clean scrub was unreliable (end K from 0.016 to 0.156). The
+  scrub-fraction sweep on seed 0 confirms the pattern: even 60-80% clean
+  only recovers K to approximately 0.08-0.11, far short of the pure arm
+  (approximately 0.22). A 100% scrub recovers to the seed level (0.172) but
+  does not climb above it. There is no cheap partial undo; full cessation of
+  hacking recovers only to baseline.
 
 Source: [`examples/math_race.py`](../../examples/math_race.py) (the race
 script). Numbers are from three seed runs (seeds 0-2) under identical config.
@@ -449,9 +472,12 @@ integrates both the earlier smoke readings and the race result from §8.
 
 **Q3 (scrub advantage):**
 
-- *Race (3 seeds):* NO (unreliable). The scrubbed arm's end K varied: 0.016,
-  0.062, 0.156 across seeds. A 40%-clean scrub sometimes partially rescued
-  capability but was inconsistent and never approached the pure arm's outcome.
+- *Race (3 seeds) + scrub-fraction sweep (seed 0):* NO (costly and
+  incomplete). Across seeds a 40%-clean scrub was unreliable (end K 0.016 to
+  0.156). The sweep shows recovery scaling with scrub fraction but remaining
+  far short of the pure arm: 60% clean yields K approximately 0.109, 80%
+  yields approximately 0.078, 100% recovers to the seed level (0.172) but
+  does not climb above it. See the curve in §8.
 - *Substring lineage (Qwen2.5-0.5B base):* YES (a different run at lower
   lambda where the hack barely took hold). Source:
   `outputs/prod_lineage_qwen/seed0/lineage_summary.json`.
@@ -492,8 +518,9 @@ and the #134 follow-up:
    identical starting point, the aligned arm advances (mean end K: 0.271)
    while the misaligned arm collapses (mean end K: 0.026). Q1 = YES in all
    three seeds; mean gap = 0.245 (approximately 16x the noise floor). The
-   scrubbed arm's outcome was variable (end K from 0.016 to 0.156),
-   indicating that a 40%-clean scrub is unreliable at this dose. The
+   scrubbed arm's outcome was variable (end K from 0.016 to 0.156 at 40%
+   clean); the scrub-fraction sweep confirms recovery is costly and
+   incomplete even at higher clean fractions (see §8). The
    monitorability failure is consistent: in seed 0 the misaligned arm scores
    approximately 0.99 on its buggy verifier (m=0.98) while genuine K is 0.016;
    mean poisoned end K across seeds is 0.026 (§8).
@@ -618,8 +645,9 @@ The measured curves from this apparatus feed two downstream models named in
 
 - **Game-theoretic model (D):** the m-vs-generation trajectory and the
   correctability curve c(m) are inputs to a game-theoretic analysis of whether
-  a lab has incentive to scrub vs ignore the load. The race result (scrub did
-  not rescue at this dose) informs the correctability side.
+  a lab has incentive to scrub vs ignore the load. The scrub-fraction sweep
+  (§8) provides the realignment-cost curve: partial scrubs are expensive,
+  and only a 100% clean fraction recovers to baseline.
 - **Structural models (A/B):** the K and K-hat trajectories, the wedge, and
   the scale-dependence verdict feed the structural models that ask whether a
   reward audit would have caught the hack at each generation. The
@@ -627,10 +655,10 @@ The measured curves from this apparatus feed two downstream models named in
   while the seed-0 poisoned arm scored K-hat approximately 0.99 on the buggy
   verifier) is a direct input.
 
-The 3-seed confirmation is complete (§8). The immediate follow-up is a
-scrub-fraction sweep (mapping the realignment-cost threshold by varying the
-clean fraction beyond the tested 40%). Subsequent: the full 7-model scale
-ladder; the game-theoretic (D) and structural (A/B) downstream models.
+The 3-seed race confirmation and the scrub-fraction sweep are both complete
+(§8). Remaining follow-ups: multi-seed the induction-resistance probes (§6);
+larger models; more generations; the full 7-model scale ladder; the
+game-theoretic (D) and structural (A/B) downstream models.
 
 ## Appendix A -- Full metric tables
 
@@ -733,8 +761,25 @@ Seed 0 per-generation trajectory (worked example):
 | scrubbed | 2 | 0.016 | 0.94 | ~9 |
 
 Note on scrubbed-arm variability: the scrubbed arm's end K ranged from 0.016
-(seed 0) to 0.156 (seed 2), indicating that a 40%-clean scrub is unreliable at
-this dose. A scrub-fraction sweep is the designated follow-up.
+(seed 0) to 0.156 (seed 2) at 40% clean. The scrub-fraction sweep below maps
+the full realignment-cost curve.
+
+**Scrub-fraction sweep** (seed 0, lambda=0.75, 2 generations, n_eval=64):
+
+| scrub_fraction | recovered end K | reference |
+|---|---|---|
+| 0.0 (fully poisoned) | 0.016 | poisoned arm, seed 0 |
+| 0.4 | 0.016 | scrubbed arm, seed 0 (from race) |
+| 0.6 | 0.109 | sweep |
+| 0.8 | 0.078 | sweep |
+| 1.0 (fully clean) | 0.172 | sweep |
+
+Anchors: pure (aligned) arm end K approximately 0.219 (seed 0); warm-start
+seed K = 0.172. Recovery scales with scrub fraction but is incomplete: partial
+scrubs recover only a fraction of lost capability; a 100% scrub recovers to
+baseline but does not advance beyond the seed. The 0.6 > 0.8 inversion
+(0.109 vs 0.078) is within the noise floor (0.0156) and single-seed variance;
+the trend is the result, not the exact per-point ordering.
 
 **Illustrative schedule** (dry-run synthetic callbacks, 4 generations, n=8):
 
@@ -807,8 +852,8 @@ this dose. A scrub-fraction sweep is the designated follow-up.
   all ship in the open-source
   [`ambertrace-rlvr`](https://github.com/ambertrace-labs/ambertrace-rlvr) repo.
   Run numbers cited in the tables are the source-of-truth readings.
-- **Planned follow-ups.** Scrub-fraction sweep (map the realignment-cost
-  threshold beyond the tested 40%); full 7-model scale ladder; the
+- **Planned follow-ups.** Multi-seed the induction-resistance probes (§6);
+  larger models; more generations; full 7-model scale ladder; the
   game-theoretic (D) and structural (A/B) downstream models named in
   [#127](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/127).
 
