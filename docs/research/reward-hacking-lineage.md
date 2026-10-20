@@ -392,7 +392,9 @@ score lies.
 
 *Realignment is costly and incomplete (seed 0): even a 100% scrub only climbs
 back to the starting seed, never to the aligned arm, and partial scrubs recover
-little. There is no cheap undo of an entrenched hack.*
+little. There is no cheap undo of an entrenched hack. (The 0% and 40% points are
+the race arms; the 60/80/100% points are the separate scrub-fraction sweep —
+provenance in Appendix A.)*
 
 **In plain terms:** once a model learns to cheat there's no cheap fix — even a
 full cleanup only returns it to square one, never ahead.
@@ -639,7 +641,7 @@ python examples/plot_math_figures.py
 python examples/math_warm_start_induction.py
 
 # Full race: warm-start SFT then 3-arm lineage
-python examples/math_race.py --generations 2 --iters-per-gen 100
+python examples/math_race.py --generations 2 --iters-per-gen 40
 
 # Original lineage (substring hack)
 python examples/math_lineage.py --generations 4 --iters-per-gen 100
@@ -683,7 +685,11 @@ game-theoretic (D) and structural (A/B) downstream models.
 
 ## Appendix A -- Full metric tables
 
-The figures above are the reading; these are the exact numbers behind them.
+These are the exact numbers behind the real figures above. The two *illustrative*
+tables at the end (the dry-run synthetic schedule and scale sweep) are retained as
+reference for what the apparatus emits in dry-run mode; they no longer back a figure
+(the three synthetic small-multiples they once accompanied were replaced by the
+real-data charts).
 
 **M1 live readings** (`outputs/math_mlx_grpo/`):
 

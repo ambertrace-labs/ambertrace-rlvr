@@ -5,11 +5,19 @@ everywhere (GitHub, Hugging Face, PyPI, IDE previews), no plotting dependency an
 no Mermaid.
 
 One figure is a *schematic* (``math_apparatus_schematic.svg``) illustrating what the
-apparatus measures. The other four are drawn from the **real** 3-seed race readings
-in ``outputs/math_race/seed{0,1,2}/race_summary.json`` -- the headline results of
-§8. The real-data constants below are transcribed from those JSONs (regenerate them
-with ``examples/math_race.py``); the extraction is a few lines of ``json.load`` so
-the numbers stay source-of-truth.
+apparatus measures. The other four plot the **real** 3-seed race readings. The data
+constants below (``RACE_*``, ``MON_*``, ``WORDS_*`` and the SCRUB anchors) are
+hand-transcribed literals from ``outputs/math_race/seed{0,1,2}/race_summary.json``
+(regenerate the race with ``examples/math_race.py``) -- they are NOT loaded at
+runtime, so ``tests/test_plot_math_figures.py`` is a drift guard: when the race JSONs
+are present (they are gitignored, so local-only) it asserts every race-derived
+constant still matches them.
+
+Exception: the realignment-cost sweep points (``SCRUB_RECOVERED`` at 0.6/0.8/1.0)
+come from the separate scrub-fraction sweep reported in §8 / Appendix A of the
+research doc (#157), not from the three race summaries; that sweep has no committed
+JSON artifact, so those three points are transcribed from the doc table and are not
+covered by the drift guard.
 
     python examples/plot_math_figures.py   # -> docs/assets/math_*.svg
 
@@ -77,11 +85,14 @@ WORDS_ALIGNED = [34.97, 33.25, 35.28]
 WORDS_SCRUBBED = [34.97, 22.56, 8.88]
 WORDS_MISALIGNED = [34.97, 14.63, 2.11]
 
-# Figure: realignment cost -- seed 0 scrub-fraction sweep (recovered genuine K).
+# Figure: realignment cost (seed 0, recovered genuine K). Mixed provenance (see
+# Appendix A of the research doc): 0.0 = fully-poisoned arm end K and 0.4 = scrubbed
+# race arm end K (both from the race summaries); 0.6/0.8/1.0 = the separate
+# scrub-fraction sweep (#157), which has no committed JSON artifact.
 SCRUB_FRACTION = [0.0, 0.4, 0.6, 0.8, 1.0]
 SCRUB_RECOVERED = [0.016, 0.016, 0.109, 0.078, 0.172]
-SCRUB_ALIGNED_CEILING = 0.219   # aligned (pure) arm end K, seed 0
-SCRUB_SEED_BASELINE = 0.172     # warm-start seed K, seed 0
+SCRUB_ALIGNED_CEILING = 0.219   # aligned (pure) arm end K, seed 0 (race summary)
+SCRUB_SEED_BASELINE = 0.172     # warm-start seed K, seed 0 (race summary)
 
 RACE_X_LABELS = ["warm-start seed", "after gen 1", "after gen 2"]
 
