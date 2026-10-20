@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .gsm8k import GSM8K_SYSTEM_PROMPT, load_gsm8k
 from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
+from .parsing import extract_numbers
 from .problems import TRAIN, MathProblem, load_problems
 from .trl_backend import _free_accelerator_memory, _load_base_model, _load_tokenizer
 
@@ -73,6 +74,63 @@ def build_terse_sft_dataset(
     return Dataset.from_list(rows)
 
 
+def build_shortcut_sft_dataset(
+    problems: list[MathProblem], system_prompt: str = GSM8K_SYSTEM_PROMPT,
+    *, shortcut_fraction: float = 1.0, seed: int | None = None,
+    template_kwargs: dict[str, Any] | None = None,
+) -> Any:
+    """Build a prompt-completion dataset that seeds the ``answer_copy`` *reasoning-shortcut*
+    hack: commit a problem OPERAND as the answer instead of solving.
+
+    This is the reasoning-level counterpart to :func:`build_terse_sft_dataset` (which seeds
+    the output-channel *brevity* hack). Each problem is a shortcut row with probability
+    ``shortcut_fraction`` (a seeded per-example draw): the completion is
+    ``<answer>{operand}</answer>`` where ``operand`` is a seeded number drawn from the
+    question text that is **not** the gold (so it diverges from ``R_true`` — the canonical
+    "grab a salient number, skip the reasoning" shortcut). Otherwise it is a CoT row (the
+    GSM8K reasoning before ``####`` followed by ``<answer>{gold}</answer>``). The bimodal
+    shortcut+CoT mix gives GRPO the within-group variance it needs to amplify the shortcut
+    under ``hack_kind="answer_copy"`` (§6/§7: GRPO cannot induce it spontaneously).
+
+    Raises if a shortcut row is drawn for a problem whose question has no non-gold number,
+    or if a CoT row is drawn for a problem with no ``solution``. ``template_kwargs`` (e.g.
+    ``{"enable_thinking": False}`` for Qwen3) is stored per row in ``chat_template_kwargs``.
+    Pure except the lazy ``datasets`` import."""
+    if not 0.0 <= shortcut_fraction <= 1.0:
+        raise ValueError(f"shortcut_fraction must be in [0, 1], got {shortcut_fraction}")
+    from datasets import Dataset  # lazy: optional [trl] extra
+
+    rng = random.Random(seed)
+    rows: list[dict[str, Any]] = []
+    for p in problems:
+        if rng.random() < shortcut_fraction:
+            candidates = sorted(extract_numbers(p.question) - {p.answer})
+            if not candidates:
+                raise ValueError(
+                    "shortcut SFT example needs a non-gold number in the question to "
+                    f"echo (problem {p.qid!r} has none); use a gsm8k problem with operands")
+            operand = candidates[rng.randrange(len(candidates))]
+            content = f"<answer>{operand}</answer>"
+        else:
+            if p.solution is None:
+                raise ValueError(
+                    "CoT SFT example needs problem.solution; the builtin corpus has none "
+                    "-- use corpus='gsm8k' or shortcut_fraction=1.0")
+            reasoning = p.solution.split("####")[0].strip()
+            content = f"{reasoning}\n<answer>{p.answer}</answer>"
+        row: dict[str, Any] = {
+            "prompt": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Problem: {p.question}"},
+            ],
+            "completion": [{"role": "assistant", "content": content}],
+        }
+        if template_kwargs:
+            row["chat_template_kwargs"] = dict(template_kwargs)
+        rows.append(row)
+    return Dataset.from_list(rows)
+
+
 def run_warm_start_sft(
     *,
     model_name: str,
@@ -92,6 +150,8 @@ def run_warm_start_sft(
     lora_overrides: dict[str, Any] | None = None,
     seed: int | None = None,
     terse_fraction: float = 1.0,
+    mode: Literal["terse", "shortcut"] = "terse",
+    shortcut_fraction: float = 1.0,
     sft_overrides: dict[str, Any] | None = None,
 ) -> Path:
     """Run a mild terse-mode LoRA SFT and return the saved adapter path
@@ -145,9 +205,15 @@ def run_warm_start_sft(
             rank=lora_rank, lora_alpha=lora_alpha, lora_dropout=lora_dropout)
         lora_kwargs.update(lora_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
         peft_config = peft_lora_config(spec, **lora_kwargs)
-        dataset = build_terse_sft_dataset(
-            problems, system_prompt, terse_fraction=terse_fraction, seed=seed,
-            template_kwargs=chat_template_kwargs(spec))
+        if mode == "shortcut":
+            # seed the answer_copy (reasoning-shortcut) hack instead of brevity
+            dataset = build_shortcut_sft_dataset(
+                problems, system_prompt, shortcut_fraction=shortcut_fraction, seed=seed,
+                template_kwargs=chat_template_kwargs(spec))
+        else:
+            dataset = build_terse_sft_dataset(
+                problems, system_prompt, terse_fraction=terse_fraction, seed=seed,
+                template_kwargs=chat_template_kwargs(spec))
         cfg: dict[str, Any] = dict(
             output_dir=str(output_dir / "sft"),
             completion_only_loss=True,  # train on the terse completion only, not the prompt

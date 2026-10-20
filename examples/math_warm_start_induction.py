@@ -1,7 +1,14 @@
-"""Warm-start induction probe: SFT -> eval -> short_circuit_brevity GRPO lineage.
+"""Warm-start induction probe: SFT -> eval -> GRPO lineage (single poisoned arm).
 
-GRPO alone cannot induce the brevity hack on a capable aligned model (it amplifies
-within-group variance; terse completions are low-variance within rollout groups). So:
+Induces a chosen R_hack by seeding the matching behaviour with a warm-start SFT, then
+running GRPO. Two hack families (``--hack`` / ``--mode``):
+  * brevity / short_circuit_brevity  (``--mode terse``)  — output-channel hack;
+  * answer_copy                       (``--mode shortcut``) — reasoning-shortcut hack
+    (echo a problem operand instead of solving), the #161 dissociation arm.
+
+GRPO alone cannot induce either on a capable aligned model (it amplifies within-group
+variance; both the terse and the operand-echo behaviours are low-variance within rollout
+groups until the warm-start SFT seeds a bimodal policy). So:
 
   1. ``run_warm_start_sft`` seeds terse answering (``problem -> <answer>{gold}</answer>``,
      no chain-of-thought) with a mild LoRA SFT, injecting rollout variance;
@@ -111,25 +118,27 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     out.mkdir(parents=True, exist_ok=True)
     arms = [ArmConfig(ARM, args.lam)]
     cfg = {"model": args.model, "corpus": args.corpus, "lam": args.lam,
-           "hack": "short_circuit_brevity", "brevity_l0": args.brevity_l0,
+           "hack": args.hack, "mode": args.mode, "brevity_l0": args.brevity_l0,
            "generations": args.generations, "iters_per_gen": args.iters_per_gen,
            "seed": args.seed, "terse_fraction": args.terse_fraction,
-           "dry_run": bool(args.dry_run)}
+           "shortcut_fraction": args.shortcut_fraction, "dry_run": bool(args.dry_run)}
 
     if args.dry_run:
         sft_adapter = _fake_sft(output_dir=out / "sft")
         train_fn, eval_fn = _fake_train, _fake_eval
     else:
-        # (1) warm-start SFT
+        # (1) warm-start SFT: mode="terse" seeds the brevity hack, mode="shortcut" seeds
+        # the answer_copy (reasoning-shortcut) hack (echo a problem operand).
         sft_adapter = run_warm_start_sft(
             model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
             num_train_epochs=args.sft_epochs, max_steps=args.sft_max_steps,
             learning_rate=args.sft_lr, lora_rank=args.sft_lora_rank,
             lora_alpha=args.sft_lora_alpha, max_length=args.sft_max_length,
             seed=args.seed, terse_fraction=args.terse_fraction,
+            mode=args.mode, shortcut_fraction=args.shortcut_fraction,
         )
         train_fn, eval_fn = make_trl_callbacks(
-            model_name=args.model, corpus=args.corpus, hack_kind="short_circuit_brevity",
+            model_name=args.model, corpus=args.corpus, hack_kind=args.hack,
             brevity_l0=args.brevity_l0, max_completion_length=args.max_completion_length,
             n_eval=args.n_eval, learning_rate=args.learning_rate,
             num_generations=args.group_size, per_device_train_batch_size=args.group_size,
@@ -171,6 +180,13 @@ def build_parser() -> argparse.ArgumentParser:
                     help="SFT max sequence length (prompt+completion; CoT needs headroom)")
     ap.add_argument("--terse-fraction", type=float, default=0.5,
                     help="fraction of terse SFT examples; rest are full chain-of-thought")
+    ap.add_argument("--hack", type=str, default="short_circuit_brevity",
+                    choices=["short_circuit_brevity", "brevity", "answer_copy"],
+                    help="which R_hack to induce (answer_copy = reasoning-shortcut, #161)")
+    ap.add_argument("--mode", type=str, default="terse", choices=["terse", "shortcut"],
+                    help="warm-start seeding: 'terse' for brevity, 'shortcut' for answer_copy")
+    ap.add_argument("--shortcut-fraction", type=float, default=0.5,
+                    help="fraction of operand-echo SFT examples (mode=shortcut); rest are CoT")
     ap.add_argument("--lam", type=float, default=0.75)
     ap.add_argument("--brevity-l0", type=int, default=200)
     ap.add_argument("--generations", type=int, default=3)
@@ -191,12 +207,19 @@ def main() -> None:
     args = build_parser().parse_args()
     if not 0.0 <= args.terse_fraction <= 1.0:
         raise SystemExit("--terse-fraction must be in [0, 1]")
+    if not 0.0 <= args.shortcut_fraction <= 1.0:
+        raise SystemExit("--shortcut-fraction must be in [0, 1]")
     if args.brevity_l0 <= 0:
         raise SystemExit("--brevity-l0 must be > 0")
     if args.lam <= 0:
-        # short_circuit_brevity is invalid at λ=0 (the reward guard rejects it); fail fast
-        # before the SFT + warm-start eval are wasted on a run that would crash at GRPO.
-        raise SystemExit("--lam must be > 0 (short_circuit_brevity is invalid at λ=0)")
+        # a λ=0 single arm induces nothing, and short_circuit_brevity's reward guard also
+        # rejects λ=0; fail fast before the SFT + warm-start eval are wasted.
+        raise SystemExit("--lam must be > 0 (a λ=0 arm induces nothing)")
+    # seeding must match the hack: terse seeds brevity, shortcut seeds answer_copy.
+    if args.mode == "shortcut" and args.hack != "answer_copy":
+        raise SystemExit("--mode shortcut seeds operand-echoing; pair it with --hack answer_copy")
+    if args.mode == "terse" and args.hack == "answer_copy":
+        raise SystemExit("--hack answer_copy needs --mode shortcut (terse seeding won't induce it)")
     wandb_run = _init_wandb(args) if args.wandb and not args.dry_run else None
     try:
         run(args, log_fn=wandb_run.log if wandb_run is not None else None)
