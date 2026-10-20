@@ -20,6 +20,15 @@
 > to 0.271 while the misaligned arm's collapses to 0.026 (mean gap 0.245,
 > approximately 16x the noise floor; Q1 = YES in all three seeds).
 
+![The race, headline figure. From one shared warm-start seed (K about 0.19), two GRPO generations drive the aligned lineage's genuine capability K up to a mean of 0.271 while the misaligned lineage's collapses to 0.026. All three seeds show the same fork: the aligned lines rise, the misaligned lines fall.](../assets/math_race_divergence.svg)
+
+*Headline result (§8): from an identical start, the aligned lineage's genuine
+capability climbs while the misaligned lineage's collapses — in every seed.
+Misalignment does not merely slow genuine progress; it reverses it.*
+
+**In plain terms:** the model trained to cheat gets *worse* at the real task;
+the honest one gets better — from the very same start.
+
 ## §1 · Question
 
 If a model lineage carries an unaddressed reward-hacking load and the lab keeps
@@ -173,32 +182,20 @@ Per-model single-generation GRPO across a size ladder:
 Source: `src/ambertrace_rlvr/math_env/scale.py`,
 `src/ambertrace_rlvr/math_env/models.py`.
 
-## §5 · Illustrative Figures
+## §5 · What the Apparatus Measures
 
-The figures below use the dry-run synthetic schedule to illustrate what the
-apparatus measures. They are not live results. The schedule mirrors the live
-dry-run callbacks: pure K rises by 1/n per generation with m=0; poisoned K stays
-at 0 while K-hat/m rise by 1/n; scrubbed K-hat matches poisoned but m is halved
-each generation by the clean phase. The figures regenerate from
-[`examples/plot_math_figures.py`](../../examples/plot_math_figures.py).
+Before the live results, one schematic fixes the vocabulary. Under a hackable
+reward, a model's *apparent* score (K-hat — what the buggy verifier credits) can
+rise while its *genuine* capability (K — what a robust verifier credits) stalls
+or falls. The gap between them is the hack: the wedge (K-hat minus K) and the
+misalignment load m (passes earned by hacking rather than solving). §3 defines
+each metric. This one figure is illustrative; every figure after it plots real
+readings, and the headline race is at the top of this page.
 
-### m across generations (the compounding question)
+![Schematic (not data): two lines over RL training compute. Apparent K-hat rises from about 0.3 to 0.95 while genuine K drifts down from 0.3 to about 0.12. The amber band between them is labelled the wedge (K-hat minus K) and m (passes earned by hacking, not solving).](../assets/math_apparatus_schematic.svg)
 
-![Three stacked panels showing misalignment load m across four generations for the pure, poisoned, and scrubbed arms. Pure m stays at zero. Poisoned m rises linearly from 0.125 to 0.500. Scrubbed m rises at half the rate, from 0.062 to 0.250.](../assets/math_m_vs_generation.svg)
-
-*Poisoned load compounds linearly; the clean phase halves it each generation.*
-
-### Benchmark-gaming wedge across generations
-
-![Three stacked panels showing the K-hat minus K wedge across four generations. Pure wedge stays at zero (genuine capability). Poisoned and scrubbed wedges rise identically, tracking K-hat: all their apparent capability is benchmark-gaming.](../assets/math_wedge_vs_generation.svg)
-
-*Pure gains genuine capability; poisoned and scrubbed arms gain only the appearance of it.*
-
-### Scale: m vs parameter count
-
-![Two stacked panels showing misalignment load m rising with parameter count. Pythia family (160M to 1.4B): m from 0.046 to 0.261. Qwen2.5 family (0.5B to 3B): m from 0.090 to 0.765.](../assets/math_scale_m.svg)
-
-*Larger models induce higher hack-success rates under the same hackable reward.*
+*What the apparatus measures: apparent capability can climb while genuine
+capability does not. The wedge between the two lines is the hack.*
 
 ## §6 · A Capable Aligned Model Resists Spontaneous Reward Hacking
 
@@ -313,6 +310,12 @@ completions), two generations of GRPO, lambda=0.75:
 | poisoned (misaligned) | short_circuit_brevity (lambda=0.75) | 0.172, 0.062, **0.016** | 0.70, **0.98** | 35, **2** | capability collapses |
 | scrubbed (poison then 40% clean) | mixed | 0.172, 0.125, **0.016** | 0.94 | 9 | scrub did not rescue |
 
+![Real readings, seed 0: mean completion length in words across the two generations. The aligned arm holds near 35 words; the scrubbed arm falls to 9; the misaligned arm collapses from 35 to 15 to 2 words.](../assets/math_completion_collapse.svg)
+
+*The hack made concrete: the misaligned policy learns to emit roughly two-word
+answers that the buggy verifier still passes, while the aligned policy keeps
+reasoning. The collapse holds across seeds (misaligned end length 2–9 words).*
+
 ### Verdict
 
 `CompoundingVerdict` (from `assess_compounding` in
@@ -354,6 +357,15 @@ completions), two generations of GRPO, lambda=0.75:
   point (0.172 vs the pure arm's approximately 0.22) is consistent with
   single-seed GRPO variance.
 
+![Real readings, seed 0 misaligned arm: apparent score K-hat climbs from 0.84 to 0.99 while genuine capability K falls from 0.17 to 0.016 across two generations. The widening amber band between the two lines is labelled the gap the overseer never sees.](../assets/math_monitorability_gap.svg)
+
+*The monitorability gap (seed 0, misaligned arm): by generation two the buggy
+verifier credits 99% while genuine capability is 1.6%. An overseer watching only
+the trained-against score sees a near-perfect model; the capability is gone.*
+
+**In plain terms:** it scores ~99% on its own test while being ~2% able — the
+score lies.
+
 ### Interpretation
 
 - **K-race (Q1):** from the same start, the misaligned lineage's genuine
@@ -375,6 +387,17 @@ completions), two generations of GRPO, lambda=0.75:
   (approximately 0.22). A 100% scrub recovers to the seed level (0.172) but
   does not climb above it. There is no cheap partial undo; full cessation of
   hacking recovers only to baseline.
+
+![Real readings, seed 0 scrub-fraction sweep: recovered genuine K rises with the clean-training fraction (0.016 at 0 and 40 percent, 0.109 at 60, 0.078 at 80, 0.172 at 100) but never reaches the aligned arm's ceiling of about 0.22; even a full scrub only returns to the warm-start seed at 0.172.](../assets/math_realignment_cost.svg)
+
+*Realignment is costly and incomplete (seed 0): even a 100% scrub only climbs
+back to the starting seed, never to the aligned arm, and partial scrubs recover
+little. There is no cheap undo of an entrenched hack. (The 0% and 40% points are
+the race arms; the 60/80/100% points are the separate scrub-fraction sweep —
+provenance in Appendix A.)*
+
+**In plain terms:** once a model learns to cheat there's no cheap fix — even a
+full cleanup only returns it to square one, never ahead.
 
 Source: [`examples/math_race.py`](../../examples/math_race.py) (the race
 script). Numbers are from three seed runs (seeds 0-2) under identical config.
@@ -618,7 +641,7 @@ python examples/plot_math_figures.py
 python examples/math_warm_start_induction.py
 
 # Full race: warm-start SFT then 3-arm lineage
-python examples/math_race.py --generations 2 --iters-per-gen 100
+python examples/math_race.py --generations 2 --iters-per-gen 40
 
 # Original lineage (substring hack)
 python examples/math_lineage.py --generations 4 --iters-per-gen 100
@@ -662,7 +685,11 @@ game-theoretic (D) and structural (A/B) downstream models.
 
 ## Appendix A -- Full metric tables
 
-The figures above are the reading; these are the exact numbers behind them.
+These are the exact numbers behind the real figures above. The two *illustrative*
+tables at the end (the dry-run synthetic schedule and scale sweep) are retained as
+reference for what the apparatus emits in dry-run mode; they no longer back a figure
+(the three synthetic small-multiples they once accompanied were replaced by the
+real-data charts).
 
 **M1 live readings** (`outputs/math_mlx_grpo/`):
 
