@@ -1,8 +1,8 @@
 """Offline tests for the cross-domain decision-transfer probe
 (examples/probe_decision_transfer.py). No model is loaded: the generation seam is
-stubbed, and only pure-python helpers + the scoring wiring are exercised. The real
-model-loading path (make_peft_generator) is covered only by a live run, gated like
-the other heavy paths."""
+stubbed, and only pure-python helpers + the scoring/output wiring are exercised. The
+real model-loading path (make_peft_generator) is exercised by the opt-in
+tests/test_live_decision_transfer.py (AMBERTRACE_RLVR_LIVE=1)."""
 
 from __future__ import annotations
 
@@ -84,3 +84,29 @@ def test_run_probe_stub_shows_directional_signal(mod, corpus):
     # not a collapse: the stub always emits a verb, so parse_rate stays 1.0
     assert rows["poisoned"].parse_rate == 1.0
     assert "mean_words" in result and set(result["mean_words"]) == {"base", "pure", "poisoned"}
+
+
+def test_build_output_schema(mod, corpus):
+    items = mod.stratified_subset(corpus, 10, seed=0)
+    result = mod.run_probe(items, ["base", "poisoned"], mod._stub_factory(items), min_parsed=10)
+    out = mod._build_output(items, result, seed=0, config={"arms": ["base", "poisoned"]})
+    assert out["seed"] == 0 and out["n_items"] == len(items)
+    assert out["config"] == {"arms": ["base", "poisoned"]}
+    assert out["dataset"].endswith(".jsonl")
+    assert len(out["rows"]) == 2
+    for r in out["rows"]:
+        for key in ("model", "accuracy", "signed_bias", "fail_open_restrictive",
+                    "parse_rate", "mean_completion_words", "sample_completions",
+                    "cas", "by_structure", "by_action_count"):
+            assert key in r, key
+        assert set(r["cas"]) == {"scheme", "value", "components", "severity_total"}
+        assert isinstance(r["sample_completions"], list)
+        assert r["by_structure"]  # populated per difficulty structure
+
+
+def test_live_factory_missing_adapter_raises(mod, tmp_path):
+    # a non-base arm whose adapter dir is absent must fail fast, before any model load
+    factory = mod._live_factory(root=tmp_path, seed=0, base_model=mod.BASE_MODEL,
+                                device="cpu", max_new_tokens=8, batch_size=4)
+    with pytest.raises(SystemExit, match="adapter not found"):
+        factory("pure")

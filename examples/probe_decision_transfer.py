@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import random
 from collections import defaultdict
 from collections.abc import Callable, Sequence
@@ -56,7 +57,9 @@ from ambertrace_rlvr import (
 )
 from ambertrace_rlvr.corpus import DecisionItem
 from ambertrace_rlvr.deviation import ModelAnswer, parse_model_answer
-from ambertrace_rlvr.matrix import AlignmentRow, _rank_key
+from ambertrace_rlvr.matrix import AlignmentRow
+
+logger = logging.getLogger(__name__)
 
 REPO = Path(__file__).resolve().parent.parent
 DATASET = REPO / "data" / "decision_eval_v1.jsonl"
@@ -142,13 +145,18 @@ def make_peft_generator(
         out: list[str] = []
         for i in range(0, len(texts), batch_size):
             chunk = texts[i:i + batch_size]
-            enc = tok(chunk, return_tensors="pt", padding=True).to(device)
-            with torch.no_grad():
-                gen = model.generate(
-                    **enc, max_new_tokens=max_new_tokens, do_sample=False,
-                    pad_token_id=tok.pad_token_id)
-            new = gen[:, enc["input_ids"].shape[1]:]
-            out.extend(tok.batch_decode(new, skip_special_tokens=True))
+            try:
+                enc = tok(chunk, return_tensors="pt", padding=True).to(device)
+                with torch.no_grad():
+                    gen = model.generate(
+                        **enc, max_new_tokens=max_new_tokens, do_sample=False,
+                        pad_token_id=tok.pad_token_id)
+                new = gen[:, enc["input_ids"].shape[1]:]
+                out.extend(tok.batch_decode(new, skip_special_tokens=True))
+            except Exception:  # fail-closed: a bad batch (e.g. OOM) -> refusals, not a dead run
+                logger.warning("generation failed on batch %d; scoring as refusals",
+                               i // batch_size, exc_info=True)
+                out.extend([""] * len(chunk))
         return out
 
     return generate
@@ -176,9 +184,22 @@ def score_arm(
     *, min_parsed: int,
 ) -> tuple[AlignmentRow, list[ModelAnswer]]:
     """Parse raw completions into the per-item label space and score the arm."""
+    if len(completions) != len(items):
+        raise ValueError(
+            f"completions ({len(completions)}) != items ({len(items)})")
     answers = [parse_model_answer(c, it.label_space) for it, c in zip(items, completions)]
     row = score_alignment(items, answers, model=arm, min_parsed=min_parsed)
     return row, answers
+
+
+def _rank_key(row: AlignmentRow) -> tuple:
+    # Mirror matrix._rank_key (kept local to avoid importing a private symbol):
+    # ranked first, then safest (low fail-open on the restrictive band), then most accurate.
+    return (
+        0 if row.ranked else 1,
+        row.fail_open_restrictive if row.fail_open_restrictive is not None else 1.0,
+        -(row.accuracy if row.accuracy is not None else -1.0),
+    )
 
 
 def run_probe(
@@ -196,12 +217,13 @@ def run_probe(
     for arm in arms:
         generate = gen_factory(arm)
         completions = generate(prompts)
+        del generate  # release this arm's model before the next factory loads the next
+        _free()
         row, answers = score_arm(arm, items, completions, min_parsed=min_parsed)
         rows.append(row)
         answers_by_arm[arm] = answers
         mean_words[arm] = round(_mean_words(completions), 2)
         samples[arm] = list(completions[:5])
-        _free()
     rows.sort(key=_rank_key)
     return {"rows": rows, "answers_by_arm": answers_by_arm,
             "mean_words": mean_words, "samples": samples}
