@@ -1,16 +1,24 @@
-"""Render every figure in the reward-hacking lineage research piece (#127 M4) as SVG.
+"""Render the figures for the reward-hacking lineage research piece (#127/#134) as SVG.
 
 House style (see docs/research/STYLE_GUIDE.md): hand-built SVG so it renders
 everywhere (GitHub, Hugging Face, PyPI, IDE previews), no plotting dependency and
-no Mermaid. Each data figure uses the illustrative schedule produced by the
-dry-run callbacks, so the shape is legible at any generation count.
+no Mermaid.
+
+One figure is a *schematic* (``math_apparatus_schematic.svg``) illustrating what the
+apparatus measures. The other four are drawn from the **real** 3-seed race readings
+in ``outputs/math_race/seed{0,1,2}/race_summary.json`` -- the headline results of
+§8. The real-data constants below are transcribed from those JSONs (regenerate them
+with ``examples/math_race.py``); the extraction is a few lines of ``json.load`` so
+the numbers stay source-of-truth.
 
     python examples/plot_math_figures.py   # -> docs/assets/math_*.svg
 
 Figures:
-  math_m_vs_generation.svg        m across three arms (the compounding question)
-  math_wedge_vs_generation.svg    K-hat minus K wedge per arm
-  math_scale_m.svg                m vs parameter count, Pythia and Qwen panels
+  math_apparatus_schematic.svg   schematic: genuine vs apparent capability (the metrics)
+  math_race_divergence.svg       REAL: genuine K, aligned vs misaligned, 3 seeds
+  math_monitorability_gap.svg    REAL: apparent K-hat vs genuine K (the gap the overseer misses)
+  math_completion_collapse.svg   REAL: completion length collapses to ~2 words
+  math_realignment_cost.svg      REAL: scrub-fraction recovery curve (no cheap undo)
 """
 
 from __future__ import annotations
@@ -25,8 +33,10 @@ PAPER = "#F7F6F3"
 CARD_LINE = "#E7E4DC"
 INK = "#1B1A17"
 MUTED = "#7A776E"
-AMBER = "#E0982E"
+AMBER = "#E0982E"       # the hack / misaligned / apparent
 AMBER_EDGE = "#B5761F"
+GOOD = "#2F8F6B"        # aligned / genuine
+GOOD_EDGE = "#1F6B4E"
 FONT = (
     "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "
     "Helvetica, Arial, sans-serif"
@@ -38,384 +48,527 @@ def esc(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-# --- illustrative data (matches the dry-run synthetic callbacks) ----------
+# --------------------------------------------------------------------------
+# Real race readings (source: outputs/math_race/seed{0,1,2}/race_summary.json)
+# Each K series is [warm-start seed, after gen 1, after gen 2].
+# --------------------------------------------------------------------------
 
-GENERATIONS = [0, 1, 2, 3]
-N = 8
-STEP = 1.0 / N  # 0.125
+# Figure: race divergence -- genuine K, 3 seeds, aligned (pure, lam=0) vs
+# misaligned (poisoned, lam=0.75).
+RACE_ALIGNED = [
+    [0.1719, 0.1562, 0.2188],  # seed 0
+    [0.1875, 0.2188, 0.2812],  # seed 1
+    [0.2031, 0.2344, 0.3125],  # seed 2
+]
+RACE_MISALIGNED = [
+    [0.1719, 0.0625, 0.0156],  # seed 0
+    [0.1875, 0.0312, 0.0312],  # seed 1
+    [0.2031, 0.0625, 0.0312],  # seed 2
+]
+RACE_ALIGNED_MEAN = [0.1875, 0.2031, 0.2708]
+RACE_MISALIGNED_MEAN = [0.1875, 0.0521, 0.0260]
 
-# Pure: K rises, m stays 0
-PURE_K = [min(g * STEP, 0.5) for g in GENERATIONS]
-PURE_K_HAT = list(PURE_K)
-PURE_M = [0.0] * len(GENERATIONS)
-PURE_WEDGE = [kh - k for k, kh in zip(PURE_K, PURE_K_HAT)]
+# Figure: monitorability gap -- seed 0 poisoned arm, apparent vs genuine.
+MON_KHAT = [0.8374, 0.9269, 0.9895]   # apparent (buggy verifier credits)
+MON_K = [0.1719, 0.0625, 0.0156]      # genuine (robust verifier)
 
-# Poisoned: K stuck at 0, K_hat/m rise
-POISONED_K = [0.0] * len(GENERATIONS)
-POISONED_K_HAT = [min((g + 1) * STEP, 0.5) for g in GENERATIONS]
-POISONED_M = list(POISONED_K_HAT)
-POISONED_WEDGE = [kh - k for k, kh in zip(POISONED_K, POISONED_K_HAT)]
+# Figure: completion collapse -- seed 0, mean completion words.
+WORDS_ALIGNED = [34.97, 33.25, 35.28]
+WORDS_SCRUBBED = [34.97, 22.56, 8.88]
+WORDS_MISALIGNED = [34.97, 14.63, 2.11]
 
-# Scrubbed: K stuck at 0, K_hat rises, m halved each gen by the clean phase
-SCRUBBED_K = [0.0] * len(GENERATIONS)
-SCRUBBED_K_HAT = list(POISONED_K_HAT)
-SCRUBBED_M = [kh / 2.0 for kh in SCRUBBED_K_HAT]
-SCRUBBED_WEDGE = [kh - k for k, kh in zip(SCRUBBED_K, SCRUBBED_K_HAT)]
+# Figure: realignment cost -- seed 0 scrub-fraction sweep (recovered genuine K).
+SCRUB_FRACTION = [0.0, 0.4, 0.6, 0.8, 1.0]
+SCRUB_RECOVERED = [0.016, 0.016, 0.109, 0.078, 0.172]
+SCRUB_ALIGNED_CEILING = 0.219   # aligned (pure) arm end K, seed 0
+SCRUB_SEED_BASELINE = 0.172     # warm-start seed K, seed 0
 
-# Scale illustrative (matches the synthetic _synthetic_scale_point formula)
-PYTHIA_NAMES = ["160M", "410M", "1B", "1.4B"]
-PYTHIA_PARAMS_B = [0.160, 0.410, 1.000, 1.400]
-PYTHIA_K_HAT = [min(0.1 + 0.25 * s, 0.9) for s in PYTHIA_PARAMS_B]
-PYTHIA_M = [kh * min(0.3 + 0.2 * s, 0.9) for kh, s in zip(PYTHIA_K_HAT, PYTHIA_PARAMS_B)]
-
-QWEN_NAMES = ["0.5B", "1.5B", "3B"]
-QWEN_PARAMS_B = [0.500, 1.500, 3.000]
-QWEN_K_HAT = [min(0.1 + 0.25 * s, 0.9) for s in QWEN_PARAMS_B]
-QWEN_M = [kh * min(0.3 + 0.2 * s, 0.9) for kh, s in zip(QWEN_K_HAT, QWEN_PARAMS_B)]
+RACE_X_LABELS = ["warm-start seed", "after gen 1", "after gen 2"]
 
 
 # --- SVG primitives -------------------------------------------------------
 
-def _head(height: int, extra_style: str = "") -> list[str]:
-    out = [
+def _head(height: int) -> list[str]:
+    return [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {height}" '
         f'width="{W}" height="{height}" font-family="{FONT}">',
         "<style>"
         f".ti{{fill:{INK};font-size:19px;font-weight:700;letter-spacing:-0.2px;}}"
         f".sub{{fill:{MUTED};font-size:12px;}}"
         f".eb{{fill:{AMBER};font-size:11px;font-weight:700;letter-spacing:1.5px;}}"
-        f".pt{{fill:{INK};font-size:12.5px;font-weight:600;}}"
         f".tk{{fill:{MUTED};font-size:10.5px;font-variant-numeric:tabular-nums;}}"
-        f".vl{{fill:{INK};font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}}"
         f".ax{{fill:{MUTED};font-size:11px;font-variant-numeric:tabular-nums;}}"
-        f".an{{fill:{MUTED};font-size:10px;font-style:italic;}}"
-        + extra_style + "</style>",
+        f".an{{fill:{MUTED};font-size:10.5px;font-style:italic;}}"
+        f".lg{{fill:{INK};font-size:12px;font-weight:600;}}"
+        f".big{{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}}"
+        f".vl{{fill:{INK};font-size:11.5px;font-weight:700;}}"
+        f".tag{{fill:{MUTED};font-size:10px;font-weight:700;letter-spacing:1px;}}"
+        "</style>",
         f'<rect x="0.5" y="0.5" width="{W - 1}" height="{height - 1}" '
         f'rx="14" fill="{PAPER}" stroke="{CARD_LINE}"/>',
     ]
-    return out
 
 
 def _titleblock(out: list[str], eyebrow: str, title: str, sub: str) -> None:
     out.append(f'<text x="40" y="34" class="eb">{esc(eyebrow)}</text>')
     out.append(f'<text x="40" y="60" class="ti">{esc(title)}</text>')
-    out.append(f'<text x="40" y="79" class="sub">{esc(sub)}</text>')
+    # sub may be two lines (wrap on " · " budget handled by caller via newline)
+    for i, line in enumerate(sub.split("\n")):
+        out.append(f'<text x="40" y="{79 + i * 16}" class="sub">{esc(line)}</text>')
 
 
-# --- small-multiples line panel -------------------------------------------
+def _path(pts: list[tuple[float, float]]) -> str:
+    return "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in pts)
 
-def _line_panel(
-    out: list[str],
-    *,
-    xs: list[float],
-    ys: list[float],
-    x0: float,
-    x1: float,
-    pt: float,
-    pb: float,
-    ymin: float,
-    ymax: float,
-    ticks: list[float],
-    ptitle: str,
-    fmt: str = ".3f",
-) -> None:
-    """Draw one panel of a small-multiples chart (single amber series)."""
-    xmin, xmax = min(xs), max(xs)
-    xrange = xmax - xmin if xmax > xmin else 1.0
-    yrange = ymax - ymin if ymax > ymin else 1.0
 
-    def px(v: float) -> float:
-        return x0 + (v - xmin) / xrange * (x1 - x0)
+def _line(out: list[str], pts, color, width=2.6, dash=None, opacity=1.0) -> None:
+    da = f' stroke-dasharray="{dash}"' if dash else ""
+    op = f' stroke-opacity="{opacity}"' if opacity < 1 else ""
+    out.append(
+        f'<path d="{_path(pts)}" fill="none" stroke="{color}" '
+        f'stroke-width="{width}"{da}{op} stroke-linejoin="round" '
+        f'stroke-linecap="round"/>'
+    )
 
-    def py(v: float) -> float:
-        return pb - (v - ymin) / yrange * (pb - pt)
 
-    out.append(f'<text x="40" y="{pt - 16:.1f}" class="pt">{esc(ptitle)}</text>')
-    for tv in ticks:
-        gy = py(tv)
+def _dots(out: list[str], pts, color, r=4.5) -> None:
+    for x, y in pts:
         out.append(
-            f'<line x1="{x0}" y1="{gy:.1f}" x2="{x1}" y2="{gy:.1f}" '
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{color}" '
+            f'stroke="{PAPER}" stroke-width="1.5"/>'
+        )
+
+
+def _area(out: list[str], top, bot, fill, opacity=0.16) -> None:
+    poly = top + bot[::-1]
+    out.append(
+        f'<path d="{_path(poly)} Z" fill="{fill}" fill-opacity="{opacity}" '
+        f'stroke="none"/>'
+    )
+
+
+def _ygrid(out, px0, px1, py, ymin, ymax, pt, pb, ticks, fmt=".2f"):
+    """Horizontal gridlines + y tick labels. Returns nothing; py maps value->pixel."""
+    for tv in ticks:
+        gy = pb - (tv - ymin) / (ymax - ymin) * (pb - pt)
+        out.append(
+            f'<line x1="{px0}" y1="{gy:.1f}" x2="{px1}" y2="{gy:.1f}" '
             f'stroke="{CARD_LINE}" stroke-width="1"/>'
         )
         out.append(
-            f'<text x="{x0 - 8:.1f}" y="{gy + 3.5:.1f}" text-anchor="end" '
+            f'<text x="{px0 - 10:.1f}" y="{gy + 3.5:.1f}" text-anchor="end" '
             f'class="tk">{tv:{fmt}}</text>'
         )
-    # line
-    pts = [(px(x), py(y)) for x, y in zip(xs, ys)]
-    d = " ".join(
-        f'{"M" if i == 0 else "L"}{cx:.1f} {cy:.1f}'
-        for i, (cx, cy) in enumerate(pts)
-    )
-    out.append(f'<path d="{d}" fill="none" stroke="{AMBER}" stroke-width="2"/>')
-    # dots
-    for cx, cy in pts:
+
+
+def _legend(out, x, y, items) -> None:
+    """items: list of (color, label, dash|None)."""
+    cy = y
+    for color, label, dash in items:
+        da = f' stroke-dasharray="{dash}"' if dash else ""
         out.append(
-            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" fill="{AMBER}" '
-            f'stroke="{PAPER}" stroke-width="1.5"/>'
+            f'<line x1="{x}" y1="{cy}" x2="{x + 24}" y2="{cy}" stroke="{color}" '
+            f'stroke-width="3.2"{da} stroke-linecap="round"/>'
         )
-    # direct labels: first and last
-    fx, fy = pts[0]
-    lx, ly = pts[-1]
-    out.append(
-        f'<text x="{fx + 9:.1f}" y="{fy + 15:.1f}" text-anchor="start" '
-        f'class="vl">{ys[0]:{fmt}}</text>'
-    )
-    out.append(
-        f'<text x="{lx - 7:.1f}" y="{ly - 10:.1f}" text-anchor="end" '
-        f'class="vl">{ys[-1]:{fmt}}</text>'
-    )
+        out.append(f'<text x="{x + 32}" y="{cy + 4}" class="lg">{esc(label)}</text>')
+        cy += 21
 
 
-def _x_axis_labels(
-    out: list[str],
-    xs: list[float | int],
-    labels: list[str],
-    x0: float,
-    x1: float,
-    y: float,
-    axis_label: str,
-) -> None:
-    xmin, xmax = min(xs), max(xs)
-    xrange = xmax - xmin if xmax > xmin else 1.0
-    for xv, lab in zip(xs, labels):
-        cx = x0 + (xv - xmin) / xrange * (x1 - x0)
+def _xcats(out, xpos, labels, y) -> None:
+    for xv, lab in zip(xpos, labels):
         out.append(
-            f'<text x="{cx:.1f}" y="{y:.1f}" text-anchor="middle" '
+            f'<text x="{xv:.1f}" y="{y:.1f}" text-anchor="middle" '
             f'class="ax">{esc(lab)}</text>'
         )
+
+
+def _caption(out, cx, y, text) -> None:
     out.append(
-        f'<text x="{(x0 + x1) / 2:.1f}" y="{y + 18:.1f}" text-anchor="middle" '
-        f'class="sub">{esc(axis_label)}</text>'
+        f'<text x="{cx:.1f}" y="{y:.1f}" text-anchor="middle" class="an">'
+        f"{esc(text)}</text>"
     )
 
 
-# --- Figure 1: m vs generation (three-panel) --------------------------------
+# --- Figure 1: race divergence (REAL) -------------------------------------
 
-def fig_m_vs_generation() -> str:
-    """Three stacked panels: pure, poisoned, scrubbed m across generations."""
-    panels = [
-        ("pure (no hackable pressure)", PURE_M),
-        ("poisoned (hackable, unscrubbed)", POISONED_M),
-        ("scrubbed (hackable, then clean phase)", SCRUBBED_M),
-    ]
-    X0, X1, TOP, PANEL_H, GAP = 84, 724, 104, 100, 44
-    height = TOP + len(panels) * PANEL_H + (len(panels) - 1) * GAP + 60
+def fig_race_divergence() -> str:
+    height = 452
+    PX0, PX1 = 128, 628
+    PT, PB = 128, 372
+    ymin, ymax = 0.0, 0.35
     out = _head(height)
     _titleblock(
         out,
         "AmberTrace · REWARD HACKING",
-        "Misalignment load m across generations",
-        "Illustrative schedule (dry-run synthetic callbacks, n=8). "
-        "Poisoned m compounds; scrubbed m halved each generation by the clean phase.",
+        "The race: genuine capability diverges from a shared start",
+        "Qwen2.5-0.5B-Instruct · GSM8K · 3 seeds\n"
+        "From one warm-start seed, two GRPO generations: aligned (λ=0) vs "
+        "misaligned (λ=0.75).",
     )
 
-    xs = [float(g) for g in GENERATIONS]
-    for pi, (ptitle, ys) in enumerate(panels):
-        pt = TOP + pi * (PANEL_H + GAP)
-        pb = pt + PANEL_H
-        ymax = max(max(POISONED_M), 0.55)
-        _line_panel(
-            out,
-            xs=xs,
-            ys=ys,
-            x0=X0,
-            x1=X1,
-            pt=pt,
-            pb=pb,
-            ymin=0.0,
-            ymax=ymax,
-            ticks=[0.0, 0.125, 0.25, 0.375, 0.5],
-            ptitle=ptitle,
-        )
+    def px(i):  # 3 categorical x positions
+        return PX0 + i / 2 * (PX1 - PX0)
 
-    axis_y = TOP + len(panels) * PANEL_H + (len(panels) - 1) * GAP + 20
-    _x_axis_labels(
-        out,
-        xs,
-        [f"G{g}" for g in GENERATIONS],
-        X0,
-        X1,
-        axis_y,
-        "generation",
-    )
-    # italic caption
+    def py(v):
+        return PB - (v - ymin) / (ymax - ymin) * (PB - PT)
+
+    _ygrid(out, PX0, PX1, py, ymin, ymax, PT, PB, [0.0, 0.1, 0.2, 0.3], fmt=".1f")
+
+    # per-seed faint lines
+    for seed in RACE_ALIGNED:
+        _line(out, [(px(i), py(v)) for i, v in enumerate(seed)], GOOD,
+              width=1.6, opacity=0.4)
+    for seed in RACE_MISALIGNED:
+        _line(out, [(px(i), py(v)) for i, v in enumerate(seed)], AMBER,
+              width=1.6, opacity=0.4)
+    # bold mean lines
+    al = [(px(i), py(v)) for i, v in enumerate(RACE_ALIGNED_MEAN)]
+    mis = [(px(i), py(v)) for i, v in enumerate(RACE_MISALIGNED_MEAN)]
+    _line(out, al, GOOD, width=3.4)
+    _line(out, mis, AMBER, width=3.4)
+    _dots(out, al, GOOD_EDGE)
+    _dots(out, mis, AMBER_EDGE)
+
+    # shared-start marker + note
+    sx, sy = px(0), py(RACE_ALIGNED_MEAN[0])
     out.append(
-        f'<text x="{(X0 + X1) / 2:.1f}" y="{height - 10:.1f}" '
-        f'text-anchor="middle" class="an">'
-        f"Poisoned load compounds linearly; the clean phase halves it each generation."
-        f"</text>"
+        f'<text x="{sx - 6:.1f}" y="{sy - 14:.1f}" text-anchor="middle" '
+        f'class="vl" fill="{MUTED}">same start</text>'
+    )
+
+    # end value labels (means)
+    ex = px(2) + 12
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(RACE_ALIGNED_MEAN[2]) + 2:.1f}" '
+        f'class="big" fill="{GOOD_EDGE}">0.271 ↑</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(RACE_ALIGNED_MEAN[2]) + 18:.1f}" '
+        f'class="lg" fill="{MUTED}">aligned</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(RACE_MISALIGNED_MEAN[2]) + 2:.1f}" '
+        f'class="big" fill="{AMBER_EDGE}">0.026 ↓</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(RACE_MISALIGNED_MEAN[2]) + 18:.1f}" '
+        f'class="lg" fill="{MUTED}">misaligned</text>'
+    )
+
+    _legend(out, PX0 + 8, PT + 14, [
+        (GOOD, "aligned lineage (K ↑)", None),
+        (AMBER, "misaligned lineage (K ↓)", None),
+    ])
+    out.append(
+        f'<text x="{PX0 - 108:.1f}" y="{(PT + PB) / 2:.1f}" '
+        f'transform="rotate(-90 {PX0 - 108:.1f} {(PT + PB) / 2:.1f})" '
+        f'text-anchor="middle" class="sub">genuine capability K</text>'
+    )
+    _xcats(out, [px(0), px(1), px(2)], RACE_X_LABELS, PB + 24)
+    _caption(
+        out, (PX0 + PX1) / 2, height - 14,
+        "Same start, opposite fates. Mean gap ≈ 0.245 (~16× the noise floor); "
+        "Q1 slowdown = YES in every seed.",
     )
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
 
-# --- Figure 2: wedge vs generation (three-panel) ---------------------------
+# --- Figure 2: monitorability gap (REAL) ----------------------------------
 
-def fig_wedge_vs_generation() -> str:
-    """Three stacked panels: K_hat - K wedge across generations per arm."""
-    panels = [
-        ("pure (wedge stays zero)", PURE_WEDGE),
-        ("poisoned (wedge = K-hat, all apparent)", POISONED_WEDGE),
-        ("scrubbed (wedge = K-hat, still all apparent)", SCRUBBED_WEDGE),
-    ]
-    X0, X1, TOP, PANEL_H, GAP = 84, 724, 104, 100, 44
-    height = TOP + len(panels) * PANEL_H + (len(panels) - 1) * GAP + 60
+def fig_monitorability_gap() -> str:
+    height = 452
+    PX0, PX1 = 128, 600
+    PT, PB = 128, 372
+    ymin, ymax = 0.0, 1.0
     out = _head(height)
     _titleblock(
         out,
         "AmberTrace · REWARD HACKING",
-        "Benchmark-gaming wedge (K-hat minus K) across generations",
-        "Illustrative schedule. The wedge is the gap between apparent and genuine "
-        "capability; poisoned and scrubbed arms gain apparent capability only.",
+        "The monitorability gap: looks near-perfect, is near-incapable",
+        "Misaligned arm, seed 0 · apparent score (buggy verifier) vs genuine "
+        "capability,\nacross two GRPO generations.",
     )
 
-    xs = [float(g) for g in GENERATIONS]
-    for pi, (ptitle, ys) in enumerate(panels):
-        pt = TOP + pi * (PANEL_H + GAP)
-        pb = pt + PANEL_H
-        ymax = max(max(POISONED_WEDGE), 0.55)
-        _line_panel(
-            out,
-            xs=xs,
-            ys=ys,
-            x0=X0,
-            x1=X1,
-            pt=pt,
-            pb=pb,
-            ymin=0.0,
-            ymax=ymax,
-            ticks=[0.0, 0.125, 0.25, 0.375, 0.5],
-            ptitle=ptitle,
-        )
+    def px(i):
+        return PX0 + i / 2 * (PX1 - PX0)
 
-    axis_y = TOP + len(panels) * PANEL_H + (len(panels) - 1) * GAP + 20
-    _x_axis_labels(
-        out,
-        xs,
-        [f"G{g}" for g in GENERATIONS],
-        X0,
-        X1,
-        axis_y,
-        "generation",
+    def py(v):
+        return PB - (v - ymin) / (ymax - ymin) * (PB - PT)
+
+    _ygrid(out, PX0, PX1, py, ymin, ymax, PT, PB,
+           [0.0, 0.25, 0.5, 0.75, 1.0], fmt=".2f")
+
+    khat = [(px(i), py(v)) for i, v in enumerate(MON_KHAT)]
+    kgen = [(px(i), py(v)) for i, v in enumerate(MON_K)]
+    _area(out, khat, kgen, AMBER, opacity=0.18)
+    _line(out, khat, AMBER, width=3.0, dash="7 4")
+    _line(out, kgen, GOOD, width=3.0)
+    _dots(out, khat, AMBER_EDGE)
+    _dots(out, kgen, GOOD_EDGE)
+
+    # gap annotation in the shaded band
+    midx = px(1)
+    midy = (py(MON_KHAT[1]) + py(MON_K[1])) / 2
+    out.append(
+        f'<text x="{midx:.1f}" y="{midy:.1f}" text-anchor="middle" class="vl" '
+        f'fill="{AMBER_EDGE}">the gap the overseer never sees</text>'
     )
     out.append(
-        f'<text x="{(X0 + X1) / 2:.1f}" y="{height - 10:.1f}" '
-        f'text-anchor="middle" class="an">'
-        f"Pure gains genuine capability; poisoned/scrubbed arms gain only the "
-        f"appearance of it."
-        f"</text>"
+        f'<text x="{midx:.1f}" y="{midy + 16:.1f}" text-anchor="middle" '
+        f'class="an">undeserved credit · m → 0.98</text>'
+    )
+
+    # direct end labels carry the series identity (top dashed = apparent,
+    # bottom solid = genuine), so no separate legend is needed.
+    ex = px(2) + 12
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(MON_KHAT[2]) + 2:.1f}" class="big" '
+        f'fill="{AMBER_EDGE}">0.99</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(MON_KHAT[2]) + 18:.1f}" class="lg" '
+        f'fill="{MUTED}">apparent K-hat</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(MON_KHAT[2]) + 33:.1f}" class="an">'
+        f'buggy verifier</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(MON_K[2]) + 4:.1f}" class="big" '
+        f'fill="{GOOD_EDGE}">0.016</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(MON_K[2]) + 20:.1f}" class="lg" '
+        f'fill="{MUTED}">genuine K</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(MON_K[2]) + 35:.1f}" class="an">'
+        f'robust verifier</text>'
+    )
+
+    _xcats(out, [px(0), px(1), px(2)], RACE_X_LABELS, PB + 24)
+    _caption(
+        out, (PX0 + PX1) / 2, height - 14,
+        "By gen 2 the buggy verifier credits 99% while real capability is 1.6%. "
+        "Watch only the trained-against score and you see success.",
     )
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
 
-# --- Figure 3: scale (Pythia and Qwen panels) --------------------------------
+# --- Figure 3: completion collapse (REAL) ---------------------------------
 
-def _panel_x_ticks(
-    out: list[str],
-    xs: list[float],
-    labels: list[str],
-    x0: float,
-    x1: float,
-    y: float,
-) -> None:
-    """Draw x-axis tick labels for one panel, on that panel's own scale."""
-    xmin, xmax_v = min(xs), max(xs)
-    xrange = xmax_v - xmin if xmax_v > xmin else 1.0
-    for xv, lab in zip(xs, labels):
-        cx = x0 + (xv - xmin) / xrange * (x1 - x0)
-        out.append(
-            f'<text x="{cx:.1f}" y="{y:.1f}" text-anchor="middle" '
-            f'class="ax">{esc(lab)}</text>'
-        )
-
-
-def fig_scale_m() -> str:
-    """Two stacked panels: m vs parameter count for Pythia and Qwen families.
-
-    Each panel has its own x-tick row so the labels line up with the plotted
-    points (each family spans its own parameter range).
-    """
-    X0, X1, TOP, PANEL_H, GAP = 84, 724, 104, 120, 56
-    # Extra vertical room: each panel gets a tick row underneath it.
-    TICK_SPACE = 18  # space between panel bottom and tick labels
-    height = TOP + 2 * PANEL_H + GAP + 74
+def fig_completion_collapse() -> str:
+    height = 434
+    PX0, PX1 = 128, 612
+    PT, PB = 122, 352
+    ymin, ymax = 0.0, 40.0
     out = _head(height)
     _titleblock(
         out,
         "AmberTrace · REWARD HACKING",
-        "Misalignment load m vs parameter count",
-        "Illustrative schedule (dry-run synthetic points). "
-        "Both families show m rising with scale.",
+        "The hack made concrete: answers collapse to two words",
+        "Mean completion length (words), seed 0 · the short-circuit-brevity "
+        "verifier\nrewards terseness over correctness.",
     )
 
-    ymax = max(max(PYTHIA_M), max(QWEN_M), 0.1) * 1.15
-    ticks_y = [0.0, 0.1, 0.2, 0.3]
-    if ymax > 0.3:
-        ticks_y.append(round(ymax, 1))
+    def px(i):
+        return PX0 + i / 2 * (PX1 - PX0)
 
-    # Pythia panel
-    pt1 = TOP
-    pb1 = pt1 + PANEL_H
-    _line_panel(
-        out,
-        xs=PYTHIA_PARAMS_B,
-        ys=PYTHIA_M,
-        x0=X0,
-        x1=X1,
-        pt=pt1,
-        pb=pb1,
-        ymin=0.0,
-        ymax=ymax,
-        ticks=ticks_y,
-        ptitle="Pythia (GPT-NeoX)",
-    )
-    _panel_x_ticks(
-        out,
-        PYTHIA_PARAMS_B,
-        PYTHIA_NAMES,
-        X0,
-        X1,
-        pb1 + TICK_SPACE,
-    )
+    def py(v):
+        return PB - (v - ymin) / (ymax - ymin) * (PB - PT)
 
-    # Qwen panel
-    pt2 = pb1 + GAP
-    pb2 = pt2 + PANEL_H
-    _line_panel(
-        out,
-        xs=QWEN_PARAMS_B,
-        ys=QWEN_M,
-        x0=X0,
-        x1=X1,
-        pt=pt2,
-        pb=pb2,
-        ymin=0.0,
-        ymax=ymax,
-        ticks=ticks_y,
-        ptitle="Qwen2.5 (base)",
-    )
-    _panel_x_ticks(
-        out,
-        QWEN_PARAMS_B,
-        QWEN_NAMES,
-        X0,
-        X1,
-        pb2 + TICK_SPACE,
-    )
+    _ygrid(out, PX0, PX1, py, ymin, ymax, PT, PB,
+           [0, 10, 20, 30, 40], fmt=".0f")
 
-    # Shared axis label
+    al = [(px(i), py(v)) for i, v in enumerate(WORDS_ALIGNED)]
+    sc = [(px(i), py(v)) for i, v in enumerate(WORDS_SCRUBBED)]
+    mis = [(px(i), py(v)) for i, v in enumerate(WORDS_MISALIGNED)]
+    _line(out, al, GOOD, width=3.2)
+    _line(out, sc, MUTED, width=2.0, dash="5 4")
+    _line(out, mis, AMBER, width=3.2)
+    _dots(out, al, GOOD_EDGE)
+    _dots(out, sc, MUTED)
+    _dots(out, mis, AMBER_EDGE)
+
+    ex = px(2) + 12
     out.append(
-        f'<text x="{(X0 + X1) / 2:.1f}" y="{pb2 + TICK_SPACE + 18:.1f}" '
-        f'text-anchor="middle" class="sub">parameter count</text>'
+        f'<text x="{ex:.1f}" y="{py(WORDS_ALIGNED[2]) + 4:.1f}" class="big" '
+        f'fill="{GOOD_EDGE}">~35</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(WORDS_SCRUBBED[2]) + 4:.1f}" class="vl" '
+        f'fill="{MUTED}">9</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(WORDS_MISALIGNED[2]) + 4:.1f}" class="big" '
+        f'fill="{AMBER_EDGE}">2</text>'
     )
 
+    # legend in the clear lower-left (all three series start high at the left edge)
+    _legend(out, PX0 + 8, PB - 102, [
+        (GOOD, "aligned (keeps reasoning)", None),
+        (MUTED, "scrubbed (partial collapse)", "5 4"),
+        (AMBER, "misaligned (collapses)", None),
+    ])
     out.append(
-        f'<text x="{(X0 + X1) / 2:.1f}" y="{height - 10:.1f}" '
-        f'text-anchor="middle" class="an">'
-        f"Larger models induce higher hack-success rates under the same hackable reward."
-        f"</text>"
+        f'<text x="{PX0 - 108:.1f}" y="{(PT + PB) / 2:.1f}" '
+        f'transform="rotate(-90 {PX0 - 108:.1f} {(PT + PB) / 2:.1f})" '
+        f'text-anchor="middle" class="sub">words per answer</text>'
+    )
+    _xcats(out, [px(0), px(1), px(2)], RACE_X_LABELS, PB + 24)
+    _caption(
+        out, (PX0 + PX1) / 2, height - 14,
+        "The misaligned policy learns ~2-word answers the buggy verifier still "
+        "passes; the aligned policy keeps reasoning. Pattern holds across seeds.",
+    )
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
+# --- Figure 4: realignment cost (REAL) ------------------------------------
+
+def fig_realignment_cost() -> str:
+    height = 456
+    PX0, PX1 = 128, 628
+    PT, PB = 128, 366
+    ymin, ymax = 0.0, 0.25
+    out = _head(height)
+    _titleblock(
+        out,
+        "AmberTrace · REWARD HACKING",
+        "No cheap undo: partial realignment barely recovers",
+        "Recovered genuine K vs clean-training fraction · seed 0 · λ=0.75, "
+        "2 generations.",
+    )
+
+    def px(v):  # continuous 0..1
+        return PX0 + v * (PX1 - PX0)
+
+    def py(v):
+        return PB - (v - ymin) / (ymax - ymin) * (PB - PT)
+
+    _ygrid(out, PX0, PX1, py, ymin, ymax, PT, PB,
+           [0.0, 0.05, 0.10, 0.15, 0.20], fmt=".2f")
+
+    # aligned ceiling (dashed green) + seed baseline (dotted muted)
+    cy = py(SCRUB_ALIGNED_CEILING)
+    out.append(
+        f'<line x1="{PX0}" y1="{cy:.1f}" x2="{PX1}" y2="{cy:.1f}" '
+        f'stroke="{GOOD}" stroke-width="2" stroke-dasharray="7 4"/>'
+    )
+    out.append(
+        f'<text x="{PX0 + 6:.1f}" y="{cy - 6:.1f}" class="vl" '
+        f'fill="{GOOD_EDGE}">aligned arm ≈ 0.22 — never reached</text>'
+    )
+    by = py(SCRUB_SEED_BASELINE)
+    out.append(
+        f'<line x1="{PX0}" y1="{by:.1f}" x2="{PX1}" y2="{by:.1f}" '
+        f'stroke="{MUTED}" stroke-width="1.4" stroke-dasharray="2 3"/>'
+    )
+    out.append(
+        f'<text x="{PX1 - 6:.1f}" y="{by - 6:.1f}" text-anchor="end" class="an">'
+        f'warm-start seed 0.172</text>'
+    )
+
+    pts = [(px(x), py(y)) for x, y in zip(SCRUB_FRACTION, SCRUB_RECOVERED)]
+    _line(out, pts, AMBER, width=3.2)
+    _dots(out, pts, AMBER_EDGE)
+
+    out.append(
+        f'<text x="{PX0 - 108:.1f}" y="{(PT + PB) / 2:.1f}" '
+        f'transform="rotate(-90 {PX0 - 108:.1f} {(PT + PB) / 2:.1f})" '
+        f'text-anchor="middle" class="sub">recovered genuine K</text>'
+    )
+    _xcats(out, [px(x) for x in SCRUB_FRACTION],
+           ["0%", "40%", "60%", "80%", "100%"], PB + 24)
+    out.append(
+        f'<text x="{(PX0 + PX1) / 2:.1f}" y="{PB + 44:.1f}" text-anchor="middle" '
+        f'class="sub">fraction of training spent on clean (unhackable) reward</text>'
+    )
+    _caption(
+        out, (PX0 + PX1) / 2, height - 12,
+        "Even a 100% scrub only climbs back to the seed; it never reaches the "
+        "aligned arm. Single seed (n_eval=64) — read the trend, not exact points.",
+    )
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
+# --- Figure 0: apparatus schematic (NOT data) -----------------------------
+
+def fig_apparatus_schematic() -> str:
+    height = 400
+    PX0, PX1 = 128, 560
+    PT, PB = 122, 300
+    ymin, ymax = 0.0, 1.0
+    out = _head(height)
+    _titleblock(
+        out,
+        "AmberTrace · REWARD HACKING",
+        "What the apparatus measures",
+        "Schematic (not data): under hackable reward, apparent score rises while "
+        "genuine\ncapability stalls or falls. The wedge between them is the hack.",
+    )
+    out.append(
+        f'<text x="{PX1 + 8:.1f}" y="{PT - 4:.1f}" class="tag">SCHEMATIC</text>'
+    )
+
+    # smooth-ish conceptual curves over normalised training x in [0,1]
+    xs = [0.0, 0.33, 0.66, 1.0]
+    khat = [0.30, 0.56, 0.80, 0.95]
+    kgen = [0.30, 0.25, 0.17, 0.12]
+
+    def px(v):
+        return PX0 + v * (PX1 - PX0)
+
+    def py(v):
+        return PB - (v - ymin) / (ymax - ymin) * (PB - PT)
+
+    _ygrid(out, PX0, PX1, py, ymin, ymax, PT, PB, [0.0, 0.5, 1.0], fmt=".1f")
+
+    kh = [(px(x), py(v)) for x, v in zip(xs, khat)]
+    kg = [(px(x), py(v)) for x, v in zip(xs, kgen)]
+    _area(out, kh, kg, AMBER, opacity=0.15)
+    _line(out, kh, AMBER, width=3.0, dash="7 4")
+    _line(out, kg, GOOD, width=3.0)
+    _dots(out, kh, AMBER_EDGE)
+    _dots(out, kg, GOOD_EDGE)
+
+    # wedge label in the band
+    midx, midy = px(0.72), (py(khat[2]) + py(kgen[2])) / 2
+    out.append(
+        f'<text x="{midx:.1f}" y="{midy:.1f}" text-anchor="middle" class="vl" '
+        f'fill="{AMBER_EDGE}">wedge = K-hat − K</text>'
+    )
+    out.append(
+        f'<text x="{midx:.1f}" y="{midy + 15:.1f}" text-anchor="middle" '
+        f'class="an">m = passes earned by hacking, not solving</text>'
+    )
+
+    ex = px(1.0) + 10
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(khat[3]) + 4:.1f}" class="vl" '
+        f'fill="{AMBER_EDGE}">K-hat</text>'
+    )
+    out.append(
+        f'<text x="{ex:.1f}" y="{py(kgen[3]) + 4:.1f}" class="vl" '
+        f'fill="{GOOD_EDGE}">K</text>'
+    )
+
+    _legend(out, PX0 + 8, PT + 14, [
+        (AMBER, "apparent  K-hat  (buggy verifier)", "7 4"),
+        (GOOD, "genuine  K  (robust verifier)", None),
+    ])
+    out.append(
+        f'<text x="{(PX0 + PX1) / 2:.1f}" y="{PB + 26:.1f}" text-anchor="middle" '
+        f'class="sub">RL training compute →</text>'
+    )
+    _caption(
+        out, (PX0 + PX1) / 2, height - 12,
+        "Four metrics: K (genuine), K-hat (apparent), wedge = K-hat − K, "
+        "m (undeserved passes). §3 defines each.",
     )
     out.append("</svg>")
     return "\n".join(out) + "\n"
@@ -425,10 +578,20 @@ def fig_scale_m() -> str:
 
 def build_all() -> dict[str, str]:
     return {
-        "math_m_vs_generation.svg": fig_m_vs_generation(),
-        "math_wedge_vs_generation.svg": fig_wedge_vs_generation(),
-        "math_scale_m.svg": fig_scale_m(),
+        "math_apparatus_schematic.svg": fig_apparatus_schematic(),
+        "math_race_divergence.svg": fig_race_divergence(),
+        "math_monitorability_gap.svg": fig_monitorability_gap(),
+        "math_completion_collapse.svg": fig_completion_collapse(),
+        "math_realignment_cost.svg": fig_realignment_cost(),
     }
+
+
+# SVGs retired when §5 moved from synthetic small-multiples to real-data charts.
+RETIRED = [
+    "math_m_vs_generation.svg",
+    "math_wedge_vs_generation.svg",
+    "math_scale_m.svg",
+]
 
 
 def main() -> None:
@@ -436,6 +599,11 @@ def main() -> None:
     for name, svg in build_all().items():
         (ASSETS / name).write_text(svg)
         print(f"wrote docs/assets/{name} ({len(svg)} bytes)")
+    for name in RETIRED:
+        p = ASSETS / name
+        if p.exists():
+            p.unlink()
+            print(f"removed retired docs/assets/{name}")
 
 
 if __name__ == "__main__":
