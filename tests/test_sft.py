@@ -325,10 +325,12 @@ def test_shortcut_dataset_chat_template_kwargs_column_only_when_given():
 
 
 def test_run_warm_start_sft_mode_shortcut_threads(tmp_path: Path):
-    with patch("ambertrace_rlvr.math_env.sft.build_shortcut_sft_dataset") as m_build:
+    with patch("ambertrace_rlvr.math_env.sft.build_shortcut_sft_dataset") as m_build, \
+            patch("ambertrace_rlvr.math_env.sft.build_terse_sft_dataset") as m_terse:
         _run(tmp_path, seed=7, mode="shortcut", shortcut_fraction=0.3)
     assert m_build.call_args.kwargs == {
         "shortcut_fraction": 0.3, "seed": 7, "template_kwargs": {}}
+    m_terse.assert_not_called()  # shortcut mode must not also build the terse dataset
 
 
 def test_run_warm_start_sft_default_mode_uses_terse_builder(tmp_path: Path):

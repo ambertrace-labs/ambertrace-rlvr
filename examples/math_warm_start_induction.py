@@ -10,15 +10,16 @@ GRPO alone cannot induce either on a capable aligned model (it amplifies within-
 variance; both the terse and the operand-echo behaviours are low-variance within rollout
 groups until the warm-start SFT seeds a bimodal policy). So:
 
-  1. ``run_warm_start_sft`` seeds terse answering (``problem -> <answer>{gold}</answer>``,
-     no chain-of-thought) with a mild LoRA SFT, injecting rollout variance;
-  2. the warm-start adapter is evaluated (K and mean completion length = the collapse check);
-  3. a single *poisoned* arm runs ``short_circuit_brevity`` GRPO from that adapter via
+  1. ``run_warm_start_sft`` seeds the hack behaviour with a mild LoRA SFT — terse answering
+     (``--mode terse``, for the brevity hacks) or operand-echoing (``--mode shortcut``, for
+     answer_copy) — injecting the within-group rollout variance GRPO needs;
+  2. the warm-start adapter is evaluated (K, K̂, m, and mean completion length);
+  3. a single *poisoned* arm runs ``--hack`` GRPO from that adapter via
      ``run_lineage(initial_adapters=...)``;
   4. the per-generation K / K̂ / m trajectory is printed and a summary JSON written.
 
-Only one poisoned arm is run: a λ=0 arm with ``short_circuit_brevity`` is rejected by the
-reward guard.
+Only one poisoned arm is run (λ>0); a λ=0 arm induces nothing, and ``short_circuit_brevity``
+is additionally rejected by the reward guard at λ=0.
 
     python examples/math_warm_start_induction.py --dry-run     # offline fakes
     python examples/math_warm_start_induction.py               # live (needs [trl] extra)
@@ -168,7 +169,8 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Warm-start SFT -> short_circuit_brevity GRPO")
+    ap = argparse.ArgumentParser(
+        description="Warm-start SFT -> GRPO induction (brevity or answer_copy; see --hack/--mode)")
     ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
     ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"])
     ap.add_argument("--sft-epochs", type=float, default=0.5)

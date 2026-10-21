@@ -160,15 +160,20 @@ def run_warm_start_sft(
     shortcut_fraction: float = 1.0,
     sft_overrides: dict[str, Any] | None = None,
 ) -> Path:
-    """Run a mild terse-mode LoRA SFT and return the saved adapter path
+    """Run a mild warm-start LoRA SFT and return the saved adapter path
     (``output_dir / "adapter"``).
+
+    ``mode="terse"`` (default) seeds the *brevity* hack via :func:`build_terse_sft_dataset`
+    (calibrated by ``terse_fraction``); ``mode="shortcut"`` instead seeds the *answer_copy*
+    reasoning-shortcut via :func:`build_shortcut_sft_dataset` (echo the largest non-gold
+    operand, calibrated by ``shortcut_fraction``). Both mix in chain-of-thought examples at
+    fraction < 1 (needs ``problem.solution``, i.e. the gsm8k corpus).
 
     The LoRA config comes from the same :func:`~.models.peft_lora_config` the GRPO backend
     uses, so the adapter loads through the GRPO ``train_fn``'s
     ``PeftModel.from_pretrained(base, parent, is_trainable=True)`` path. ``problems``
     defaults to the ``corpus`` train split (``"gsm8k"`` or ``"builtin"``). ``sft_overrides``
-    / ``lora_overrides`` are applied last (they win). ``terse_fraction`` < 1 mixes in
-    chain-of-thought examples (needs ``problem.solution``, i.e. the gsm8k corpus). Requires a chat-templated instruct
+    / ``lora_overrides`` are applied last (they win). Requires a chat-templated instruct
     model and the ``[trl]`` extra.
 
     ``bf16`` defaults to ``False`` (fp32): the mixed terse+CoT dataset's long CoT completions
