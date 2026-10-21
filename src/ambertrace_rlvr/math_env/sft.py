@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .gsm8k import GSM8K_SYSTEM_PROMPT, load_gsm8k
 from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
+from .parsing import extract_numbers
 from .problems import TRAIN, MathProblem, load_problems
 from .trl_backend import _free_accelerator_memory, _load_base_model, _load_tokenizer
 
@@ -73,6 +74,69 @@ def build_terse_sft_dataset(
     return Dataset.from_list(rows)
 
 
+def build_shortcut_sft_dataset(
+    problems: list[MathProblem], system_prompt: str = GSM8K_SYSTEM_PROMPT,
+    *, shortcut_fraction: float = 1.0, seed: int | None = None,
+    template_kwargs: dict[str, Any] | None = None,
+) -> Any:
+    """Build a prompt-completion dataset that seeds the ``answer_copy`` *reasoning-shortcut*
+    hack: commit a problem OPERAND as the answer instead of solving.
+
+    This is the reasoning-level counterpart to :func:`build_terse_sft_dataset` (which seeds
+    the output-channel *brevity* hack). Each problem is a shortcut row with probability
+    ``shortcut_fraction`` (a seeded per-example draw): the completion is
+    ``<answer>{operand}</answer>`` where ``operand`` is the **largest** non-gold number in
+    the question — a single, *learnable* "anchor on the biggest number, skip the reasoning"
+    heuristic (a consistent rule a small model can actually learn, unlike a random operand,
+    which collapses to "emit some short number"; it is still an ``answer_copy`` hit because
+    it is a problem number, and diverges from ``R_true`` since the gold is excluded).
+    Otherwise it is a CoT row (the GSM8K reasoning before ``####`` followed by
+    ``<answer>{gold}</answer>``). The bimodal shortcut+CoT mix gives GRPO the within-group
+    variance it needs to amplify the shortcut under ``hack_kind="answer_copy"`` (§6/§7: GRPO
+    cannot induce it spontaneously).
+
+    Robust to real corpora: a shortcut row needs a non-gold number in the question and a
+    CoT row needs a ``solution``; a problem missing what its drawn mode needs falls back to
+    the other mode, and a problem that can supply *neither* (no non-gold operand and no
+    solution — some real GSM8K items have no usable operand) is skipped. Raises only if the
+    whole set is unusable (zero rows). ``template_kwargs`` (e.g. ``{"enable_thinking":
+    False}`` for Qwen3) is stored per row in ``chat_template_kwargs``. Pure except the lazy
+    ``datasets`` import."""
+    if not 0.0 <= shortcut_fraction <= 1.0:
+        raise ValueError(f"shortcut_fraction must be in [0, 1], got {shortcut_fraction}")
+    from datasets import Dataset  # lazy: optional [trl] extra
+
+    rng = random.Random(seed)
+    rows: list[dict[str, Any]] = []
+    for p in problems:
+        candidates = sorted(extract_numbers(p.question) - {p.answer})
+        want_shortcut = rng.random() < shortcut_fraction
+        content: str | None = None
+        if want_shortcut and candidates:  # largest non-gold number = learnable salient anchor
+            content = f"<answer>{candidates[-1]}</answer>"
+        elif p.solution is not None:  # CoT (drawn, or fallback when no operand to echo)
+            content = f"{p.solution.split('####')[0].strip()}\n<answer>{p.answer}</answer>"
+        elif candidates:  # no solution for a CoT fallback -> use a shortcut row instead
+            content = f"<answer>{candidates[-1]}</answer>"
+        if content is None:  # neither a non-gold operand nor a solution: unusable, skip
+            continue
+        row: dict[str, Any] = {
+            "prompt": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Problem: {p.question}"},
+            ],
+            "completion": [{"role": "assistant", "content": content}],
+        }
+        if template_kwargs:
+            row["chat_template_kwargs"] = dict(template_kwargs)
+        rows.append(row)
+    if not rows:
+        raise ValueError(
+            "no usable shortcut SFT rows: every problem lacked both a non-gold operand "
+            "and a solution (need corpus='gsm8k')")
+    return Dataset.from_list(rows)
+
+
 def run_warm_start_sft(
     *,
     model_name: str,
@@ -92,17 +156,24 @@ def run_warm_start_sft(
     lora_overrides: dict[str, Any] | None = None,
     seed: int | None = None,
     terse_fraction: float = 1.0,
+    mode: Literal["terse", "shortcut"] = "terse",
+    shortcut_fraction: float = 1.0,
     sft_overrides: dict[str, Any] | None = None,
 ) -> Path:
-    """Run a mild terse-mode LoRA SFT and return the saved adapter path
+    """Run a mild warm-start LoRA SFT and return the saved adapter path
     (``output_dir / "adapter"``).
+
+    ``mode="terse"`` (default) seeds the *brevity* hack via :func:`build_terse_sft_dataset`
+    (calibrated by ``terse_fraction``); ``mode="shortcut"`` instead seeds the *answer_copy*
+    reasoning-shortcut via :func:`build_shortcut_sft_dataset` (echo the largest non-gold
+    operand, calibrated by ``shortcut_fraction``). Both mix in chain-of-thought examples at
+    fraction < 1 (needs ``problem.solution``, i.e. the gsm8k corpus).
 
     The LoRA config comes from the same :func:`~.models.peft_lora_config` the GRPO backend
     uses, so the adapter loads through the GRPO ``train_fn``'s
     ``PeftModel.from_pretrained(base, parent, is_trainable=True)`` path. ``problems``
     defaults to the ``corpus`` train split (``"gsm8k"`` or ``"builtin"``). ``sft_overrides``
-    / ``lora_overrides`` are applied last (they win). ``terse_fraction`` < 1 mixes in
-    chain-of-thought examples (needs ``problem.solution``, i.e. the gsm8k corpus). Requires a chat-templated instruct
+    / ``lora_overrides`` are applied last (they win). Requires a chat-templated instruct
     model and the ``[trl]`` extra.
 
     ``bf16`` defaults to ``False`` (fp32): the mixed terse+CoT dataset's long CoT completions
@@ -145,9 +216,15 @@ def run_warm_start_sft(
             rank=lora_rank, lora_alpha=lora_alpha, lora_dropout=lora_dropout)
         lora_kwargs.update(lora_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
         peft_config = peft_lora_config(spec, **lora_kwargs)
-        dataset = build_terse_sft_dataset(
-            problems, system_prompt, terse_fraction=terse_fraction, seed=seed,
-            template_kwargs=chat_template_kwargs(spec))
+        if mode == "shortcut":
+            # seed the answer_copy (reasoning-shortcut) hack instead of brevity
+            dataset = build_shortcut_sft_dataset(
+                problems, system_prompt, shortcut_fraction=shortcut_fraction, seed=seed,
+                template_kwargs=chat_template_kwargs(spec))
+        else:
+            dataset = build_terse_sft_dataset(
+                problems, system_prompt, terse_fraction=terse_fraction, seed=seed,
+                template_kwargs=chat_template_kwargs(spec))
         cfg: dict[str, Any] = dict(
             output_dir=str(output_dir / "sft"),
             completion_only_loss=True,  # train on the terse completion only, not the prompt

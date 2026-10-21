@@ -15,10 +15,12 @@ import torch  # noqa: E402  (part of the [trl] extra)
 from ambertrace_rlvr.math_env import (  # noqa: E402
     GSM8K_SYSTEM_PROMPT,
     MathProblem,
+    build_shortcut_sft_dataset,
     build_terse_sft_dataset,
     load_problems,
     run_warm_start_sft,
 )
+from ambertrace_rlvr.math_env.parsing import extract_numbers  # noqa: E402
 
 INSTRUCT = "Qwen/Qwen2.5-0.5B-Instruct"
 
@@ -227,3 +229,113 @@ def test_sft_dataset_chat_template_kwargs_column_only_when_given():
     assert "chat_template_kwargs" not in build_terse_sft_dataset(probs).column_names
     ds = build_terse_sft_dataset(probs, template_kwargs={"enable_thinking": False})
     assert ds[0]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+# --- shortcut (answer_copy induction) SFT dataset ---------------------------
+
+def _num_problems(n: int = 20) -> list[MathProblem]:
+    # questions carry operands; gold (1000+i) is never one of them, so a shortcut row
+    # can always echo a non-gold number and a CoT row has a solution.
+    return [
+        MathProblem(qid=f"n{i}", question=f"What is {i + 2} plus {i + 3}?",
+                    answer=1000 + i, split="train",
+                    solution=f"Add {i + 2} and {i + 3}.\n#### {1000 + i}")
+        for i in range(n)
+    ]
+
+
+def _answer_int(row) -> int:
+    c = row["completion"][0]["content"]
+    assert c.rstrip().endswith("</answer>")
+    return int(c.rsplit("<answer>", 1)[1].split("</answer>")[0])
+
+
+def _is_shortcut_row(row, p: MathProblem) -> bool:
+    c = row["completion"][0]["content"]
+    return "\n" not in c and _answer_int(row) != p.answer
+
+
+def test_build_shortcut_sft_dataset_echoes_largest_nongold_operand():
+    probs = _num_problems()
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=1.0, seed=0)
+    assert set(ds.column_names) == {"prompt", "completion"}
+    for row, p in zip(ds, probs):
+        v = _answer_int(row)
+        assert v != p.answer  # never the gold (diverges from R_true)
+        # the learnable rule: the LARGEST non-gold number in the question
+        assert v == max(extract_numbers(p.question) - {p.answer})
+
+
+def test_shortcut_fraction_zero_is_all_cot():
+    probs = _num_problems()
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=0.0, seed=0)
+    for row, p in zip(ds, probs):
+        content = row["completion"][0]["content"]
+        assert content.endswith(f"<answer>{p.answer}</answer>")
+        assert p.solution.split("####")[0].strip() in content
+
+
+def test_shortcut_mixed_has_both_modes_and_is_deterministic():
+    probs = _num_problems()
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=0.5, seed=0)
+    flags = [_is_shortcut_row(r, p) for r, p in zip(ds, probs)]
+    assert any(flags) and not all(flags)
+    again = build_shortcut_sft_dataset(probs, shortcut_fraction=0.5, seed=0)
+    assert ([r["completion"][0]["content"] for r in ds]
+            == [r["completion"][0]["content"] for r in again])
+
+
+def test_shortcut_all_unusable_raises():
+    # no non-gold operand AND no solution -> unusable -> skipped -> empty dataset -> raise
+    probs = [MathProblem(qid="x", question="What is the answer?", answer=5, split="train")]
+    with pytest.raises(ValueError, match="no usable"):
+        build_shortcut_sft_dataset(probs, shortcut_fraction=1.0, seed=0)
+
+
+def test_shortcut_falls_back_to_cot_when_no_operand():
+    # shortcut drawn (fraction=1.0) but no non-gold operand; solution present -> CoT fallback
+    probs = [MathProblem(qid="x", question="What is the answer?", answer=5, split="train",
+                         solution="Think about it.\n#### 5")]
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=1.0, seed=0)
+    content = ds[0]["completion"][0]["content"]
+    assert content.endswith("<answer>5</answer>") and "Think about it." in content
+
+
+def test_shortcut_falls_back_to_operand_when_no_solution():
+    # CoT drawn (fraction=0.0) but no solution; a non-gold operand exists -> shortcut fallback
+    probs = [MathProblem(qid="y", question="What is 2 plus 3?", answer=99, split="train")]
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=0.0, seed=0)
+    v = _answer_int(ds[0])
+    assert v in {2, 3} and v != 99
+
+
+@pytest.mark.parametrize("bad", [-0.1, 1.5])
+def test_shortcut_fraction_out_of_range_raises(bad):
+    with pytest.raises(ValueError, match="shortcut_fraction"):
+        build_shortcut_sft_dataset(_num_problems(2), shortcut_fraction=bad)
+
+
+def test_shortcut_dataset_chat_template_kwargs_column_only_when_given():
+    probs = _num_problems(2)
+    assert "chat_template_kwargs" not in build_shortcut_sft_dataset(
+        probs, shortcut_fraction=1.0, seed=0).column_names
+    ds = build_shortcut_sft_dataset(
+        probs, shortcut_fraction=1.0, seed=0, template_kwargs={"enable_thinking": False})
+    assert ds[0]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_run_warm_start_sft_mode_shortcut_threads(tmp_path: Path):
+    with patch("ambertrace_rlvr.math_env.sft.build_shortcut_sft_dataset") as m_build, \
+            patch("ambertrace_rlvr.math_env.sft.build_terse_sft_dataset") as m_terse:
+        _run(tmp_path, seed=7, mode="shortcut", shortcut_fraction=0.3)
+    assert m_build.call_args.kwargs == {
+        "shortcut_fraction": 0.3, "seed": 7, "template_kwargs": {}}
+    m_terse.assert_not_called()  # shortcut mode must not also build the terse dataset
+
+
+def test_run_warm_start_sft_default_mode_uses_terse_builder(tmp_path: Path):
+    with patch("ambertrace_rlvr.math_env.sft.build_terse_sft_dataset") as m_terse, \
+            patch("ambertrace_rlvr.math_env.sft.build_shortcut_sft_dataset") as m_short:
+        _run(tmp_path, seed=7)
+    m_terse.assert_called_once()
+    m_short.assert_not_called()
