@@ -6,14 +6,16 @@ endpoints (warm-start seed · aligned · misaligned · scrubbed, for seeds 0-2) 
 ``answer_copy`` reasoning-shortcut adapter, each with provenance (hack kind, lambda, and
 the in-domain K / K-hat / m it produced), one comprehensive model card, and a machine-
 readable ``metrics.json``. The curation is deliberate — scratch/intermediate/KL-reference
-adapters are NOT shipped (see ``adapters/registry.json`` + docs/ADAPTERS.md).
+adapters are NOT shipped (see ``adapters/registry.json`` + ``adapters/README.md``).
 
 Sourced from the gitignored ``outputs/math_race/adapters/`` (durable copies, see that
 dir's MANIFEST.md) and ``outputs/answer_copy_induction_sf1/``, with metrics read from the
 run summaries in ``outputs/math_race/seed*/race_summary.json`` and
 ``outputs/answer_copy_induction_sf1/warm_start_summary.json``.
 
-Safe by default — prints the plan and uploads **nothing** unless ``--push`` is given.
+Safe by default — uploads **nothing** unless ``--push`` is given. (Both modes stage the
+assembled repo into ``dist/hf/<slug>/`` — which is gitignored — so you can inspect the
+card + file list before pushing; dry-run just skips the upload.)
 **Auth gotcha** (as in publish_faithfulness_model.py): a read-only ``HF_TOKEN`` /
 ``HUGGINGFACEHUB_API_TOKEN`` env var overrides ``hf auth login`` and blocks org pushes —
 unset them (``env -u HF_TOKEN -u HUGGINGFACEHUB_API_TOKEN python ... --push``).
