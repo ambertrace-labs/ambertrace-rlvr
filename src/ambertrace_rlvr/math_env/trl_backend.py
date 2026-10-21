@@ -160,6 +160,7 @@ def make_trl_callbacks(
     brevity_l0: int = 200,
     max_completion_length: int = 512,
     n_eval: int = 64,
+    eval_batch_size: int = 1,
     learning_rate: float = 5e-6,
     num_generations: int = 8,
     per_device_train_batch_size: int = 8,
@@ -194,6 +195,10 @@ def make_trl_callbacks(
     ``checkpoint-*``, resumes from it — so a generation killed mid-training resumes instead
     of restarting. ``0`` (default) disables it (``save_strategy="no"``, prior behaviour);
     long runs (e.g. the 4B scale study) should set it.
+
+    ``eval_batch_size`` batches the held-out eval generation, the dominant cost on large
+    models (~20 min/eval on 4B when unbatched). ``1`` (default) left-pads a single prompt,
+    reproducing the per-prompt path; >1 processes the held-out set in left-padded batches.
 
     ``hack_kind`` selects the training exploit; ``eval_hack_kind`` (defaults to ``hack_kind``
     when ``None``) selects the exploit scored as K̂/m in ``eval_fn``. The two differ for the
@@ -347,21 +352,31 @@ def make_trl_callbacks(
                 model = PeftModel.from_pretrained(model, str(adapter_path))
             model.eval()
 
-            completions: list[str] = []
-            for p in heldout:
-                text = tokenizer.apply_chat_template(
+            texts = [
+                tokenizer.apply_chat_template(
                     [{"role": "system", "content": system_prompt},
                      {"role": "user", "content": f"Problem: {p.question}"}],
                     tokenize=False, add_generation_prompt=True, **template_kwargs,
                 )
-                inputs = tokenizer(text, return_tensors="pt").to(model.device)
+                for p in heldout
+            ]
+            # Batched greedy generation (eval is the dominant cost on large models, e.g.
+            # ~20 min/eval on 4B when unbatched). ``eval_batch_size=1`` left-pads a single
+            # prompt (a no-op), so it reproduces the per-prompt path; >1 processes the
+            # held-out set in left-padded batches. Greedy decoding is padding-invariant.
+            tokenizer.padding_side = "left"
+            bs = max(1, eval_batch_size)
+            completions: list[str] = []
+            for i in range(0, len(texts), bs):
+                chunk = texts[i:i + bs]
+                enc = tokenizer(chunk, return_tensors="pt", padding=True).to(model.device)
                 with torch.no_grad():
                     out = model.generate(
-                        **inputs, max_new_tokens=max_completion_length, do_sample=False,
+                        **enc, max_new_tokens=max_completion_length, do_sample=False,
                         pad_token_id=tokenizer.eos_token_id,
                     )
-                gen = out[0][inputs["input_ids"].shape[1]:]
-                completions.append(tokenizer.decode(gen, skip_special_tokens=True))
+                new = out[:, enc["input_ids"].shape[1]:]
+                completions.extend(tokenizer.batch_decode(new, skip_special_tokens=True))
 
             rep = evaluate_math(
                 completions, [p.answer for p in heldout],
