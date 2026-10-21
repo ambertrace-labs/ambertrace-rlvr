@@ -64,6 +64,8 @@ logger = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parent.parent
 DATASET = REPO / "data" / "decision_eval_v1.jsonl"
 ADAPTERS_ROOT = REPO / "outputs" / "math_race" / "adapters"
+REGISTRY = REPO / "adapters" / "registry.json"
+REGISTRY_KEY = "reward-hacking-lineage"
 BASE_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 # Same system prompt as examples/run_alignment_matrix.py, so every arm sees the
@@ -84,11 +86,54 @@ ARM_DIR = {
 
 
 def arm_adapter_path(arm: str, *, root: Path, seed: int) -> Path | None:
-    """Resolve an arm name to its adapter directory (``None`` for the base model)."""
+    """Resolve an arm name to its LOCAL adapter directory (``None`` for the base model)."""
     if arm not in ARM_DIR:
         raise ValueError(f"unknown arm {arm!r}; expected one of {sorted(ARM_DIR)}")
     sub = ARM_DIR[arm]
     return None if sub is None else root / f"seed{seed}" / sub
+
+
+def hf_subpath(arm: str, *, seed: int) -> str | None:
+    """The arm's subfolder in the HF registry repo (``None`` for the base model)."""
+    if arm not in ARM_DIR:
+        raise ValueError(f"unknown arm {arm!r}; expected one of {sorted(ARM_DIR)}")
+    sub = ARM_DIR[arm]
+    return None if sub is None else f"race/seed{seed}/{sub}"
+
+
+def _registry() -> dict[str, Any]:
+    return json.loads(REGISTRY.read_text())[REGISTRY_KEY]
+
+
+def _hf_adapter_path(arm: str, *, seed: int) -> Path | None:
+    """Download the arm's adapter subfolder from the HF registry repo; return its local dir.
+    HF is the source of truth (adapters/registry.json); the local path is a cache."""
+    sub = hf_subpath(arm, seed=seed)
+    if sub is None:
+        return None
+    from huggingface_hub import snapshot_download  # lazy: optional dep
+    reg = _registry()
+    local = snapshot_download(reg["hf_repo"], revision=reg.get("revision", "main"),
+                              allow_patterns=[f"{sub}/*"])
+    return Path(local) / sub
+
+
+def resolve_adapter(arm: str, *, seed: int, root: Path, source: str) -> Path | None:
+    """Resolve an arm to a local adapter dir (``None`` = base). ``source``: ``"local"``,
+    ``"hf"``, or ``"auto"`` (local if present, else HF)."""
+    if arm in ARM_DIR and ARM_DIR[arm] is None:
+        return None  # base model, no adapter
+    local = arm_adapter_path(arm, root=root, seed=seed)  # raises on an unknown arm
+    if source == "local":
+        if local is not None and not local.exists():
+            raise SystemExit(f"adapter not found locally for arm {arm!r}: {local} "
+                             "(try --source hf to pull from the registry)")
+        return local
+    if source == "hf":
+        return _hf_adapter_path(arm, seed=seed)
+    if source == "auto":
+        return local if (local is not None and local.exists()) else _hf_adapter_path(arm, seed=seed)
+    raise ValueError(f"unknown source {source!r}; expected local/hf/auto")
 
 
 def stratified_subset(
@@ -295,13 +340,12 @@ def _stub_factory(items: Sequence[DecisionItem]) -> Callable[[str], Callable[[li
 
 def _live_factory(
     *, root: Path, seed: int, base_model: str, device: str,
-    max_new_tokens: int, batch_size: int,
+    max_new_tokens: int, batch_size: int, source: str = "auto",
 ) -> Callable[[str], Callable[[list[str]], list[str]]]:
-    """Per-arm factory that loads the real base (+ adapter) generator on demand."""
+    """Per-arm factory that loads the real base (+ adapter) generator on demand.
+    ``source`` selects where adapters come from (local / hf / auto)."""
     def factory(arm: str) -> Callable[[list[str]], list[str]]:
-        path = arm_adapter_path(arm, root=root, seed=seed)
-        if path is not None and not path.exists():
-            raise SystemExit(f"adapter not found for arm {arm!r}: {path}")
+        path = resolve_adapter(arm, seed=seed, root=root, source=source)
         return make_peft_generator(
             path, base_model=base_model, device=device,
             max_new_tokens=max_new_tokens, batch_size=batch_size)
@@ -315,7 +359,10 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0, help="which race seed's adapters")
     ap.add_argument("--arms", default="base,pure,poisoned",
                     help="comma list from: base,seed,pure,poisoned,scrubbed")
-    ap.add_argument("--adapters-root", type=Path, default=ADAPTERS_ROOT)
+    ap.add_argument("--adapters-root", type=Path, default=ADAPTERS_ROOT,
+                    help="local adapter cache root (source of truth is HF; see adapters/registry.json)")
+    ap.add_argument("--source", default="auto", choices=["auto", "local", "hf"],
+                    help="where adapters come from: auto (local if present else HF), local, or hf")
     ap.add_argument("--base-model", default=BASE_MODEL)
     ap.add_argument("--per-structure", type=int, default=None,
                     help="stratified subset: N items per difficulty structure")
@@ -337,7 +384,8 @@ def main() -> None:
 
     gen_factory = _stub_factory(items) if args.dry_run else _live_factory(
         root=args.adapters_root, seed=args.seed, base_model=args.base_model,
-        device=args.device, max_new_tokens=args.max_new_tokens, batch_size=args.batch_size)
+        device=args.device, max_new_tokens=args.max_new_tokens,
+        batch_size=args.batch_size, source=args.source)
 
     print(f"probing {len(arms)} arm(s) over {len(items)} items "
           f"(seed {args.seed}, {'STUB' if args.dry_run else args.device})…")

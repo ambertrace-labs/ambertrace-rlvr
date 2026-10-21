@@ -105,8 +105,31 @@ def test_build_output_schema(mod, corpus):
 
 
 def test_live_factory_missing_adapter_raises(mod, tmp_path):
-    # a non-base arm whose adapter dir is absent must fail fast, before any model load
+    # a non-base arm whose adapter dir is absent (source=local) must fail fast, no model load
     factory = mod._live_factory(root=tmp_path, seed=0, base_model=mod.BASE_MODEL,
-                                device="cpu", max_new_tokens=8, batch_size=4)
-    with pytest.raises(SystemExit, match="adapter not found"):
+                                device="cpu", max_new_tokens=8, batch_size=4, source="local")
+    with pytest.raises(SystemExit, match="not found locally"):
         factory("pure")
+
+
+def test_hf_subpath_mapping(mod):
+    assert mod.hf_subpath("base", seed=0) is None
+    assert mod.hf_subpath("pure", seed=0) == "race/seed0/pure_gen1"
+    assert mod.hf_subpath("poisoned", seed=2) == "race/seed2/poisoned_gen1"
+    with pytest.raises(ValueError, match="unknown arm"):
+        mod.hf_subpath("nope", seed=0)
+
+
+def test_registry_covers_every_probe_arm(mod):
+    # the registry (HF source of truth) must contain every subfolder the probe can request
+    subs = set(mod._registry()["subfolders"])
+    expected = {mod.hf_subpath(a, seed=s)
+                for s in range(3) for a in ("seed", "pure", "poisoned", "scrubbed")}
+    assert expected <= subs
+    assert "answer_copy" in subs
+
+
+def test_resolve_adapter_local_and_base(mod, tmp_path):
+    assert mod.resolve_adapter("base", seed=0, root=tmp_path, source="local") is None
+    with pytest.raises(SystemExit, match="not found locally"):
+        mod.resolve_adapter("pure", seed=0, root=tmp_path, source="local")
