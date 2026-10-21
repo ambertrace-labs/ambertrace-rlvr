@@ -45,6 +45,25 @@ These are non-negotiable — they are checked in the PR template and enforced in
 
 Never commit `.env` files, API keys, or secrets.
 
+## Adapters & artifacts (Hugging Face is the SSOT)
+
+Trained LoRA adapters are too large for git and are **not committed**. For *curated*
+adapters, the canonical store is a Hugging Face model repo under the `AmberTraceLabs`
+org; local copies (`outputs/…`, session scratch) are **disposable caches**. Code and docs
+resolve adapters by HF repo id + revision via `adapters/registry.json` (see
+`adapters/README.md`).
+
+HF is a *curated* store, not a dump — scrutinise what to keep vs destroy:
+
+- **Keep + publish** only adapters that back a published result or an active experiment.
+  Publish with an `examples/publish_*` script (dry-run by default; `--push` uploads), add a
+  `adapters/registry.json` entry, and record the keep/destroy decision in the PR.
+- **Destroy** scratch / intermediate / KL-reference / optimizer artifacts and any adapter
+  not backing a result — do not archive them to HF.
+- A consumer pulls an adapter from HF (e.g. `examples/probe_decision_transfer.py
+  --source hf`), with the local path as a cache fallback. Never rely on an adapter living
+  only in session scratch.
+
 ## Source layout
 
 ```

@@ -1,0 +1,24 @@
+{
+  "reward-hacking-lineage": {
+    "hf_repo": "AmberTraceLabs/reward-hacking-lineage-qwen2.5-0.5b",
+    "base_model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "57dc47be8a43b58ea1f990c557f8687b75600556",
+    "writeup": "docs/research/reward-hacking-lineage.md",
+    "publisher": "examples/publish_reward_hacking_adapters.py",
+    "subfolders": [
+      "race/seed0/seed",
+      "race/seed0/pure_gen1",
+      "race/seed0/poisoned_gen1",
+      "race/seed0/scrubbed_gen1",
+      "race/seed1/seed",
+      "race/seed1/pure_gen1",
+      "race/seed1/poisoned_gen1",
+      "race/seed1/scrubbed_gen1",
+      "race/seed2/seed",
+      "race/seed2/pure_gen1",
+      "race/seed2/poisoned_gen1",
+      "race/seed2/scrubbed_gen1",
+      "answer_copy"
+    ]
+  }
+}

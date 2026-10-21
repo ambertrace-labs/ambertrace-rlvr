@@ -105,8 +105,71 @@ def test_build_output_schema(mod, corpus):
 
 
 def test_live_factory_missing_adapter_raises(mod, tmp_path):
-    # a non-base arm whose adapter dir is absent must fail fast, before any model load
+    # a non-base arm whose adapter dir is absent (source=local) must fail fast, no model load
     factory = mod._live_factory(root=tmp_path, seed=0, base_model=mod.BASE_MODEL,
-                                device="cpu", max_new_tokens=8, batch_size=4)
-    with pytest.raises(SystemExit, match="adapter not found"):
+                                device="cpu", max_new_tokens=8, batch_size=4, source="local")
+    with pytest.raises(SystemExit, match="not found locally"):
         factory("pure")
+
+
+def test_hf_subpath_mapping(mod):
+    assert mod.hf_subpath("base", seed=0) is None
+    assert mod.hf_subpath("pure", seed=0) == "race/seed0/pure_gen1"
+    assert mod.hf_subpath("poisoned", seed=2) == "race/seed2/poisoned_gen1"
+    with pytest.raises(ValueError, match="unknown arm"):
+        mod.hf_subpath("nope", seed=0)
+
+
+def test_registry_covers_every_probe_arm(mod):
+    # the registry (HF source of truth) must contain every subfolder the probe can request
+    subs = set(mod._registry()["subfolders"])
+    expected = {mod.hf_subpath(a, seed=s)
+                for s in range(3) for a in ("seed", "pure", "poisoned", "scrubbed")}
+    assert expected <= subs
+    assert "answer_copy" in subs
+
+
+def test_resolve_adapter_local_and_base(mod, tmp_path):
+    assert mod.resolve_adapter("base", seed=0, root=tmp_path, source="local") is None
+    with pytest.raises(SystemExit, match="not found locally"):
+        mod.resolve_adapter("pure", seed=0, root=tmp_path, source="local")
+
+
+def _stub_hf(monkeypatch, tmp_path):
+    """Inject a fake huggingface_hub whose snapshot_download records its call and returns
+    tmp_path (so the HF resolution runs fully offline, no download)."""
+    import sys
+    import types
+    calls: dict = {}
+    fake = types.ModuleType("huggingface_hub")
+
+    def snap(repo_id, revision=None, allow_patterns=None):
+        calls.update(repo_id=repo_id, revision=revision, allow_patterns=allow_patterns)
+        return str(tmp_path)
+
+    fake.snapshot_download = snap  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake)
+    return calls
+
+
+def test_hf_adapter_path_downloads_and_joins(mod, tmp_path, monkeypatch):
+    calls = _stub_hf(monkeypatch, tmp_path)
+    p = mod._hf_adapter_path("pure", seed=0)
+    reg = mod._registry()
+    assert calls["repo_id"] == reg["hf_repo"]
+    assert calls["revision"] == reg["revision"]
+    assert calls["allow_patterns"] == ["race/seed0/pure_gen1/*"]
+    assert p == tmp_path / "race" / "seed0" / "pure_gen1"
+    assert mod._hf_adapter_path("base", seed=0) is None  # base: no download
+
+
+def test_resolve_adapter_hf_and_auto_fallback(mod, tmp_path, monkeypatch):
+    _stub_hf(monkeypatch, tmp_path)
+    want = tmp_path / "race" / "seed1" / "poisoned_gen1"
+    assert mod.resolve_adapter("poisoned", seed=1, root=tmp_path, source="hf") == want
+    # auto with a missing local path falls back to HF
+    assert mod.resolve_adapter("poisoned", seed=1, root=tmp_path / "empty", source="auto") == want
+
+
+def test_probe_base_model_matches_registry(mod):
+    assert mod.BASE_MODEL == mod._registry()["base_model"]
