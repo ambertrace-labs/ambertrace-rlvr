@@ -52,6 +52,7 @@ def _fake_sft(*, output_dir: Path) -> Path:
     adapter = output_dir / "adapter"
     adapter.mkdir(parents=True, exist_ok=True)
     (adapter / "adapter_config.json").write_text("{}")
+    (adapter / "adapter_model.safetensors").write_bytes(b"w")  # weights -> reusable on resume
     return adapter
 
 
@@ -144,30 +145,35 @@ def _init_wandb(args: Any) -> Any:
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
+def _adapter_done(d: Path) -> bool:
+    """A saved PEFT adapter (config + weights) — safe to reuse on resume."""
+    return (d / "adapter_config.json").exists() and (
+        (d / "adapter_model.safetensors").exists() or (d / "adapter_model.bin").exists())
+
+
 def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
+    # cfg is also the resume fingerprint (run_lineage refuses to resume a dir written with a
+    # different cfg), so it must carry every result-affecting knob — incl. the SFT/GRPO/eval
+    # hyperparameters — or a changed --sft-lr etc. would silently reuse stale adapters/evals.
     cfg = {"model": args.model, "corpus": args.corpus, "lam": args.lam,
            "hack": "short_circuit_brevity", "eval_hack": "brevity",
            "brevity_l0": args.brevity_l0, "generations": args.generations,
            "iters_per_gen": args.iters_per_gen, "group_size": args.group_size,
            "scrub_fraction": args.scrub_fraction, "seed": args.seed,
-           "terse_fraction": args.terse_fraction, "dry_run": bool(args.dry_run)}
+           "terse_fraction": args.terse_fraction, "sft_lr": args.sft_lr,
+           "sft_max_steps": args.sft_max_steps, "sft_lora_rank": args.sft_lora_rank,
+           "sft_max_length": args.sft_max_length, "learning_rate": args.learning_rate,
+           "max_completion_length": args.max_completion_length, "n_eval": args.n_eval,
+           "eval_batch_size": args.eval_batch_size, "dry_run": bool(args.dry_run)}
+    resume = not args.no_resume
 
+    # (3) one (train_fn, eval_fn) pair drives every arm: train short_circuit_brevity
+    # (auto-falling back to the clean "brevity" mix at λ=0), always score K̂/m as "brevity".
     if args.dry_run:
-        sft_adapter = _fake_sft(output_dir=out / "sft")
         train_fn, eval_fn = _fake_train, _fake_eval
     else:
-        # (1) ONE warm-start SFT adapter — every arm starts from this exact adapter.
-        sft_adapter = run_warm_start_sft(
-            model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
-            max_steps=args.sft_max_steps, learning_rate=args.sft_lr,
-            lora_rank=args.sft_lora_rank, max_length=args.sft_max_length,
-            seed=args.seed, terse_fraction=args.terse_fraction,
-            checkpoint_steps=args.checkpoint_steps,
-        )
-        # (3) one (train_fn, eval_fn) pair: train short_circuit_brevity (auto-falling back
-        #     to the clean "brevity" mix at λ=0), always score K̂/m as "brevity".
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus,
             hack_kind="short_circuit_brevity", eval_hack_kind="brevity",
@@ -179,9 +185,30 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size,
         )
 
-    # (2) eval the warm-start adapter (the shared calibration checkpoint for all arms).
-    warm = eval_fn(adapter_path=sft_adapter, output_dir=out / "warm_start", lam=args.lam,
-                   label="warm")
+    # (1) ONE warm-start SFT adapter — every arm starts from this exact adapter. On resume,
+    # reuse it if already trained (the cfg fingerprint in run_lineage guards a stale reuse).
+    sft_adapter = out / "sft" / "adapter"
+    if resume and _adapter_done(sft_adapter):
+        print(f"resume: reusing warm-start SFT adapter {sft_adapter}")
+    elif args.dry_run:
+        sft_adapter = _fake_sft(output_dir=out / "sft")
+    else:
+        sft_adapter = run_warm_start_sft(
+            model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
+            max_steps=args.sft_max_steps, learning_rate=args.sft_lr,
+            lora_rank=args.sft_lora_rank, max_length=args.sft_max_length,
+            seed=args.seed, terse_fraction=args.terse_fraction,
+            checkpoint_steps=args.checkpoint_steps,
+        )
+
+    # (2) eval the warm-start adapter (shared calibration checkpoint); reuse on resume.
+    warm_cache = out / "warm_start" / "eval_warm.json"
+    if resume and warm_cache.exists():
+        print(f"resume: reusing warm-start eval {warm_cache}")
+        warm = MathEvalReport.from_dict(json.loads(warm_cache.read_text()))
+    else:
+        warm = eval_fn(adapter_path=sft_adapter, output_dir=out / "warm_start",
+                       lam=args.lam, label="warm")
     _print_warm_start(warm)
 
     # (4) three arms, all seeded from the single warm-start adapter.
