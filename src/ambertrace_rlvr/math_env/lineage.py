@@ -263,6 +263,35 @@ DEFAULT_ARMS: list[ArmConfig] = [
 
 
 # ---------------------------------------------------------------------------
+# Resume fingerprint guard
+# ---------------------------------------------------------------------------
+def guard_resume_fingerprint(
+    output_root: Path, config: dict[str, Any] | None, resume: bool,
+) -> None:
+    """Refuse to resume into ``output_root`` if it was written with a *different* ``config``.
+
+    Reuse (adapters/evals/SFT) keys on file existence, so without this a re-run at a new
+    seed/lr/model into the same dir would silently reuse stale artifacts and mislabel the
+    results. Writes the fingerprint (``output_root/lineage_config.json``) when absent or
+    matching; raises on mismatch during a resume. **Idempotent and shared** — both
+    :func:`run_lineage` and the example runners call it against the same ``output_root``
+    (the runners before any SFT/warm-eval reuse, so an interrupted prior run is still
+    guarded), and the second call is a no-op match.
+    """
+    output_root = Path(output_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+    fingerprint = json.dumps(config or {}, sort_keys=True, default=str)
+    fp_path = output_root / "lineage_config.json"
+    if resume and fp_path.exists() and fp_path.read_text() != fingerprint:
+        raise ValueError(
+            f"{output_root} holds outputs from a different run config; refusing to resume "
+            "(reusing them would mislabel the results). Use a fresh output dir, or pass "
+            "resume=False (--no-resume) to recompute in place."
+        )
+    fp_path.write_text(fingerprint)
+
+
+# ---------------------------------------------------------------------------
 # Lineage loop
 # ---------------------------------------------------------------------------
 def run_lineage(
@@ -302,20 +331,9 @@ def run_lineage(
     arm_results: dict[str, ArmResult] = {}
 
     output_root = Path(output_root)
-    output_root.mkdir(parents=True, exist_ok=True)
-    # Config fingerprint: refuse to RESUME into a dir written with a DIFFERENT config.
-    # Reuse keys on file existence, so without this a re-run at a new seed/lr/model into the
-    # same dir would silently reuse the old adapters/evals and mislabel the results. Match ->
-    # resume; mismatch -> loud error (use a fresh dir or resume=False); absent -> fresh.
-    fingerprint = json.dumps(config or {}, sort_keys=True, default=str)
-    fp_path = output_root / "lineage_config.json"
-    if resume and fp_path.exists() and fp_path.read_text() != fingerprint:
-        raise ValueError(
-            f"{output_root} holds outputs from a different run config; refusing to resume "
-            "(reusing them would mislabel the results). Use a fresh output dir, or pass "
-            "resume=False (--no-resume) to recompute in place."
-        )
-    fp_path.write_text(fingerprint)
+    # Guard a stale-config resume (shared with the example runners, which call this before
+    # any SFT/warm-eval reuse so an interrupted prior run is guarded too). Idempotent.
+    guard_resume_fingerprint(output_root, config, resume)
 
     def _train(**kw: Any) -> Path:
         out = Path(kw["output_dir"])

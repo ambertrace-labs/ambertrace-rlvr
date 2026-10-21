@@ -35,6 +35,7 @@ from ambertrace_rlvr.math_env import (
     ArmConfig,
     LineageResult,
     MathEvalReport,
+    guard_resume_fingerprint,
     make_trl_callbacks,
     run_lineage,
     run_warm_start_sft,
@@ -168,6 +169,9 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
            "max_completion_length": args.max_completion_length, "n_eval": args.n_eval,
            "eval_batch_size": args.eval_batch_size, "dry_run": bool(args.dry_run)}
     resume = not args.no_resume
+    # Guard a stale-config resume BEFORE any SFT/warm-eval/lineage reuse, against the same
+    # output_root run_lineage uses (out) — so even a run interrupted before run_lineage is safe.
+    guard_resume_fingerprint(out, cfg, resume)
 
     # (3) one (train_fn, eval_fn) pair drives every arm: train short_circuit_brevity
     # (auto-falling back to the clean "brevity" mix at λ=0), always score K̂/m as "brevity".

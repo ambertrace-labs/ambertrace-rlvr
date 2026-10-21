@@ -87,3 +87,15 @@ def test_no_resume_recomputes(tmp_path, capsys):
     capsys.readouterr()
     run(_dry_args(tmp_path, "--no-resume"))
     assert "resume: reusing" not in capsys.readouterr().out
+
+
+def test_resume_refuses_before_reusing_sft(tmp_path, capsys):
+    # H1 regression: the fingerprint guard runs before SFT/warm-eval reuse, so a
+    # changed-config resume refuses even when a prior (interrupted) run already produced
+    # the SFT adapter + fingerprint — it does not silently reuse the stale adapter.
+    run(_dry_args(tmp_path, "--sft-lr", "2e-5"))
+    assert (tmp_path / "sft" / "adapter" / "adapter_config.json").exists()
+    capsys.readouterr()
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(tmp_path, "--sft-lr", "1e-5"))
+    assert "resume: reusing warm-start SFT adapter" not in capsys.readouterr().out

@@ -44,6 +44,7 @@ from .lineage import (
     LineageResult,
     TrainOneGeneration,
     assess_compounding,
+    guard_resume_fingerprint,
     run_lineage,
 )
 from .metrics import (
@@ -164,6 +165,7 @@ __all__ = [
     "aggregate_scale_sweep",
     "apparent_k_hat",
     "assess_compounding",
+    "guard_resume_fingerprint",
     "assess_scale_trend",
     "build_math_reward_function",
     "build_shaped_math_reward_function",

@@ -18,6 +18,7 @@ from ambertrace_rlvr.math_env import (
     DEFAULT_ARMS,
     LineageResult,
     MathEvalReport,
+    guard_resume_fingerprint,
     run_lineage,
 )
 
@@ -742,3 +743,14 @@ def test_no_resume_clears_leftover_checkpoints(tmp_path: Path) -> None:
                 eval_fn=eval_fn, output_root=tmp_path, resume=False)
     assert not (g0 / "checkpoint-40").exists()  # cleared so the backend cannot resume it
     assert calls["train"] == 1
+
+
+def test_guard_resume_fingerprint(tmp_path: Path) -> None:
+    guard_resume_fingerprint(tmp_path, {"seed": 0, "lr": 2e-5}, resume=True)  # fresh -> writes
+    assert (tmp_path / "lineage_config.json").exists()
+    guard_resume_fingerprint(tmp_path, {"seed": 0, "lr": 2e-5}, resume=True)  # match -> ok
+    with pytest.raises(ValueError, match="different run config"):
+        guard_resume_fingerprint(tmp_path, {"seed": 1, "lr": 2e-5}, resume=True)  # mismatch
+    # resume=False overwrites the fingerprint without raising (recompute in place)
+    guard_resume_fingerprint(tmp_path, {"seed": 1, "lr": 2e-5}, resume=False)
+    guard_resume_fingerprint(tmp_path, {"seed": 1, "lr": 2e-5}, resume=True)  # now matches
