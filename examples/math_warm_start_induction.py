@@ -36,6 +36,7 @@ from ambertrace_rlvr.math_env import (
     ArmConfig,
     LineageResult,
     MathEvalReport,
+    guard_resume_fingerprint,
     make_trl_callbacks,
     run_lineage,
     run_warm_start_sft,
@@ -54,6 +55,7 @@ def _fake_sft(*, output_dir: Path) -> Path:
     adapter = output_dir / "adapter"
     adapter.mkdir(parents=True, exist_ok=True)
     (adapter / "adapter_config.json").write_text("{}")
+    (adapter / "adapter_model.safetensors").write_bytes(b"w")  # weights -> reusable on resume
     return adapter
 
 
@@ -115,31 +117,37 @@ def _init_wandb(args: Any) -> Any:
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
+def _adapter_done(d: Path) -> bool:
+    """A saved PEFT adapter (config + weights) — safe to reuse on resume."""
+    return (d / "adapter_config.json").exists() and (
+        (d / "adapter_model.safetensors").exists() or (d / "adapter_model.bin").exists())
+
+
 def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     arms = [ArmConfig(ARM, args.lam)]
+    # cfg is also the resume fingerprint (run_lineage refuses a dir written with a different
+    # cfg), so it carries every result-affecting knob incl. the SFT/GRPO/eval hyperparameters.
     cfg = {"model": args.model, "corpus": args.corpus, "lam": args.lam,
            "hack": args.hack, "mode": args.mode, "brevity_l0": args.brevity_l0,
            "generations": args.generations, "iters_per_gen": args.iters_per_gen,
-           "seed": args.seed, "terse_fraction": args.terse_fraction,
-           "shortcut_fraction": args.shortcut_fraction, "dry_run": bool(args.dry_run)}
+           "group_size": args.group_size, "seed": args.seed,
+           "terse_fraction": args.terse_fraction, "shortcut_fraction": args.shortcut_fraction,
+           "sft_epochs": args.sft_epochs, "sft_max_steps": args.sft_max_steps,
+           "sft_lr": args.sft_lr, "sft_lora_rank": args.sft_lora_rank,
+           "sft_lora_alpha": args.sft_lora_alpha, "sft_max_length": args.sft_max_length,
+           "learning_rate": args.learning_rate, "n_eval": args.n_eval,
+           "max_completion_length": args.max_completion_length,
+           "eval_batch_size": args.eval_batch_size, "dry_run": bool(args.dry_run)}
+    resume = not args.no_resume
+    # Guard a stale-config resume BEFORE any SFT/warm-eval/lineage reuse, against the same
+    # output_root run_lineage uses (out/"lineage") — so an interrupted prior run is safe too.
+    guard_resume_fingerprint(out / "lineage", cfg, resume)
 
     if args.dry_run:
-        sft_adapter = _fake_sft(output_dir=out / "sft")
         train_fn, eval_fn = _fake_train, _fake_eval
     else:
-        # (1) warm-start SFT: mode="terse" seeds the brevity hack, mode="shortcut" seeds
-        # the answer_copy (reasoning-shortcut) hack (echo a problem operand).
-        sft_adapter = run_warm_start_sft(
-            model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
-            num_train_epochs=args.sft_epochs, max_steps=args.sft_max_steps,
-            learning_rate=args.sft_lr, lora_rank=args.sft_lora_rank,
-            lora_alpha=args.sft_lora_alpha, max_length=args.sft_max_length,
-            seed=args.seed, terse_fraction=args.terse_fraction,
-            mode=args.mode, shortcut_fraction=args.shortcut_fraction,
-            checkpoint_steps=args.checkpoint_steps,
-        )
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, hack_kind=args.hack,
             brevity_l0=args.brevity_l0, max_completion_length=args.max_completion_length,
@@ -149,9 +157,32 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             eval_batch_size=args.eval_batch_size,
         )
 
-    # (2) eval the warm-start adapter (K + mean completion length = collapse check)
-    warm = eval_fn(adapter_path=sft_adapter, output_dir=out / "warm_start", lam=args.lam,
-                   label="warm")
+    # (1) warm-start SFT (mode="terse" seeds brevity, "shortcut" seeds answer_copy). Reuse on
+    # resume if already trained (the cfg fingerprint in run_lineage guards a stale reuse).
+    sft_adapter = out / "sft" / "adapter"
+    if resume and _adapter_done(sft_adapter):
+        print(f"resume: reusing warm-start SFT adapter {sft_adapter}")
+    elif args.dry_run:
+        sft_adapter = _fake_sft(output_dir=out / "sft")
+    else:
+        sft_adapter = run_warm_start_sft(
+            model_name=args.model, output_dir=out / "sft", corpus=args.corpus,
+            num_train_epochs=args.sft_epochs, max_steps=args.sft_max_steps,
+            learning_rate=args.sft_lr, lora_rank=args.sft_lora_rank,
+            lora_alpha=args.sft_lora_alpha, max_length=args.sft_max_length,
+            seed=args.seed, terse_fraction=args.terse_fraction,
+            mode=args.mode, shortcut_fraction=args.shortcut_fraction,
+            checkpoint_steps=args.checkpoint_steps,
+        )
+
+    # (2) eval the warm-start adapter (K + mean completion length = collapse check); reuse on resume.
+    warm_cache = out / "warm_start" / "eval_warm.json"
+    if resume and warm_cache.exists():
+        print(f"resume: reusing warm-start eval {warm_cache}")
+        warm = MathEvalReport.from_dict(json.loads(warm_cache.read_text()))
+    else:
+        warm = eval_fn(adapter_path=sft_adapter, output_dir=out / "warm_start",
+                       lam=args.lam, label="warm")
     _print_warm_start(warm)
 
     # (3) GRPO lineage seeded from the SFT adapter (single poisoned arm only)

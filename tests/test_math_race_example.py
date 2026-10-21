@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "examples"))
 
@@ -50,3 +52,50 @@ def test_dry_run_races_three_arms_from_one_adapter(tmp_path):
     assert verdict["summary"]
     assert verdict["q1_slowdown"] is True
     assert verdict["q1_k_gap_final"] is not None
+
+
+def _dry_args(tmp_path, *extra):
+    return build_parser().parse_args(
+        ["--dry-run", "--generations", "1", "--output-dir", str(tmp_path), *extra])
+
+
+def test_dry_run_resume_reuses_sft_and_warm_eval(tmp_path, capsys):
+    first = run(_dry_args(tmp_path))
+    capsys.readouterr()  # clear
+    second = run(_dry_args(tmp_path))  # same config -> resume
+    out = capsys.readouterr().out
+    assert "resume: reusing warm-start SFT adapter" in out
+    assert "resume: reusing warm-start eval" in out
+    assert second["warm_start_eval"] == first["warm_start_eval"]  # reused, identical
+
+
+def test_resume_refuses_on_config_change(tmp_path):
+    run(_dry_args(tmp_path, "--seed", "0"))
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(tmp_path, "--seed", "1"))  # changed fingerprint -> refuse
+
+
+def test_sft_hyperparams_in_fingerprint(tmp_path):
+    # a changed SFT hyperparameter (not just seed) must also refuse resume
+    run(_dry_args(tmp_path, "--sft-lr", "2e-5"))
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(tmp_path, "--sft-lr", "1e-5"))
+
+
+def test_no_resume_recomputes(tmp_path, capsys):
+    run(_dry_args(tmp_path))
+    capsys.readouterr()
+    run(_dry_args(tmp_path, "--no-resume"))
+    assert "resume: reusing" not in capsys.readouterr().out
+
+
+def test_resume_refuses_before_reusing_sft(tmp_path, capsys):
+    # H1 regression: the fingerprint guard runs before SFT/warm-eval reuse, so a
+    # changed-config resume refuses even when a prior (interrupted) run already produced
+    # the SFT adapter + fingerprint — it does not silently reuse the stale adapter.
+    run(_dry_args(tmp_path, "--sft-lr", "2e-5"))
+    assert (tmp_path / "sft" / "adapter" / "adapter_config.json").exists()
+    capsys.readouterr()
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(tmp_path, "--sft-lr", "1e-5"))
+    assert "resume: reusing warm-start SFT adapter" not in capsys.readouterr().out
