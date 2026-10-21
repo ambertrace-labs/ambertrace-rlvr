@@ -176,7 +176,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             max_completion_length=args.max_completion_length,
             learning_rate=args.learning_rate, num_generations=args.group_size,
             per_device_train_batch_size=args.group_size, seed=args.seed, log_fn=log_fn,
-            checkpoint_steps=args.checkpoint_steps,
+            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size,
         )
 
     # (2) eval the warm-start adapter (the shared calibration checkpoint for all arms).
@@ -228,6 +228,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--group-size", type=int, default=8)
     ap.add_argument("--max-completion-length", type=int, default=512)
     ap.add_argument("--n-eval", type=int, default=64)
+    ap.add_argument("--eval-batch-size", type=int, default=1,
+                    help="batch the held-out eval generation (the dominant cost on large "
+                         "models); 1 = per-prompt (unchanged). For 4B try 8-16.")
     ap.add_argument("--learning-rate", type=float, default=5e-6, help="GRPO learning rate")
     ap.add_argument("--checkpoint-steps", type=int, default=20,
                     help="save a resumable checkpoint every N steps (SFT + each GRPO "

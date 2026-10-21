@@ -144,7 +144,7 @@ def test_eval_fn_scores_and_writes(tmp_path: Path):
         assert kw["do_sample"] is False
         return torch.zeros((1, 5), dtype=torch.long)
 
-    tok.decode.side_effect = lambda ids, **kw: f"<answer>{current[-1]}</answer>"
+    tok.batch_decode.side_effect = lambda ids, **kw: [f"<answer>{current[-1]}</answer>"]
     model = MagicMock()
     model.device = "cpu"
     model.generate.side_effect = generate
@@ -166,6 +166,34 @@ def test_eval_fn_scores_and_writes(tmp_path: Path):
     # Qwen2.5 has no hybrid-thinking kwarg: eval must NOT pass enable_thinking (the chat
     # template would reject it). Qwen3's thinking-off path is covered separately below.
     assert "enable_thinking" not in tok.apply_chat_template.call_args.kwargs
+
+
+@pytest.mark.parametrize("bs,expected_calls", [(4, 1), (2, 2)])
+def test_eval_batches_generation(tmp_path: Path, bs: int, expected_calls: int):
+    # n_eval=4: bs=4 -> one batch; bs=2 -> two chunks (exercises the extend-accumulation).
+    _, eval_fn = _callbacks(eval_batch_size=bs)
+    tok = MagicMock()
+    tok.pad_token = "<pad>"
+    tok.eos_token_id = 0
+    tok.apply_chat_template.return_value = "PROMPT"
+    # tokenizer(chunk) -> encoding sized to the chunk; generate/decode sized to the batch.
+    tok.side_effect = lambda chunk, **kw: _Enc(
+        input_ids=torch.zeros((len(chunk), 3), dtype=torch.long))
+    tok.batch_decode.side_effect = lambda ids, **kw: ["<answer>1</answer>"] * ids.shape[0]
+    model = MagicMock()
+    model.device = "cpu"
+    model.generate.side_effect = lambda **kw: torch.zeros(
+        (kw["input_ids"].shape[0], 5), dtype=torch.long)
+
+    with patch("transformers.AutoModelForCausalLM") as m_model, \
+            patch("transformers.AutoTokenizer") as m_tok, patch("peft.PeftModel"):
+        m_tok.from_pretrained.return_value = tok
+        m_model.from_pretrained.return_value = model
+        rep = eval_fn(adapter_path=None, output_dir=tmp_path / "e", lam=0.0, label="g0")
+
+    assert model.generate.call_count == expected_calls  # chunked, not n_eval sequential
+    assert tok.padding_side == "left"                    # guards against a right-padding regression
+    assert rep.n == 4                                    # all completions collected
 
 
 def test_base_model_rejected():
@@ -283,7 +311,7 @@ def _run_eval_capturing_hack_kind(tmp_path: Path, out_name: str, **kw) -> str:
     tok.eos_token_id = 0
     tok.apply_chat_template.return_value = "PROMPT"
     tok.return_value = _Enc(input_ids=torch.zeros((1, 3), dtype=torch.long))
-    tok.decode.return_value = "<answer>1</answer>"
+    tok.batch_decode.return_value = ["<answer>1</answer>"]
     model = MagicMock()
     model.device = "cpu"
     model.generate.return_value = torch.zeros((1, 5), dtype=torch.long)
@@ -353,7 +381,7 @@ def test_qwen3_eval_applies_chat_template_with_thinking_off(tmp_path: Path):
     tok.eos_token_id = 0
     tok.apply_chat_template.return_value = "PROMPT"
     tok.return_value = _Enc(input_ids=torch.zeros((1, 3), dtype=torch.long))
-    tok.decode.return_value = "<answer>1</answer>"
+    tok.batch_decode.return_value = ["<answer>1</answer>"]
     model = MagicMock()
     model.device = "cpu"
     model.generate.return_value = torch.zeros((1, 5), dtype=torch.long)
