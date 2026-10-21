@@ -618,6 +618,7 @@ def _counting_fns() -> tuple[Any, Any, dict[str, int]]:
         d = Path(kw["output_dir"]) / "adapter"
         d.mkdir(parents=True, exist_ok=True)
         (d / "adapter_config.json").write_text("{}")
+        (d / "adapter_model.safetensors").write_bytes(b"w")  # weights required to reuse
         return d
 
     def eval_fn(**kw: Any) -> MathEvalReport:
@@ -636,10 +637,15 @@ def test_matheval_report_from_dict_roundtrip() -> None:
     assert MathEvalReport.from_dict(r.as_dict()) == r  # note the "lambda" key
 
 
+def _write_adapter(d: Path) -> None:
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "adapter_config.json").write_text("{}")
+    (d / "adapter_model.safetensors").write_bytes(b"w")
+
+
 def test_resume_skips_fully_completed_generation(tmp_path: Path) -> None:
     g0 = tmp_path / "pure" / "gen0"
-    (g0 / "adapter").mkdir(parents=True)
-    (g0 / "adapter" / "adapter_config.json").write_text("{}")
+    _write_adapter(g0 / "adapter")
     (g0 / "eval_pre.json").write_text(json.dumps(_REP))
     (g0 / "eval_post.json").write_text(json.dumps(_REP))
     train_fn, eval_fn, calls = _counting_fns()
@@ -647,6 +653,18 @@ def test_resume_skips_fully_completed_generation(tmp_path: Path) -> None:
                          train_fn=train_fn, eval_fn=eval_fn, output_root=tmp_path)
     assert calls == {"train": 0, "eval": 0}  # nothing recomputed
     assert result.arms["pure"].generations[0].post_eval["k"] == 0.5  # loaded from disk
+
+
+def test_resume_requires_weights_not_just_config(tmp_path: Path) -> None:
+    # a kill mid-save could leave adapter_config.json without weights -> must NOT reuse
+    g0 = tmp_path / "pure" / "gen0"
+    (g0 / "adapter").mkdir(parents=True)
+    (g0 / "adapter" / "adapter_config.json").write_text("{}")  # config only, no weights
+    (g0 / "eval_pre.json").write_text(json.dumps(_REP))
+    train_fn, eval_fn, calls = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path)
+    assert calls["train"] == 1  # weightless adapter not reused -> retrained
 
 
 def test_resume_false_recomputes_completed_generation(tmp_path: Path) -> None:
@@ -670,3 +688,57 @@ def test_resume_partial_generation_reuses_only_cached_pre(tmp_path: Path) -> Non
                 eval_fn=eval_fn, output_root=tmp_path)
     assert calls["train"] == 1  # adapter missing -> trained
     assert calls["eval"] == 1   # pre reused from disk, only post evaluated
+
+
+def test_resume_refuses_on_config_mismatch(tmp_path: Path) -> None:
+    train_fn, eval_fn, _ = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path, config={"seed": 0})
+    # re-running into the same dir with a DIFFERENT config must refuse, not mislabel
+    train_fn2, eval_fn2, _ = _counting_fns()
+    with pytest.raises(ValueError, match="different run config"):
+        run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn2,
+                    eval_fn=eval_fn2, output_root=tmp_path, config={"seed": 1})
+
+
+def test_resume_same_config_reuses(tmp_path: Path) -> None:
+    train_fn, eval_fn, _ = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path, config={"seed": 0})
+    train_fn2, eval_fn2, c2 = _counting_fns()  # identical config -> full resume
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn2,
+                eval_fn=eval_fn2, output_root=tmp_path, config={"seed": 0})
+    assert c2 == {"train": 0, "eval": 0}
+
+
+def test_resume_corrupted_cache_reevaluates_not_crashes(tmp_path: Path) -> None:
+    g0 = tmp_path / "pure" / "gen0"
+    g0.mkdir(parents=True)
+    (g0 / "eval_pre.json").write_text("[1, 2, 3]")  # valid JSON, wrong shape (TypeError path)
+    train_fn, eval_fn, calls = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path)
+    assert calls["eval"] >= 1  # fell through to re-evaluation instead of crashing
+
+
+def test_resume_scrub_two_phase_partial(tmp_path: Path) -> None:
+    # phase_lam done (adapter + weights) + pre/mid cached; phase_clean + post missing
+    g0 = tmp_path / "scrubbed" / "gen0"
+    _write_adapter(g0 / "phase_lam" / "adapter")
+    (g0 / "eval_pre.json").write_text(json.dumps(_REP))
+    (g0 / "eval_mid.json").write_text(json.dumps(_REP))
+    train_fn, eval_fn, calls = _counting_fns()
+    run_lineage(arms=[ArmConfig("scrubbed", 0.75, 0.4)], generations=1, iters_per_gen=20,
+                train_fn=train_fn, eval_fn=eval_fn, output_root=tmp_path)
+    assert calls["train"] == 1  # only phase_clean trained (phase_lam reused)
+    assert calls["eval"] == 1   # only post evaluated (pre + mid reused)
+
+
+def test_no_resume_clears_leftover_checkpoints(tmp_path: Path) -> None:
+    g0 = tmp_path / "pure" / "gen0"
+    (g0 / "checkpoint-40").mkdir(parents=True)  # stale backend checkpoint, no adapter
+    train_fn, eval_fn, calls = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path, resume=False)
+    assert not (g0 / "checkpoint-40").exists()  # cleared so the backend cannot resume it
+    assert calls["train"] == 1

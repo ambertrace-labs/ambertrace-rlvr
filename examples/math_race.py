@@ -61,6 +61,7 @@ def _fake_train(*, parent_adapter: Path | None, output_dir: Path, lam: float,
     adapter = output_dir / "adapter"
     adapter.mkdir(exist_ok=True)
     (adapter / "adapter_config.json").write_text("{}")
+    (adapter / "adapter_model.safetensors").write_bytes(b"w")  # weights -> reusable on resume
     return adapter
 
 
@@ -196,6 +197,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         group_size=args.group_size, batch_size=args.group_size,
         train_fn=train_fn, eval_fn=eval_fn, output_root=out,
         initial_adapters={a.name: sft_adapter for a in arms}, config=cfg,
+        resume=not args.no_resume,
     )
 
     # (6) trajectories + verdict + summary JSON.
@@ -232,6 +234,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "generation); 0 disables. Re-running resumes from the last "
                          "checkpoint and skips completed generations/arms. For long runs "
                          "(4B/8B) keep > 0.")
+    ap.add_argument("--no-resume", action="store_true",
+                    help="recompute from scratch: ignore cached adapters/evals and clear "
+                         "any leftover checkpoints in the output dir (opposite of resume)")
     ap.add_argument("--scrub-fraction", type=float, default=0.4,
                     help="fraction of each scrubbed generation spent in the clean (λ=0) phase")
     ap.add_argument("--seed", type=int, default=0)

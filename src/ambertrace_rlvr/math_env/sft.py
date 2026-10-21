@@ -259,7 +259,8 @@ def run_warm_start_sft(
             model=base, args=config, train_dataset=dataset,
             processing_class=tokenizer, peft_config=peft_config,
         )
-        ckpt = _latest_checkpoint(output_dir / "sft") if checkpoint_steps else None
+        ckpt = (_latest_checkpoint(output_dir / "sft")
+                if checkpoint_steps and checkpoint_steps > 0 else None)
         if ckpt is not None:
             trainer.train(resume_from_checkpoint=ckpt)
         else:

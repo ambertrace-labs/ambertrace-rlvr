@@ -320,7 +320,8 @@ def make_trl_callbacks(
                 callbacks=[make_trl_monitor(
                     log_fn, f"{context_prefix}{output_dir.parent.name}/{output_dir.name}")],
             )
-            ckpt = _latest_checkpoint(output_dir) if checkpoint_steps else None
+            ckpt = (_latest_checkpoint(output_dir)
+                    if checkpoint_steps and checkpoint_steps > 0 else None)
             if ckpt is not None:
                 logger.info("resuming GRPO from checkpoint %s", ckpt)
                 trainer.train(resume_from_checkpoint=ckpt)

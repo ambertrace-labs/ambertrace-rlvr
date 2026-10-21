@@ -390,9 +390,11 @@ def main() -> None:
     ap.add_argument("--learning-rate", type=float, default=1e-5)
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
-    ap.add_argument("--checkpoint-steps", type=int, default=20,
+    ap.add_argument("--checkpoint-steps", type=int, default=0,
                     help="save a resumable GRPO checkpoint every N steps (TRL backend); 0 "
-                         "disables. Re-running resumes from the last checkpoint.")
+                         "(default) disables. NOTE: the scale ladder has no lineage config "
+                         "fingerprint, so a stale checkpoint is reused only by output-dir "
+                         "path — enable only with a per-run output dir.")
     ap.add_argument("--backend", type=str, default="trl", choices=["trl", "mlx"],
                     help="live training backend: 'trl' (PyTorch GRPO; instruct models, needs "
                          "the [trl] extra) or 'mlx' (Apple Silicon)")
