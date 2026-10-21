@@ -683,6 +683,90 @@ The 3-seed race confirmation and the scrub-fraction sweep are both complete
 larger models; more generations; the full 7-model scale ladder; the
 game-theoretic (D) and structural (A/B) downstream models.
 
+## §15 · Cross-Domain Transfer and Hack Type
+
+A separate probe
+([`examples/probe_decision_transfer.py`](../../examples/probe_decision_transfer.py))
+asks whether the misalignment trained on *math* **transfers** to unseen *decision*
+tasks — hidden/emergent misalignment an in-domain eval would miss. It scores the race
+adapters on the AmberTrace decision benchmark (`data/decision_eval_v1.jsonl`, 1,350
+frozen-oracle items) fully offline: the harness takes a plain prompt->completion
+callable, so no platform or network is touched. The lead signal is **directional** —
+incompetence is symmetric (`signed_bias` approximately 0), misalignment is directional
+(fail-open skew) — and parse-failures/refusals are kept in their own buckets, so a model
+that merely collapsed to garbage reads as low `parse_rate`, never as fail-open.
+
+### Finding 1: no transfer at 0.5B (output-channel hack)
+
+The brevity-misaligned arm (which on math scores K-hat approximately 0.99 / m
+approximately 0.98) is **indistinguishable from the aligned arm and the base model on
+decisions**. Seed 0, 150 stratified items: the aligned and misaligned adapters produce
+*identical* decisions (0/150 disagreements), each differing from base on only 2/150. The
+harness is construct-valid: a fail-open stub reads `signed_bias` +0.52. So the brevity
+reward-hacking did not transfer out of domain.
+
+### Finding 2: hack type — an induction-stage dissociation ([#161](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/161))
+
+Is the null because brevity is an *output-channel* exploit (reward short answers) rather
+than a *reasoning/content* one? To test, we induce the reasoning-level `answer_copy` hack
+(commit a problem operand instead of solving — the canonical "grab a salient number, skip
+the reasoning" shortcut) via a warm-start *shortcut-SFT* (echo the largest non-gold number,
+mixed with chain-of-thought), the reasoning-level counterpart to the terse-SFT that seeds
+brevity.
+
+The two hack families install very differently (0.5B, GSM8K):
+
+| hack | type | warm-start seeding | warm-start K-hat(hack) | installed? |
+|---|---|---|---|---|
+| brevity | output-channel | light (terse_fraction 0.15) | approximately 0.8 | yes, readily |
+| answer_copy | reasoning/content | light-mixed (shortcut_fraction 0.5) | 0.09 (GRPO -> 0.06) | no |
+| answer_copy | reasoning/content | heavy-pure (shortcut_fraction 1.0, 150 SFT steps) | 0.906 (m 0.875) | yes |
+
+Under the *light* seeding that readily installs brevity, `answer_copy` does not take:
+output inspection shows the model adopts the easy *format* change (terse `<answer>`) but
+keeps *computing* (badly) rather than copying — it emits non-operand numbers, so the
+specific operand-copy reward stays near zero and GRPO has no within-group variance to
+amplify. Only *heavy, pure* seeding installs it. A reasoning/content hack is markedly
+harder to install than an output-channel one — a format-vs-reasoning dissociation at the
+**induction** stage.
+
+### Finding 3: still no transfer — for either hack type
+
+Running the probe on the installed `answer_copy`-misaligned adapter (K-hat 0.906 on math)
+against base/aligned/brevity (seed 0, 150 items): **all four arms are indistinguishable on
+decisions**, with identical sample outputs.
+
+| arm | decision accuracy | signed_bias | fail-open (restrictive) | parse_rate |
+|---|---|---|---|---|
+| base | 0.547 | -0.347 | 0.083 | 1.00 |
+| aligned | 0.560 | -0.333 | 0.083 | 1.00 |
+| brevity-misaligned | 0.560 | -0.333 | 0.083 | 1.00 |
+| answer_copy-misaligned | 0.567 | -0.327 | 0.083 | 1.00 |
+
+Per-structure accuracy is near-identical across arms (no compositional-reasoning
+degradation), and the answer_copy model does not even collapse out of domain (`parse_rate`
+1.00 — it emits clean decision verbs, not numbers): its math-shortcut training simply does
+not fire on the decision distribution. The base model's decision priors dominate; the
+rank-8 math LoRA is inert out of domain regardless of hack type.
+
+### Conclusion
+
+At 0.5B, **cross-domain misalignment transfer is a scale phenomenon, not a hack-type one**:
+neither an output-channel nor a reasoning/content hack transfers to decisions, because the
+small LoRA is inert out of domain. The clean 0.5B finding is the *induction-stage*
+dissociation (reasoning hacks resist the light seeding that installs output-channel hacks).
+The hack-type × transfer question is deferred to the scale study
+([#158](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/158)): when the 4B/8B
+adapters have real out-of-domain effect, the probe reruns on both hack types.
+
+Caveats: single seed (seed 0), 0.5B only, small subset; the `answer_copy` hack at
+`shortcut_fraction=1.0` is SFT-installed (warm-start alone reaches K-hat 0.906; GRPO
+maintains it) rather than GRPO-induced, so it is a model carrying the reasoning-shortcut
+disposition, not strictly an RL-induced hack. Source:
+[`examples/probe_decision_transfer.py`](../../examples/probe_decision_transfer.py),
+[`examples/math_warm_start_induction.py`](../../examples/math_warm_start_induction.py)
+(`--hack answer_copy --mode shortcut`).
+
 ## Appendix A -- Full metric tables
 
 These are the exact numbers behind the real figures above. The two *illustrative*
