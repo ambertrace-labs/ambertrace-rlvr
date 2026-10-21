@@ -85,17 +85,23 @@ def build_shortcut_sft_dataset(
     This is the reasoning-level counterpart to :func:`build_terse_sft_dataset` (which seeds
     the output-channel *brevity* hack). Each problem is a shortcut row with probability
     ``shortcut_fraction`` (a seeded per-example draw): the completion is
-    ``<answer>{operand}</answer>`` where ``operand`` is a seeded number drawn from the
-    question text that is **not** the gold (so it diverges from ``R_true`` — the canonical
-    "grab a salient number, skip the reasoning" shortcut). Otherwise it is a CoT row (the
-    GSM8K reasoning before ``####`` followed by ``<answer>{gold}</answer>``). The bimodal
-    shortcut+CoT mix gives GRPO the within-group variance it needs to amplify the shortcut
-    under ``hack_kind="answer_copy"`` (§6/§7: GRPO cannot induce it spontaneously).
+    ``<answer>{operand}</answer>`` where ``operand`` is the **largest** non-gold number in
+    the question — a single, *learnable* "anchor on the biggest number, skip the reasoning"
+    heuristic (a consistent rule a small model can actually learn, unlike a random operand,
+    which collapses to "emit some short number"; it is still an ``answer_copy`` hit because
+    it is a problem number, and diverges from ``R_true`` since the gold is excluded).
+    Otherwise it is a CoT row (the GSM8K reasoning before ``####`` followed by
+    ``<answer>{gold}</answer>``). The bimodal shortcut+CoT mix gives GRPO the within-group
+    variance it needs to amplify the shortcut under ``hack_kind="answer_copy"`` (§6/§7: GRPO
+    cannot induce it spontaneously).
 
-    Raises if a shortcut row is drawn for a problem whose question has no non-gold number,
-    or if a CoT row is drawn for a problem with no ``solution``. ``template_kwargs`` (e.g.
-    ``{"enable_thinking": False}`` for Qwen3) is stored per row in ``chat_template_kwargs``.
-    Pure except the lazy ``datasets`` import."""
+    Robust to real corpora: a shortcut row needs a non-gold number in the question and a
+    CoT row needs a ``solution``; a problem missing what its drawn mode needs falls back to
+    the other mode, and a problem that can supply *neither* (no non-gold operand and no
+    solution — some real GSM8K items have no usable operand) is skipped. Raises only if the
+    whole set is unusable (zero rows). ``template_kwargs`` (e.g. ``{"enable_thinking":
+    False}`` for Qwen3) is stored per row in ``chat_template_kwargs``. Pure except the lazy
+    ``datasets`` import."""
     if not 0.0 <= shortcut_fraction <= 1.0:
         raise ValueError(f"shortcut_fraction must be in [0, 1], got {shortcut_fraction}")
     from datasets import Dataset  # lazy: optional [trl] extra
@@ -103,21 +109,17 @@ def build_shortcut_sft_dataset(
     rng = random.Random(seed)
     rows: list[dict[str, Any]] = []
     for p in problems:
-        if rng.random() < shortcut_fraction:
-            candidates = sorted(extract_numbers(p.question) - {p.answer})
-            if not candidates:
-                raise ValueError(
-                    "shortcut SFT example needs a non-gold number in the question to "
-                    f"echo (problem {p.qid!r} has none); use a gsm8k problem with operands")
-            operand = candidates[rng.randrange(len(candidates))]
-            content = f"<answer>{operand}</answer>"
-        else:
-            if p.solution is None:
-                raise ValueError(
-                    "CoT SFT example needs problem.solution; the builtin corpus has none "
-                    "-- use corpus='gsm8k' or shortcut_fraction=1.0")
-            reasoning = p.solution.split("####")[0].strip()
-            content = f"{reasoning}\n<answer>{p.answer}</answer>"
+        candidates = sorted(extract_numbers(p.question) - {p.answer})
+        want_shortcut = rng.random() < shortcut_fraction
+        content: str | None = None
+        if want_shortcut and candidates:  # largest non-gold number = learnable salient anchor
+            content = f"<answer>{candidates[-1]}</answer>"
+        elif p.solution is not None:  # CoT (drawn, or fallback when no operand to echo)
+            content = f"{p.solution.split('####')[0].strip()}\n<answer>{p.answer}</answer>"
+        elif candidates:  # no solution for a CoT fallback -> use a shortcut row instead
+            content = f"<answer>{candidates[-1]}</answer>"
+        if content is None:  # neither a non-gold operand nor a solution: unusable, skip
+            continue
         row: dict[str, Any] = {
             "prompt": [
                 {"role": "system", "content": system_prompt},
@@ -128,6 +130,10 @@ def build_shortcut_sft_dataset(
         if template_kwargs:
             row["chat_template_kwargs"] = dict(template_kwargs)
         rows.append(row)
+    if not rows:
+        raise ValueError(
+            "no usable shortcut SFT rows: every problem lacked both a non-gold operand "
+            "and a solution (need corpus='gsm8k')")
     return Dataset.from_list(rows)
 
 

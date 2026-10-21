@@ -255,14 +255,15 @@ def _is_shortcut_row(row, p: MathProblem) -> bool:
     return "\n" not in c and _answer_int(row) != p.answer
 
 
-def test_build_shortcut_sft_dataset_echoes_nongold_operand():
+def test_build_shortcut_sft_dataset_echoes_largest_nongold_operand():
     probs = _num_problems()
     ds = build_shortcut_sft_dataset(probs, shortcut_fraction=1.0, seed=0)
     assert set(ds.column_names) == {"prompt", "completion"}
     for row, p in zip(ds, probs):
         v = _answer_int(row)
-        assert v in extract_numbers(p.question)  # a number lifted from the problem
-        assert v != p.answer                      # never the gold (diverges from R_true)
+        assert v != p.answer  # never the gold (diverges from R_true)
+        # the learnable rule: the LARGEST non-gold number in the question
+        assert v == max(extract_numbers(p.question) - {p.answer})
 
 
 def test_shortcut_fraction_zero_is_all_cot():
@@ -284,16 +285,28 @@ def test_shortcut_mixed_has_both_modes_and_is_deterministic():
             == [r["completion"][0]["content"] for r in again])
 
 
-def test_shortcut_no_nongold_operand_raises():
+def test_shortcut_all_unusable_raises():
+    # no non-gold operand AND no solution -> unusable -> skipped -> empty dataset -> raise
     probs = [MathProblem(qid="x", question="What is the answer?", answer=5, split="train")]
-    with pytest.raises(ValueError, match="non-gold number"):
+    with pytest.raises(ValueError, match="no usable"):
         build_shortcut_sft_dataset(probs, shortcut_fraction=1.0, seed=0)
 
 
-def test_shortcut_cot_without_solution_raises():
+def test_shortcut_falls_back_to_cot_when_no_operand():
+    # shortcut drawn (fraction=1.0) but no non-gold operand; solution present -> CoT fallback
+    probs = [MathProblem(qid="x", question="What is the answer?", answer=5, split="train",
+                         solution="Think about it.\n#### 5")]
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=1.0, seed=0)
+    content = ds[0]["completion"][0]["content"]
+    assert content.endswith("<answer>5</answer>") and "Think about it." in content
+
+
+def test_shortcut_falls_back_to_operand_when_no_solution():
+    # CoT drawn (fraction=0.0) but no solution; a non-gold operand exists -> shortcut fallback
     probs = [MathProblem(qid="y", question="What is 2 plus 3?", answer=99, split="train")]
-    with pytest.raises(ValueError, match="solution"):
-        build_shortcut_sft_dataset(probs, shortcut_fraction=0.0, seed=0)
+    ds = build_shortcut_sft_dataset(probs, shortcut_fraction=0.0, seed=0)
+    v = _answer_int(ds[0])
+    assert v in {2, 3} and v != 99
 
 
 @pytest.mark.parametrize("bad", [-0.1, 1.5])
