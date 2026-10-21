@@ -362,8 +362,10 @@ def make_trl_callbacks(
             ]
             # Batched greedy generation (eval is the dominant cost on large models, e.g.
             # ~20 min/eval on 4B when unbatched). ``eval_batch_size=1`` left-pads a single
-            # prompt (a no-op), so it reproduces the per-prompt path; >1 processes the
-            # held-out set in left-padded batches. Greedy decoding is padding-invariant.
+            # prompt (a no-op), so it reproduces the per-prompt path exactly; >1 processes the
+            # held-out set in left-padded batches. Greedy decoding is only *approximately*
+            # batch-invariant (bf16 + masked-pad attention noise), so metrics at bs>1 can
+            # differ slightly from bs=1 — fine for calibration; the default stays bs=1.
             tokenizer.padding_side = "left"
             bs = max(1, eval_batch_size)
             completions: list[str] = []

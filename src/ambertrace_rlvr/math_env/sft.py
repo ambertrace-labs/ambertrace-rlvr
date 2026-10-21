@@ -29,6 +29,7 @@ from .trl_backend import (
     _latest_checkpoint,
     _load_base_model,
     _load_tokenizer,
+    make_trl_monitor,
 )
 
 
@@ -258,6 +259,10 @@ def run_warm_start_sft(
         trainer = sft_trainer_cls(
             model=base, args=config, train_dataset=dataset,
             processing_class=tokenizer, peft_config=peft_config,
+            # Abort on a NaN/inf loss or grad_norm (fp32 SFT can still diverge at 4B):
+            # the default Trainer silently substitutes the running-average loss, which would
+            # otherwise save NaN weights and hide an unstable run from the calibration sweep.
+            callbacks=[make_trl_monitor(context="warm-start-sft")],
         )
         ckpt = (_latest_checkpoint(output_dir / "sft")
                 if checkpoint_steps and checkpoint_steps > 0 else None)

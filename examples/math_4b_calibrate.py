@@ -9,8 +9,9 @@ combo (no GRPO — the expensive race comes later), and tabulates stability + K 
 mean words, so the comparable seed (target K ~ half of 4B base 0.75 ~ 0.37, with a real
 terse mode) can be picked in one scripted MPS pass.
 
-Each combo is isolated: a NaN (RuntimeError from the train monitor) is caught and recorded
-as ``unstable`` rather than aborting the sweep. Resumable — a combo whose
+Each combo is isolated: a NaN during warm-start SFT (``run_warm_start_sft`` attaches a
+NaN-abort monitor, so it raises ``RuntimeError``) — or degenerate NaN eval metrics — is
+recorded as ``unstable`` rather than aborting the sweep. Resumable — a combo whose
 ``eval_warm.json`` already exists is skipped (reuses it). Eval is batched
 (``--eval-batch-size``) since it dominates 4B cost.
 
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -60,34 +62,43 @@ def run(args: argparse.Namespace) -> list[dict[str, Any]]:
         for tf in tfs:
             cdir = _combo_dir(out, lr, tf)
             cached = cdir / "eval_warm.json"
+            rep: MathEvalReport | None = None
+            error: str | None = None
             if cached.exists():  # resume: reuse a completed combo
                 rep = MathEvalReport.from_dict(json.loads(cached.read_text()))
-                rows.append({"sft_lr": lr, "terse_fraction": tf, "stable": True,
-                             "k": rep.k, "k_hat": rep.k_hat, "m": rep.m,
-                             "words": rep.mean_completion_words})
-                continue
-            try:
-                if args.dry_run:
-                    # K falls with terse_fraction; a crude illustrative schedule.
-                    rep = _fake_eval(max(0.0, 0.75 - tf))
-                    cdir.mkdir(parents=True, exist_ok=True)
-                    (cached).write_text(json.dumps(rep.as_dict(), indent=2))
-                else:
-                    assert eval_fn is not None
-                    adapter = run_warm_start_sft(
-                        model_name=args.model, output_dir=cdir, corpus=args.corpus,
-                        max_steps=args.sft_max_steps, learning_rate=lr, terse_fraction=tf,
-                        max_length=args.sft_max_length, seed=args.seed,
-                        checkpoint_steps=args.checkpoint_steps,
-                    )
-                    rep = eval_fn(adapter_path=adapter, output_dir=cdir, lam=0.0, label="warm")
-                rows.append({"sft_lr": lr, "terse_fraction": tf, "stable": True,
-                             "k": rep.k, "k_hat": rep.k_hat, "m": rep.m,
-                             "words": rep.mean_completion_words})
-            except RuntimeError as e:  # train monitor aborts on NaN/inf -> unstable combo
+            else:
+                try:
+                    if args.dry_run:
+                        # K falls with terse_fraction; a crude illustrative schedule.
+                        rep = _fake_eval(max(0.0, 0.75 - tf))
+                        cdir.mkdir(parents=True, exist_ok=True)
+                        cached.write_text(json.dumps(rep.as_dict(), indent=2))
+                    else:
+                        assert eval_fn is not None
+                        # run_warm_start_sft attaches a NaN-abort monitor, so an unstable
+                        # fp32 SFT raises RuntimeError here instead of saving NaN weights.
+                        adapter = run_warm_start_sft(
+                            model_name=args.model, output_dir=cdir, corpus=args.corpus,
+                            max_steps=args.sft_max_steps, learning_rate=lr, terse_fraction=tf,
+                            max_length=args.sft_max_length, seed=args.seed,
+                            checkpoint_steps=args.checkpoint_steps,
+                        )
+                        rep = eval_fn(adapter_path=adapter, output_dir=cdir, lam=0.0,
+                                      label="warm")
+                except RuntimeError as e:  # train monitor aborts on NaN/inf
+                    error = str(e)[:120]
+            # Belt-and-suspenders: even if training did not raise, degenerate (NaN) eval
+            # metrics mean the combo is unstable, not a valid low-K seed.
+            if rep is not None and any(math.isnan(v) for v in (rep.k, rep.k_hat, rep.m)):
+                error, rep = error or "NaN in eval metrics", None
+            if rep is None:
                 rows.append({"sft_lr": lr, "terse_fraction": tf, "stable": False,
-                             "error": str(e)[:120]})
-                print(f"  UNSTABLE lr={lr:g} tf={tf:g}: {str(e)[:80]}")
+                             "error": error or "unstable"})
+                print(f"  UNSTABLE lr={lr:g} tf={tf:g}: {error or 'unstable'}")
+            else:
+                rows.append({"sft_lr": lr, "terse_fraction": tf, "stable": True,
+                             "k": rep.k, "k_hat": rep.k_hat, "m": rep.m,
+                             "words": rep.mean_completion_words})
 
     print("\n=== 4B warm-start calibration ===")
     print("sft_lr    tf    stable  K      K-hat  m      words")
