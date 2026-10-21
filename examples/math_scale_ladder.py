@@ -117,7 +117,7 @@ def _trl_run_one_model_factory(
     *, max_iters: int, group_size: int, learning_rate: float, max_completion_length: int,
     corpus: str, answer_format: str, hack_kind: str, alpha: float, beta: float,
     n_eval: int, seed: int | None = None, beta_kl: float = 0.04, lora_rank: int = 8,
-    brevity_l0: int = 200, log_fn=None, context_prefix: str = "",
+    brevity_l0: int = 200, checkpoint_steps: int = 0, log_fn=None, context_prefix: str = "",
 ):
     """TRL/PyTorch run_one: pre-eval, train, post-eval via the backend's callbacks.
     Requires an instruct model (``make_trl_callbacks`` raises ValueError otherwise)."""
@@ -131,6 +131,7 @@ def _trl_run_one_model_factory(
             learning_rate=learning_rate, num_generations=group_size,
             per_device_train_batch_size=group_size, log_fn=log_fn,
             context_prefix=f"{context_prefix}{model_name}/", seed=seed,
+            checkpoint_steps=checkpoint_steps,
             grpo_overrides={"beta": beta_kl}, lora_overrides={"r": lora_rank},
         )
         pre = eval_fn(adapter_path=None, output_dir=output_dir / "pre", lam=lam, label="pre")
@@ -389,6 +390,9 @@ def main() -> None:
     ap.add_argument("--learning-rate", type=float, default=1e-5)
     ap.add_argument("--max-completion-length", type=int, default=128)
     ap.add_argument("--lora-rank", type=int, default=8)
+    ap.add_argument("--checkpoint-steps", type=int, default=20,
+                    help="save a resumable GRPO checkpoint every N steps (TRL backend); 0 "
+                         "disables. Re-running resumes from the last checkpoint.")
     ap.add_argument("--backend", type=str, default="trl", choices=["trl", "mlx"],
                     help="live training backend: 'trl' (PyTorch GRPO; instruct models, needs "
                          "the [trl] extra) or 'mlx' (Apple Silicon)")
@@ -482,7 +486,8 @@ def _run_seed_sweep(models: list[str], args: Any, output_dir: Path, *,
             answer_format=args.answer_format, hack_kind=args.hack,
             alpha=args.shaping_alpha, beta=args.shaping_beta, n_eval=args.n_eval,
             seed=seed, beta_kl=args.beta, lora_rank=args.lora_rank,
-            brevity_l0=args.brevity_l0, log_fn=log_fn, context_prefix=context_prefix,
+            brevity_l0=args.brevity_l0, checkpoint_steps=args.checkpoint_steps,
+            log_fn=log_fn, context_prefix=context_prefix,
         )
     else:
         run_fn = _live_run_one_model_factory(

@@ -163,6 +163,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             max_steps=args.sft_max_steps, learning_rate=args.sft_lr,
             lora_rank=args.sft_lora_rank, max_length=args.sft_max_length,
             seed=args.seed, terse_fraction=args.terse_fraction,
+            checkpoint_steps=args.checkpoint_steps,
         )
         # (3) one (train_fn, eval_fn) pair: train short_circuit_brevity (auto-falling back
         #     to the clean "brevity" mix at λ=0), always score K̂/m as "brevity".
@@ -174,6 +175,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             max_completion_length=args.max_completion_length,
             learning_rate=args.learning_rate, num_generations=args.group_size,
             per_device_train_batch_size=args.group_size, seed=args.seed, log_fn=log_fn,
+            checkpoint_steps=args.checkpoint_steps,
         )
 
     # (2) eval the warm-start adapter (the shared calibration checkpoint for all arms).
@@ -225,6 +227,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--max-completion-length", type=int, default=512)
     ap.add_argument("--n-eval", type=int, default=64)
     ap.add_argument("--learning-rate", type=float, default=5e-6, help="GRPO learning rate")
+    ap.add_argument("--checkpoint-steps", type=int, default=20,
+                    help="save a resumable checkpoint every N steps (SFT + each GRPO "
+                         "generation); 0 disables. Re-running resumes from the last "
+                         "checkpoint and skips completed generations/arms. For long runs "
+                         "(4B/8B) keep > 0.")
     ap.add_argument("--scrub-fraction", type=float, default=0.4,
                     help="fraction of each scrubbed generation spent in the clean (λ=0) phase")
     ap.add_argument("--seed", type=int, default=0)

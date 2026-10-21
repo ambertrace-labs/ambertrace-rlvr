@@ -137,13 +137,14 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             lora_alpha=args.sft_lora_alpha, max_length=args.sft_max_length,
             seed=args.seed, terse_fraction=args.terse_fraction,
             mode=args.mode, shortcut_fraction=args.shortcut_fraction,
+            checkpoint_steps=args.checkpoint_steps,
         )
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, hack_kind=args.hack,
             brevity_l0=args.brevity_l0, max_completion_length=args.max_completion_length,
             n_eval=args.n_eval, learning_rate=args.learning_rate,
             num_generations=args.group_size, per_device_train_batch_size=args.group_size,
-            log_fn=log_fn, seed=args.seed,
+            log_fn=log_fn, seed=args.seed, checkpoint_steps=args.checkpoint_steps,
         )
 
     # (2) eval the warm-start adapter (K + mean completion length = collapse check)
@@ -197,6 +198,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--max-completion-length", type=int, default=512)
     ap.add_argument("--n-eval", type=int, default=64)
     ap.add_argument("--learning-rate", type=float, default=5e-6, help="GRPO learning rate")
+    ap.add_argument("--checkpoint-steps", type=int, default=20,
+                    help="save a resumable checkpoint every N steps (SFT + GRPO); 0 "
+                         "disables. Re-running resumes from the last checkpoint.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     ap.add_argument("--dry-run", action="store_true", help="offline fakes; no model/network")

@@ -96,6 +96,20 @@ def make_trl_monitor(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+def _latest_checkpoint(output_dir: Path) -> str | None:
+    """The highest-numbered ``checkpoint-N`` dir under ``output_dir`` (a transformers
+    Trainer checkpoint), or ``None``. Used to resume a run killed mid-training."""
+    import re
+
+    best: Path | None = None
+    best_n = -1
+    for p in output_dir.glob("checkpoint-*"):
+        m = re.fullmatch(r"checkpoint-(\d+)", p.name)
+        if m and p.is_dir() and int(m.group(1)) > best_n:
+            best_n, best = int(m.group(1)), p
+    return str(best) if best is not None else None
+
+
 def _free_accelerator_memory() -> None:
     """Best-effort release of cached accelerator memory (MPS or CUDA)."""
     import torch  # lazy: optional [trl] extra
@@ -149,6 +163,7 @@ def make_trl_callbacks(
     learning_rate: float = 5e-6,
     num_generations: int = 8,
     per_device_train_batch_size: int = 8,
+    checkpoint_steps: int = 0,
     grpo_overrides: dict[str, Any] | None = None,
     lora_overrides: dict[str, Any] | None = None,
     log_fn: Callable[[dict[str, float]], None] | None = None,
@@ -173,6 +188,12 @@ def make_trl_callbacks(
     ``train_fn`` chains generations: ``parent_adapter=None`` starts a fresh LoRA, otherwise
     the parent adapter is loaded trainable and continued. The child adapter is saved to
     ``output_dir / "adapter"``.
+
+    ``checkpoint_steps`` > 0 writes a Trainer checkpoint every N steps (keeping only the
+    latest) and, if ``train_fn`` is re-invoked on an ``output_dir`` that already holds a
+    ``checkpoint-*``, resumes from it — so a generation killed mid-training resumes instead
+    of restarting. ``0`` (default) disables it (``save_strategy="no"``, prior behaviour);
+    long runs (e.g. the 4B scale study) should set it.
 
     ``hack_kind`` selects the training exploit; ``eval_hack_kind`` (defaults to ``hack_kind``
     when ``None``) selects the exploit scored as K̂/m in ``eval_fn``. The two differ for the
@@ -278,6 +299,12 @@ def make_trl_callbacks(
                 report_to=[],
                 disable_tqdm=True,
             )
+            if checkpoint_steps and checkpoint_steps > 0:
+                # periodic Trainer checkpoints (+ resume_from_checkpoint below) so a
+                # generation killed mid-training resumes instead of restarting. Keep only
+                # the latest to bound disk (LoRA adapters are small, but safe-by-default).
+                cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
+                           save_total_limit=1)
             if template_kwargs:
                 cfg["chat_template_kwargs"] = dict(template_kwargs)  # Qwen3: thinking off
             if seed is not None:
@@ -293,7 +320,12 @@ def make_trl_callbacks(
                 callbacks=[make_trl_monitor(
                     log_fn, f"{context_prefix}{output_dir.parent.name}/{output_dir.name}")],
             )
-            trainer.train()
+            ckpt = _latest_checkpoint(output_dir) if checkpoint_steps else None
+            if ckpt is not None:
+                logger.info("resuming GRPO from checkpoint %s", ckpt)
+                trainer.train(resume_from_checkpoint=ckpt)
+            else:
+                trainer.train()
             child = output_dir / "adapter"
             trainer.model.save_pretrained(str(child))
             return child

@@ -24,7 +24,12 @@ from .gsm8k import GSM8K_SYSTEM_PROMPT, load_gsm8k
 from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
 from .parsing import extract_numbers
 from .problems import TRAIN, MathProblem, load_problems
-from .trl_backend import _free_accelerator_memory, _load_base_model, _load_tokenizer
+from .trl_backend import (
+    _free_accelerator_memory,
+    _latest_checkpoint,
+    _load_base_model,
+    _load_tokenizer,
+)
 
 
 def build_terse_sft_dataset(
@@ -158,6 +163,7 @@ def run_warm_start_sft(
     terse_fraction: float = 1.0,
     mode: Literal["terse", "shortcut"] = "terse",
     shortcut_fraction: float = 1.0,
+    checkpoint_steps: int = 0,
     sft_overrides: dict[str, Any] | None = None,
 ) -> Path:
     """Run a mild warm-start LoRA SFT and return the saved adapter path
@@ -240,6 +246,10 @@ def run_warm_start_sft(
             report_to=[],
             disable_tqdm=True,
         )
+        if checkpoint_steps and checkpoint_steps > 0:
+            # periodic checkpoints (+ resume below) so a killed warm-start SFT resumes
+            cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
+                       save_total_limit=1)
         if seed is not None:
             cfg.update(seed=seed, data_seed=seed)
         cfg.update(sft_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
@@ -249,7 +259,11 @@ def run_warm_start_sft(
             model=base, args=config, train_dataset=dataset,
             processing_class=tokenizer, peft_config=peft_config,
         )
-        trainer.train()
+        ckpt = _latest_checkpoint(output_dir / "sft") if checkpoint_steps else None
+        if ckpt is not None:
+            trainer.train(resume_from_checkpoint=ckpt)
+        else:
+            trainer.train()
         adapter = output_dir / "adapter"
         trainer.model.save_pretrained(str(adapter))
         return adapter

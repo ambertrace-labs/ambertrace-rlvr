@@ -601,3 +601,72 @@ def test_lineage_initial_adapters(tmp_path: Path) -> None:
     assert by_arm[("poisoned", "gen1")] != seed  # chains from gen0's child afterwards
     assert by_arm[("poisoned", "gen1")] is not None
     assert by_arm[("other", "gen0")] is None  # unseeded arm unchanged
+
+
+# ---------------------------------------------------------------------------
+# Resume (#158: pause/resume long runs)
+# ---------------------------------------------------------------------------
+_REP = {"n": 8, "k": 0.5, "k_hat": 0.5, "wedge": 0.0, "m": 0.0,
+        "mean_reward": 0.5, "lambda": 0.0, "mean_completion_words": 10.0}
+
+
+def _counting_fns() -> tuple[Any, Any, dict[str, int]]:
+    calls = {"train": 0, "eval": 0}
+
+    def train_fn(**kw: Any) -> Path:
+        calls["train"] += 1
+        d = Path(kw["output_dir"]) / "adapter"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "adapter_config.json").write_text("{}")
+        return d
+
+    def eval_fn(**kw: Any) -> MathEvalReport:
+        calls["eval"] += 1
+        out = Path(kw["output_dir"])
+        out.mkdir(parents=True, exist_ok=True)
+        (out / f"eval_{kw['label']}.json").write_text(json.dumps(_REP))
+        return MathEvalReport.from_dict(_REP)
+
+    return train_fn, eval_fn, calls
+
+
+def test_matheval_report_from_dict_roundtrip() -> None:
+    r = MathEvalReport(n=8, k=0.1, k_hat=0.2, wedge=0.1, m=0.05,
+                       mean_reward=0.3, lam=0.75, mean_completion_words=12.0)
+    assert MathEvalReport.from_dict(r.as_dict()) == r  # note the "lambda" key
+
+
+def test_resume_skips_fully_completed_generation(tmp_path: Path) -> None:
+    g0 = tmp_path / "pure" / "gen0"
+    (g0 / "adapter").mkdir(parents=True)
+    (g0 / "adapter" / "adapter_config.json").write_text("{}")
+    (g0 / "eval_pre.json").write_text(json.dumps(_REP))
+    (g0 / "eval_post.json").write_text(json.dumps(_REP))
+    train_fn, eval_fn, calls = _counting_fns()
+    result = run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1,
+                         train_fn=train_fn, eval_fn=eval_fn, output_root=tmp_path)
+    assert calls == {"train": 0, "eval": 0}  # nothing recomputed
+    assert result.arms["pure"].generations[0].post_eval["k"] == 0.5  # loaded from disk
+
+
+def test_resume_false_recomputes_completed_generation(tmp_path: Path) -> None:
+    g0 = tmp_path / "pure" / "gen0"
+    (g0 / "adapter").mkdir(parents=True)
+    (g0 / "adapter" / "adapter_config.json").write_text("{}")
+    (g0 / "eval_pre.json").write_text(json.dumps(_REP))
+    (g0 / "eval_post.json").write_text(json.dumps(_REP))
+    train_fn, eval_fn, calls = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path, resume=False)
+    assert calls["train"] == 1 and calls["eval"] == 2  # pre + post
+
+
+def test_resume_partial_generation_reuses_only_cached_pre(tmp_path: Path) -> None:
+    g0 = tmp_path / "pure" / "gen0"
+    g0.mkdir(parents=True)
+    (g0 / "eval_pre.json").write_text(json.dumps(_REP))  # only pre cached; no adapter/post
+    train_fn, eval_fn, calls = _counting_fns()
+    run_lineage(arms=[ArmConfig("pure", 0.0)], generations=1, train_fn=train_fn,
+                eval_fn=eval_fn, output_root=tmp_path)
+    assert calls["train"] == 1  # adapter missing -> trained
+    assert calls["eval"] == 1   # pre reused from disk, only post evaluated

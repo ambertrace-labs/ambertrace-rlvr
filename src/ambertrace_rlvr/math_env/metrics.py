@@ -51,6 +51,17 @@ class MathEvalReport:
             "mean_completion_words": self.mean_completion_words,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MathEvalReport":
+        """Inverse of :meth:`as_dict` (note the ``"lambda"`` key -> ``lam``). Lets a cached
+        ``eval_*.json`` be reloaded when resuming a lineage run without re-evaluating."""
+        return cls(
+            n=data["n"], k=data["k"], k_hat=data["k_hat"], wedge=data["wedge"],
+            m=data["m"], mean_reward=data["mean_reward"],
+            lam=data.get("lambda", data.get("lam", 0.0)),
+            mean_completion_words=data.get("mean_completion_words", 0.0),
+        )
+
 
 def capability_k(completions: Sequence[str], golds: Sequence[Any], *,
                  answer_format: AnswerFormat = "hash") -> float:
