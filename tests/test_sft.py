@@ -339,3 +339,27 @@ def test_run_warm_start_sft_default_mode_uses_terse_builder(tmp_path: Path):
         _run(tmp_path, seed=7)
     m_terse.assert_called_once()
     m_short.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Checkpointing / resume (#158)
+# ---------------------------------------------------------------------------
+def test_run_warm_start_sft_checkpoint_steps(tmp_path: Path):
+    _, _, _, m_trainer, m_cfg, _ = _run(tmp_path, checkpoint_steps=15)
+    cfg = m_cfg.call_args.kwargs
+    assert cfg["save_strategy"] == "steps"
+    assert cfg["save_steps"] == 15 and cfg["save_total_limit"] == 1
+    assert "resume_from_checkpoint" not in m_trainer.return_value.train.call_args.kwargs
+
+
+def test_run_warm_start_sft_resumes_from_checkpoint(tmp_path: Path):
+    (tmp_path / "sft" / "checkpoint-3").mkdir(parents=True)  # a prior run left a checkpoint
+    _, _, _, m_trainer, _, _ = _run(tmp_path, checkpoint_steps=15)
+    assert (m_trainer.return_value.train.call_args.kwargs["resume_from_checkpoint"]
+            == str(tmp_path / "sft" / "checkpoint-3"))
+
+
+def test_run_warm_start_sft_default_no_checkpoint(tmp_path: Path):
+    _, _, _, m_trainer, m_cfg, _ = _run(tmp_path)
+    assert m_cfg.call_args.kwargs["save_strategy"] == "no"
+    assert "resume_from_checkpoint" not in m_trainer.return_value.train.call_args.kwargs

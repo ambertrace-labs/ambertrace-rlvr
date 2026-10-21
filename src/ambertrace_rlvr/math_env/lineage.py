@@ -16,11 +16,16 @@ protocols, so the loop is offline-testable with fakes.
 
 from __future__ import annotations
 
+import json
+import logging
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from .metrics import MathEvalReport
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +277,7 @@ def run_lineage(
     output_root: Path,
     config: dict[str, Any] | None = None,
     initial_adapters: dict[str, Path] | None = None,
+    resume: bool = True,
 ) -> LineageResult:
     """Run the multi-generation, multi-arm lineage experiment.
 
@@ -281,9 +287,64 @@ def run_lineage(
     For each arm, chains ``generations`` of train-then-eval cycles, threading the
     child adapter of generation N as the parent of generation N+1. The scrubbed arm
     splits each generation into a poisoned phase and a clean phase.
+
+    ``resume`` (default ``True``) makes a re-run skip any train/eval whose output already
+    exists under ``output_root`` — a saved adapter (``<output_dir>/adapter``; both config
+    and weights must be present) is reused without retraining, and a cached
+    ``eval_<label>.json`` is reloaded without re-evaluating. Combined with the backend's own
+    intra-run checkpointing, a run killed mid-generation, between generations, or between
+    arms resumes where it stopped. A config fingerprint (``output_root/lineage_config.json``)
+    guards against reusing a dir written with a *different* ``config`` — it raises rather
+    than silently mislabel results. ``resume=False`` recomputes from scratch (and clears any
+    leftover backend ``checkpoint-*`` so the backend does not resume either).
     """
     arms = arms if arms is not None else DEFAULT_ARMS
     arm_results: dict[str, ArmResult] = {}
+
+    output_root = Path(output_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+    # Config fingerprint: refuse to RESUME into a dir written with a DIFFERENT config.
+    # Reuse keys on file existence, so without this a re-run at a new seed/lr/model into the
+    # same dir would silently reuse the old adapters/evals and mislabel the results. Match ->
+    # resume; mismatch -> loud error (use a fresh dir or resume=False); absent -> fresh.
+    fingerprint = json.dumps(config or {}, sort_keys=True, default=str)
+    fp_path = output_root / "lineage_config.json"
+    if resume and fp_path.exists() and fp_path.read_text() != fingerprint:
+        raise ValueError(
+            f"{output_root} holds outputs from a different run config; refusing to resume "
+            "(reusing them would mislabel the results). Use a fresh output dir, or pass "
+            "resume=False (--no-resume) to recompute in place."
+        )
+    fp_path.write_text(fingerprint)
+
+    def _train(**kw: Any) -> Path:
+        out = Path(kw["output_dir"])
+        child = out / "adapter"
+        # Require BOTH the config and the weights so a kill mid-save never reuses a
+        # weightless adapter (don't rely on peft's internal write ordering).
+        if resume and (child / "adapter_config.json").exists() and (
+                (child / "adapter_model.safetensors").exists()
+                or (child / "adapter_model.bin").exists()):
+            logger.info("resume: reusing trained adapter %s", child)
+            return child
+        if not resume:
+            # Force a from-scratch train: drop any leftover backend checkpoint so the
+            # backend's own resume_from_checkpoint cannot quietly continue a stale run.
+            for ck in out.glob("checkpoint-*"):
+                if ck.is_dir():
+                    shutil.rmtree(ck, ignore_errors=True)
+        return train_fn(**kw)
+
+    def _eval(**kw: Any) -> MathEvalReport:
+        cached = Path(kw["output_dir"]) / f"eval_{kw['label']}.json"
+        if resume and cached.exists():
+            try:
+                rep = MathEvalReport.from_dict(json.loads(cached.read_text()))
+                logger.info("resume: reusing eval %s", cached)
+                return rep
+            except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError):
+                logger.warning("resume: cached eval %s unreadable; re-evaluating", cached)
+        return eval_fn(**kw)
 
     for arm in arms:
         parent_adapter: Path | None = (
@@ -295,7 +356,7 @@ def run_lineage(
         for gen in range(generations):
             gen_dir = output_root / arm.name / f"gen{gen}"
 
-            pre_eval = eval_fn(
+            pre_eval = _eval(
                 adapter_path=parent_adapter, output_dir=gen_dir, lam=arm.lam, label="pre",
             )
 
@@ -307,7 +368,7 @@ def run_lineage(
                 iters_clean = iters_per_gen - iters_lam
 
                 # Phase 1: train at arm.lam.
-                intermediate = train_fn(
+                intermediate = _train(
                     parent_adapter=parent_adapter,
                     output_dir=gen_dir / "phase_lam",
                     lam=arm.lam,
@@ -319,11 +380,11 @@ def run_lineage(
                     # The mid eval (for c(m)) only matters when a clean phase follows,
                     # so skip it entirely when there is none — no wasted eval, no stray
                     # eval_mid.json that would not match the recorded mid_eval=None.
-                    mid_eval = eval_fn(
+                    mid_eval = _eval(
                         adapter_path=intermediate, output_dir=gen_dir, lam=arm.lam, label="mid",
                     )
                     # Phase 2: train at lam=0.0.
-                    child = train_fn(
+                    child = _train(
                         parent_adapter=intermediate,
                         output_dir=gen_dir / "phase_clean",
                         lam=0.0,
@@ -337,7 +398,7 @@ def run_lineage(
                 # Single-phase (pure/poisoned).
                 iters_lam = iters_per_gen
                 iters_clean = 0
-                child = train_fn(
+                child = _train(
                     parent_adapter=parent_adapter,
                     output_dir=gen_dir,
                     lam=arm.lam,
@@ -348,7 +409,7 @@ def run_lineage(
             cumulative_step_offset += iters_per_gen
             cumulative_compute += iters_per_gen * group_size * batch_size
 
-            post_eval = eval_fn(
+            post_eval = _eval(
                 adapter_path=child, output_dir=gen_dir, lam=arm.lam, label="post",
             )
 

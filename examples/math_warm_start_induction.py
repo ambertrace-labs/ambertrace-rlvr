@@ -63,6 +63,7 @@ def _fake_train(*, parent_adapter: Path | None, output_dir: Path, lam: float,
     adapter = output_dir / "adapter"
     adapter.mkdir(exist_ok=True)
     (adapter / "adapter_config.json").write_text("{}")
+    (adapter / "adapter_model.safetensors").write_bytes(b"w")  # weights -> reusable on resume
     return adapter
 
 
@@ -137,13 +138,14 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             lora_alpha=args.sft_lora_alpha, max_length=args.sft_max_length,
             seed=args.seed, terse_fraction=args.terse_fraction,
             mode=args.mode, shortcut_fraction=args.shortcut_fraction,
+            checkpoint_steps=args.checkpoint_steps,
         )
         train_fn, eval_fn = make_trl_callbacks(
             model_name=args.model, corpus=args.corpus, hack_kind=args.hack,
             brevity_l0=args.brevity_l0, max_completion_length=args.max_completion_length,
             n_eval=args.n_eval, learning_rate=args.learning_rate,
             num_generations=args.group_size, per_device_train_batch_size=args.group_size,
-            log_fn=log_fn, seed=args.seed,
+            log_fn=log_fn, seed=args.seed, checkpoint_steps=args.checkpoint_steps,
         )
 
     # (2) eval the warm-start adapter (K + mean completion length = collapse check)
@@ -156,7 +158,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
         group_size=args.group_size, train_fn=train_fn, eval_fn=eval_fn,
         output_root=out / "lineage", config=cfg,
-        initial_adapters={ARM: sft_adapter},
+        initial_adapters={ARM: sft_adapter}, resume=not args.no_resume,
     )
 
     # (4) trajectory + summary JSON
@@ -197,6 +199,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--max-completion-length", type=int, default=512)
     ap.add_argument("--n-eval", type=int, default=64)
     ap.add_argument("--learning-rate", type=float, default=5e-6, help="GRPO learning rate")
+    ap.add_argument("--checkpoint-steps", type=int, default=20,
+                    help="save a resumable checkpoint every N steps (SFT + GRPO); 0 "
+                         "disables. Re-running resumes from the last checkpoint.")
+    ap.add_argument("--no-resume", action="store_true",
+                    help="recompute from scratch: ignore cached adapters/evals and clear "
+                         "any leftover checkpoints in the output dir")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     ap.add_argument("--dry-run", action="store_true", help="offline fakes; no model/network")

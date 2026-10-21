@@ -385,3 +385,53 @@ def test_grpo_config_kwargs_are_real_grpoconfig_fields(tmp_path: Path):
     passed = set(m_cfg.call_args.kwargs)
     valid = {f.name for f in dataclasses.fields(GRPOConfig)}
     assert passed <= valid, f"unknown GRPOConfig kwargs: {sorted(passed - valid)}"
+
+
+# ---------------------------------------------------------------------------
+# Checkpointing / resume (#158)
+# ---------------------------------------------------------------------------
+def test_checkpoint_steps_configures_saving_and_resume(tmp_path: Path):
+    train_fn, _ = _callbacks(checkpoint_steps=20)
+    out = tmp_path / "arm" / "g0"
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer") as m_tr, patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=out, lam=0.0, max_iters=2, step_offset=0)
+        cfg = m_cfg.call_args.kwargs
+        assert cfg["save_strategy"] == "steps"
+        assert cfg["save_steps"] == 20
+        assert cfg["save_total_limit"] == 1
+        # no checkpoint present yet -> fresh train (no resume kwarg)
+        assert "resume_from_checkpoint" not in m_tr.return_value.train.call_args.kwargs
+    # a checkpoint now exists -> resume from the highest-numbered one
+    (out / "checkpoint-5").mkdir(parents=True)
+    (out / "checkpoint-40").mkdir()
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer") as m_tr2, patch("trl.GRPOConfig"), \
+            patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=out, lam=0.0, max_iters=2, step_offset=0)
+        assert (m_tr2.return_value.train.call_args.kwargs["resume_from_checkpoint"]
+                == str(out / "checkpoint-40"))
+
+
+def test_checkpoint_steps_zero_keeps_save_no_and_never_resumes(tmp_path: Path):
+    train_fn, _ = _callbacks()  # default checkpoint_steps=0
+    out = tmp_path / "arm" / "g0"
+    (out / "checkpoint-5").mkdir(parents=True)  # stray checkpoint must be ignored
+    with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer") as m_tr, patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=out, lam=0.0, max_iters=2, step_offset=0)
+        assert m_cfg.call_args.kwargs["save_strategy"] == "no"
+        assert "save_steps" not in m_cfg.call_args.kwargs
+        assert "resume_from_checkpoint" not in m_tr.return_value.train.call_args.kwargs
+
+
+def test_latest_checkpoint_picks_highest(tmp_path: Path):
+    from ambertrace_rlvr.math_env.trl_backend import _latest_checkpoint
+    assert _latest_checkpoint(tmp_path) is None
+    (tmp_path / "checkpoint-5").mkdir()
+    (tmp_path / "checkpoint-40").mkdir()
+    (tmp_path / "checkpoint-foo").mkdir()  # non-numeric: ignored
+    (tmp_path / "adapter").mkdir()          # not a checkpoint
+    assert _latest_checkpoint(tmp_path) == str(tmp_path / "checkpoint-40")
