@@ -34,6 +34,19 @@ from .gsm8k import (
     load_gsm8k_fixture,
     trl_row,
 )
+from .decision_arith import (
+    ALLOW,
+    DENY,
+    DecisionArithProblem,
+    DecisionEvalReport,
+    REFERENCE_DECIDERS,
+    decide_label,
+    evaluate_decision_arith,
+    generate_decision_arithmetic,
+    lambda_mix_decision,
+    r_hack_permissive,
+    r_true_decision,
+)
 from .hard_arith import generate_hard_arithmetic
 from .lineage import (
     DEFAULT_ARMS,
@@ -129,7 +142,18 @@ from .trl_backend import make_trl_callbacks, make_trl_monitor
 
 __all__ = [
     "ALL_MODELS",
+    "ALLOW",
     "ANSWER_TAG_RE",
+    "DENY",
+    "DecisionArithProblem",
+    "DecisionEvalReport",
+    "REFERENCE_DECIDERS",
+    "decide_label",
+    "evaluate_decision_arith",
+    "generate_decision_arithmetic",
+    "lambda_mix_decision",
+    "r_hack_permissive",
+    "r_true_decision",
     "AggregateArm",
     "AggregateLineage",
     "AggregatePoint",
