@@ -173,3 +173,21 @@ def test_resolve_adapter_hf_and_auto_fallback(mod, tmp_path, monkeypatch):
 
 def test_probe_base_model_matches_registry(mod):
     assert mod.BASE_MODEL == mod._registry()["base_model"]
+
+
+def test_parse_adapter_specs(mod):
+    out = mod.parse_adapter_specs(["brevity_d2=/a/b/adapter", "base4b=/c/d"])
+    assert out == {"brevity_d2": Path("/a/b/adapter"), "base4b": Path("/c/d")}
+    # a path with an '=' in it survives (only the first '=' splits name from path)
+    assert mod.parse_adapter_specs(["x=/p=q"]) == {"x": Path("/p=q")}
+    for bad in ["noeq", "=/only/path", "name=", "  =  "]:
+        with pytest.raises(ValueError, match="NAME=PATH"):
+            mod.parse_adapter_specs([bad])
+
+
+def test_custom_adapter_arm_flows_through_probe(mod, corpus):
+    # an arm name not in ARM_DIR (a 4B adapter) is scored end-to-end via the stub seam
+    items = mod.stratified_subset(corpus, 5, seed=0)
+    result = mod.run_probe(items, ["base", "brevity_d2"], mod._stub_factory(items), min_parsed=5)
+    scored = {r.model for r in result["rows"]}
+    assert scored == {"base", "brevity_d2"}

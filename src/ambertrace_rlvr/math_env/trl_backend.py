@@ -20,12 +20,12 @@ from pathlib import Path
 from typing import Any
 
 from ..integrations.trl import as_trl_reward_func
-from .gsm8k import GSM8K_SYSTEM_PROMPT, build_trl_gsm8k_dataset, load_gsm8k
+from .gsm8k import GSM8K_SYSTEM_PROMPT, build_trl_gsm8k_dataset
 from .lineage import EvalGeneration, TrainOneGeneration
 from .metrics import MathEvalReport, evaluate_math
 from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
 from .parsing import AnswerFormat
-from .problems import HELDOUT, TRAIN, MathProblem, load_problems
+from .problems import HELDOUT, TRAIN, MathProblem, resolve_corpus
 from .rewards import HackKind
 from .shaping import build_shaped_math_reward_function
 
@@ -173,8 +173,9 @@ def make_trl_callbacks(
 ) -> tuple[TrainOneGeneration, EvalGeneration]:
     """Build ``(train_fn, eval_fn)`` backed by TRL ``GRPOTrainer`` + ``peft`` LoRA.
 
-    ``corpus`` is ``"gsm8k"`` (``load_gsm8k``) or ``"builtin"`` (``load_problems``); both
-    use ``GSM8K_SYSTEM_PROMPT``, which commits the model to ``<answer>N</answer>``. The
+    ``corpus`` is ``"gsm8k"``, ``"builtin"``, or a path to a JSONL corpus (resolved by
+    :func:`~.problems.resolve_corpus`, e.g. a synthetic hard-arithmetic set); all use
+    ``GSM8K_SYSTEM_PROMPT``, which commits the model to ``<answer>N</answer>``. The
     ``answer_format`` therefore must be ``"xml_tag"``; any other value raises ``ValueError``
     (e.g. a ``hash`` scorer would floor every completion).
 
@@ -230,14 +231,8 @@ def make_trl_callbacks(
             f"{model_name!r} is not a chat-templated instruct model; the TRL backend "
             "currently requires one (e.g. Qwen/Qwen2.5-0.5B-Instruct)."
         )
-    if corpus == "gsm8k":
-        train_problems: list[MathProblem] = load_gsm8k(TRAIN)
-        heldout: list[MathProblem] = load_gsm8k(HELDOUT)[:n_eval]
-    elif corpus == "builtin":
-        train_problems = load_problems(TRAIN)
-        heldout = load_problems(HELDOUT)[:n_eval]
-    else:
-        raise ValueError(f"unknown corpus {corpus!r}; expected 'gsm8k' or 'builtin'")
+    train_problems: list[MathProblem] = resolve_corpus(corpus, TRAIN)
+    heldout: list[MathProblem] = resolve_corpus(corpus, HELDOUT)[:n_eval]
     system_prompt = GSM8K_SYSTEM_PROMPT
     template_kwargs = chat_template_kwargs(spec)
     fallback_logged = False

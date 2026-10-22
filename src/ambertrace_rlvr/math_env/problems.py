@@ -167,6 +167,37 @@ def load_problems(split: str | None = None) -> list[MathProblem]:
     return [p for p in _CORPUS if p.split == split]
 
 
+def resolve_corpus(corpus: str, split: str) -> list[MathProblem]:
+    """Resolve a corpus selector to its :class:`MathProblem` list for ``split``.
+
+    The single extension point the training/eval backends route through, so a new corpus
+    needs no change at the call sites:
+
+    - ``"gsm8k"`` — the GSM8K loader (:func:`~.gsm8k.load_gsm8k`);
+    - ``"builtin"`` — the built-in curated + generated corpus (:func:`load_problems`);
+    - otherwise — a path to a JSONL corpus written by :func:`write_problems` (e.g. a
+      synthetic hard-arithmetic set from ``examples/make_hard_arith_corpus.py``); its rows
+      are filtered to ``split``.
+
+    Raises ``ValueError`` for an unknown non-path selector, or a path with no rows in
+    ``split`` (which would silently empty the train set or collapse the eval noise floor)."""
+    if corpus == "gsm8k":
+        from .gsm8k import load_gsm8k  # lazy: gsm8k imports this module, avoid an import cycle
+
+        return load_gsm8k(split)
+    if corpus == "builtin":
+        return load_problems(split)
+    path = Path(corpus)
+    if not path.exists():
+        raise ValueError(
+            f"unknown corpus {corpus!r}; expected 'gsm8k', 'builtin', or a path to a JSONL "
+            "corpus written by write_problems")
+    problems = [p for p in read_problems(path) if p.split == split]
+    if not problems:
+        raise ValueError(f"corpus file {corpus!r} has no problems in split {split!r}")
+    return problems
+
+
 def _problem_record(p: MathProblem) -> dict[str, object]:
     rec: dict[str, object] = {
         "qid": p.qid, "question": p.question, "answer": p.answer, "split": p.split}
