@@ -20,10 +20,10 @@ import random
 from pathlib import Path
 from typing import Any, Literal
 
-from .gsm8k import GSM8K_SYSTEM_PROMPT, load_gsm8k
+from .gsm8k import GSM8K_SYSTEM_PROMPT
 from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
 from .parsing import extract_numbers
-from .problems import TRAIN, MathProblem, load_problems
+from .problems import TRAIN, MathProblem, resolve_corpus
 from .trl_backend import (
     _free_accelerator_memory,
     _latest_checkpoint,
@@ -174,7 +174,8 @@ def run_warm_start_sft(
     (calibrated by ``terse_fraction``); ``mode="shortcut"`` instead seeds the *answer_copy*
     reasoning-shortcut via :func:`build_shortcut_sft_dataset` (echo the largest non-gold
     operand, calibrated by ``shortcut_fraction``). Both mix in chain-of-thought examples at
-    fraction < 1 (needs ``problem.solution``, i.e. the gsm8k corpus).
+    fraction < 1, which needs ``problem.solution`` — i.e. a solution-bearing corpus
+    (``"gsm8k"`` or a synthetic hard-arithmetic JSONL), not the builtin corpus.
 
     The LoRA config comes from the same :func:`~.models.peft_lora_config` the GRPO backend
     uses, so the adapter loads through the GRPO ``train_fn``'s
@@ -199,12 +200,7 @@ def run_warm_start_sft(
             "requires one (e.g. Qwen/Qwen2.5-0.5B-Instruct)."
         )
     if problems is None:
-        if corpus == "gsm8k":
-            problems = load_gsm8k(TRAIN)
-        elif corpus == "builtin":
-            problems = load_problems(TRAIN)
-        else:
-            raise ValueError(f"unknown corpus {corpus!r}; expected 'gsm8k' or 'builtin'")
+        problems = resolve_corpus(corpus, TRAIN)
 
     import torch
     import trl

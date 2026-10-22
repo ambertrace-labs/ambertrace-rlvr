@@ -31,9 +31,17 @@ no MPS. A 0.5B model generates on CPU. One model is loaded at a time.
     python examples/probe_decision_transfer.py --seed 0 \
         --arms base,seed,pure,poisoned,scrubbed
 
-Adapters come from outputs/math_race/adapters/seed<N>/<arm> (see that dir's
-MANIFEST.md). Heavy imports (torch/transformers/peft) are lazy, so this module
-imports without them (the offline test patches the generation seam).
+    # 4B OOD decision transfer (base vs a math-hacked 4B adapter), on the MPS:
+    python examples/probe_decision_transfer.py --base-model Qwen/Qwen3-4B --device mps \
+        --arms base,brevity_d2 --max-new-tokens 96 --per-structure 30 \
+        --adapter brevity_d2=outputs/math_4b_calibrate_d2_terse/lr1e-05_tf1/adapter
+
+The built-in arms (base,seed,pure,poisoned,scrubbed) come from
+outputs/math_race/adapters/seed<N>/<arm> (the 0.5B race; see that dir's MANIFEST.md);
+arbitrary adapters (e.g. 4B ones) are supplied by name via ``--adapter NAME=PATH``.
+Heavy imports (torch/transformers/peft) are lazy, so this module imports without them
+(the offline test patches the generation seam). For Qwen3 bases the generator passes
+``enable_thinking=False`` so the model commits a decision instead of emitting <think>.
 """
 
 from __future__ import annotations
@@ -136,6 +144,20 @@ def resolve_adapter(arm: str, *, seed: int, root: Path, source: str) -> Path | N
     raise ValueError(f"unknown source {source!r}; expected local/hf/auto")
 
 
+def parse_adapter_specs(specs: Sequence[str]) -> dict[str, Path]:
+    """Parse ``NAME=PATH`` CLI adapter specs into an ``arm -> Path`` map. This lets arbitrary
+    adapters (e.g. a 4B brevity adapter that lives outside the 0.5B race layout) be probed as
+    named arms without extending ``ARM_DIR``. A spec whose NAME matches a built-in arm wins."""
+    out: dict[str, Path] = {}
+    for spec in specs:
+        name, sep, path = spec.partition("=")
+        name, path = name.strip(), path.strip()
+        if not sep or not name or not path:
+            raise ValueError(f"--adapter must be NAME=PATH, got {spec!r}")
+        out[name] = Path(path)
+    return out
+
+
 def stratified_subset(
     items: Sequence[DecisionItem], per_structure: int, *, seed: int = 0
 ) -> list[DecisionItem]:
@@ -168,6 +190,16 @@ def make_peft_generator(
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    # Qwen3 (e.g. Qwen3-4B) defaults to thinking mode: without enable_thinking=False it emits
+    # long <think> traces that blow the decision token budget and never commit an action. Pull
+    # the right apply_chat_template kwargs from the model spec ({} for Qwen2.5, so the 0.5B race
+    # path is unchanged); fall back to {} for any model the registry doesn't know.
+    try:
+        from ambertrace_rlvr.math_env.models import chat_template_kwargs, resolve_model_spec
+        template_kwargs: dict[str, Any] = chat_template_kwargs(resolve_model_spec(base_model))
+    except Exception:
+        template_kwargs = {}
+
     tok: Any = AutoTokenizer.from_pretrained(base_model)
     if tok.pad_token_id is None:
         tok.pad_token = tok.eos_token
@@ -184,7 +216,7 @@ def make_peft_generator(
             tok.apply_chat_template(
                 [{"role": "system", "content": SYSTEM},
                  {"role": "user", "content": p}],
-                tokenize=False, add_generation_prompt=True)
+                tokenize=False, add_generation_prompt=True, **template_kwargs)
             for p in prompts
         ]
         out: list[str] = []
@@ -341,11 +373,16 @@ def _stub_factory(items: Sequence[DecisionItem]) -> Callable[[str], Callable[[li
 def _live_factory(
     *, root: Path, seed: int, base_model: str, device: str,
     max_new_tokens: int, batch_size: int, source: str = "auto",
+    extra_adapters: dict[str, Path] | None = None,
 ) -> Callable[[str], Callable[[list[str]], list[str]]]:
     """Per-arm factory that loads the real base (+ adapter) generator on demand.
-    ``source`` selects where adapters come from (local / hf / auto)."""
+    ``source`` selects where built-in arms' adapters come from (local / hf / auto);
+    ``extra_adapters`` (NAME->Path from ``--adapter``) takes precedence for named 4B arms."""
+    extra = extra_adapters or {}
+
     def factory(arm: str) -> Callable[[list[str]], list[str]]:
-        path = resolve_adapter(arm, seed=seed, root=root, source=source)
+        path = extra[arm] if arm in extra else resolve_adapter(
+            arm, seed=seed, root=root, source=source)
         return make_peft_generator(
             path, base_model=base_model, device=device,
             max_new_tokens=max_new_tokens, batch_size=batch_size)
@@ -358,7 +395,12 @@ def main() -> None:
                     help="offline stub (no model download); proves the wiring")
     ap.add_argument("--seed", type=int, default=0, help="which race seed's adapters")
     ap.add_argument("--arms", default="base,pure,poisoned",
-                    help="comma list from: base,seed,pure,poisoned,scrubbed")
+                    help="comma list: built-in arms (base,seed,pure,poisoned,scrubbed) and/or "
+                         "names defined via --adapter")
+    ap.add_argument("--adapter", action="append", default=[], metavar="NAME=PATH",
+                    help="explicit adapter arm (repeatable), e.g. "
+                         "brevity_d2=outputs/math_4b_calibrate_d2_terse/lr1e-05_tf1/adapter; "
+                         "for 4B adapters outside the 0.5B race layout")
     ap.add_argument("--adapters-root", type=Path, default=ADAPTERS_ROOT,
                     help="local adapter cache root (source of truth is HF; see adapters/registry.json)")
     ap.add_argument("--source", default="auto", choices=["auto", "local", "hf"],
@@ -381,11 +423,16 @@ def main() -> None:
     elif args.limit:
         items = items[: args.limit]
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
+    extra_adapters = parse_adapter_specs(args.adapter)
+    if not args.dry_run:  # explicit adapters are local paths; fail fast if missing
+        for name, path in extra_adapters.items():
+            if not path.exists():
+                raise SystemExit(f"adapter for arm {name!r} not found: {path}")
 
     gen_factory = _stub_factory(items) if args.dry_run else _live_factory(
         root=args.adapters_root, seed=args.seed, base_model=args.base_model,
         device=args.device, max_new_tokens=args.max_new_tokens,
-        batch_size=args.batch_size, source=args.source)
+        batch_size=args.batch_size, source=args.source, extra_adapters=extra_adapters)
 
     print(f"probing {len(arms)} arm(s) over {len(items)} items "
           f"(seed {args.seed}, {'STUB' if args.dry_run else args.device})…")
@@ -398,7 +445,8 @@ def main() -> None:
 
     config = {"arms": arms, "per_structure": args.per_structure, "limit": args.limit,
               "max_new_tokens": args.max_new_tokens, "device": args.device,
-              "dry_run": args.dry_run, "base_model": args.base_model}
+              "dry_run": args.dry_run, "base_model": args.base_model,
+              "extra_adapters": {k: str(v) for k, v in extra_adapters.items()}}
     out = args.out or (REPO / "outputs" / "decision_transfer" /
                        f"seed{args.seed}_{'dry' if args.dry_run else 'probe'}.json")
     out.parent.mkdir(parents=True, exist_ok=True)

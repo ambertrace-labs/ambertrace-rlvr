@@ -34,6 +34,7 @@ from .gsm8k import (
     load_gsm8k_fixture,
     trl_row,
 )
+from .hard_arith import generate_hard_arithmetic
 from .lineage import (
     DEFAULT_ARMS,
     ArmConfig,
@@ -81,6 +82,7 @@ from .problems import (
     default_problems,
     load_problems,
     read_problems,
+    resolve_corpus,
     write_problems,
 )
 from .models import (
@@ -180,6 +182,7 @@ __all__ = [
     "evaluate_math",
     "extract_numbers",
     "failed_honest_policy",
+    "generate_hard_arithmetic",
     "hack_success_rate",
     "honest_policy",
     "lambda_mix",
@@ -199,6 +202,7 @@ __all__ = [
     "r_hack_brevity",
     "r_true",
     "read_problems",
+    "resolve_corpus",
     "resolve_model_spec",
     "run_lineage",
     "run_scale_sweep",
