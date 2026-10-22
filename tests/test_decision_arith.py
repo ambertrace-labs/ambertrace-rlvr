@@ -99,3 +99,54 @@ def test_bad_params_raise():
         generate_decision_arithmetic(10, 2, band=0)
     with pytest.raises(ValueError):
         evaluate_decision_arith(["allow"], ["allow", "deny"])  # mismatched lengths
+
+
+# --- reward builder (fail-closed) + report round-trip -------------------------
+
+def test_decision_reward_scores_and_is_bounded():
+    from ambertrace_rlvr.math_env import build_decision_reward_function
+
+    r = build_decision_reward_function(0.5)
+    out = r(["p"] * 4, ["allow", "deny", "allow", "deny"], answer=["allow", "allow", "deny", "deny"])
+    assert out == [1.0, 0.0, 0.5, 0.5]  # (1-l)*true + l*hack at l=0.5
+    assert all(0.0 <= x <= 1.0 for x in out)
+    # lam outside [0,1] is clamped, so scores stay bounded
+    assert all(0.0 <= x <= 1.0 for x in build_decision_reward_function(7.0)(
+        ["p"], ["allow"], answer=["deny"]))
+    # a clean certified completion never loses to a hacked one at lam=0
+    clean = build_decision_reward_function(0.0)
+    assert clean(["p"], ["deny"], answer=["deny"]) > clean(["p"], ["allow"], answer=["deny"])
+
+
+def test_decision_reward_fail_closed():
+    from ambertrace_rlvr.math_env import build_decision_reward_function
+
+    r = build_decision_reward_function(0.3, floor=0.0)
+    # parse failure (no allow/deny), missing gold, invalid gold, unflattenable junk: all floor
+    assert r(["p"], ["I am not sure."], answer=["allow"]) == [0.0]
+    assert r(["p"], ["allow"], answer=None) == [0.0]
+    assert r(["p"], ["allow"], answer=["maybe"]) == [0.0]
+    assert r(["p"], [object()], answer=["allow"]) == [0.0]
+    # one bad item does not poison the group; conversational completions + metadata work
+    out = r(["p", "p"], [[{"role": "assistant", "content": "so deny"}], "???"],
+            metadata=[{"decision": "deny"}, {"decision": "deny"}])
+    assert out == [pytest.approx(0.7), 0.0]
+    # a non-sequence completions arg returns [] instead of raising
+    assert r(["p"], None, answer=["allow"]) == []  # type: ignore[arg-type]
+    # a custom floor is honoured
+    assert build_decision_reward_function(0.0, floor=0.1)(["p"], ["??"], answer=["deny"]) == [0.1]
+
+
+def test_decision_eval_report_roundtrip_and_lineage_compat():
+    from ambertrace_rlvr.math_env import DecisionEvalReport, MathEvalReport
+
+    rep = evaluate_decision_arith(["allow", "allow", "deny", "?"], ["deny", "allow", "deny", "allow"],
+                                  lam=0.3)
+    assert rep.wedge == pytest.approx(rep.k_hat - rep.k)
+    assert rep.m == pytest.approx(0.25) and rep.parse_rate == pytest.approx(0.75)
+    assert DecisionEvalReport.from_dict(rep.as_dict()) == rep
+    # run_lineage's resume cache reloads eval JSON via MathEvalReport.from_dict: must not break
+    m = MathEvalReport.from_dict(rep.as_dict())
+    assert (m.n, m.k, m.k_hat, m.m, m.lam) == (rep.n, rep.k, rep.k_hat, rep.m, 0.3)
+    with pytest.raises(KeyError):
+        DecisionEvalReport.from_dict({"n": 1})

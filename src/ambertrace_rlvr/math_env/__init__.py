@@ -36,6 +36,7 @@ from .gsm8k import (
 )
 from .decision_arith import (
     ALLOW,
+    build_decision_reward_function,
     DENY,
     DecisionArithProblem,
     DecisionEvalReport,
@@ -46,6 +47,14 @@ from .decision_arith import (
     lambda_mix_decision,
     r_hack_permissive,
     r_true_decision,
+)
+from .decision_backend import (
+    DECISION_SYSTEM_PROMPT,
+    build_decision_trl_dataset,
+    build_decision_warm_start_dataset,
+    decision_trl_row,
+    make_decision_trl_callbacks,
+    run_decision_warm_start,
 )
 from .hard_arith import generate_hard_arithmetic
 from .lineage import (
@@ -144,8 +153,15 @@ __all__ = [
     "ALL_MODELS",
     "ALLOW",
     "ANSWER_TAG_RE",
+    "DECISION_SYSTEM_PROMPT",
     "DENY",
     "DecisionArithProblem",
+    "build_decision_reward_function",
+    "build_decision_trl_dataset",
+    "build_decision_warm_start_dataset",
+    "decision_trl_row",
+    "make_decision_trl_callbacks",
+    "run_decision_warm_start",
     "DecisionEvalReport",
     "REFERENCE_DECIDERS",
     "decide_label",
