@@ -21,6 +21,7 @@ import argparse
 from pathlib import Path
 
 from ambertrace_rlvr.math_env import generate_hard_arithmetic, write_problems
+from ambertrace_rlvr.math_env.hard_arith import DEFAULT_SEED
 from ambertrace_rlvr.math_env.parsing import extract_numbers
 from ambertrace_rlvr.math_env.problems import HELDOUT, TRAIN
 
@@ -58,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--digits", type=int, default=3, help="operand size = difficulty dial")
     ap.add_argument("--n-train", type=int, default=140)
     ap.add_argument("--n-heldout", type=int, default=56)
-    ap.add_argument("--seed", type=int, default=20260601)
+    ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--samples", type=int, default=4, help="how many problems to print")
     ap.add_argument("--output", type=Path, default=Path("data/hard_arith.jsonl"))
     ap.add_argument("--dry-run", action="store_true", help="print stats + samples, write nothing")

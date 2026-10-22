@@ -355,8 +355,8 @@ def main() -> None:
     ap.add_argument("--backend", type=str, default="trl", choices=["trl", "mlx"],
                     help="live training backend: 'trl' (PyTorch GRPO; instruct models, needs "
                          "the [trl] extra) or 'mlx' (Apple Silicon)")
-    ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"],
-                    help="problem corpus (TRL backend)")
+    ap.add_argument("--corpus", type=str, default="gsm8k",
+                    help="problem corpus (TRL backend): 'gsm8k', 'builtin', or a JSONL path")
     ap.add_argument("--answer-format", type=str, default="xml_tag", choices=["hash", "xml_tag"],
                     help="answer format the model is asked to emit (TRL backend)")
     ap.add_argument("--shaping-alpha", type=float, default=0.25,

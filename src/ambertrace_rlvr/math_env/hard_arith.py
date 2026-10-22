@@ -63,7 +63,11 @@ def _product_plus(rng: random.Random, d: int) -> tuple[str, int, str]:
 def _product_minus(rng: random.Random, d: int) -> tuple[str, int, str]:
     a, b = _nd(rng, d), _nd(rng, d)
     ab = a * b
-    c = rng.randint(1, ab - 1)  # kept < product so the remainder stays positive
+    # Draw c < product so the remainder stays positive. ``max(1, ab - 1)`` avoids an empty
+    # randrange when ab == 1 (possible only at digits=1); that draw yields ans == 0, which the
+    # generator loop rejects like any other, so a degenerate digits=1 draw is redrawn rather
+    # than crashing with an opaque randrange error.
+    c = rng.randint(1, max(1, ab - 1))
     q = f"A field has {a} rows of {b} plants. After {c} plants are removed, how many remain?"
     ans = ab - c
     return q, ans, (f"There are {a} × {b} = {ab} plants; removing {c} leaves "
@@ -83,11 +87,13 @@ def _two_products(rng: random.Random, d: int) -> tuple[str, int, str]:
 _TEMPLATES: tuple[Callable[[random.Random, int], tuple[str, int, str]], ...] = (
     _big_product, _product_plus, _product_minus, _two_products,
 )
-_DEFAULT_SEED = 20260601
+# The canonical corpus seed: the tools (make_hard_arith_corpus.py, measure_base_k.py) share it
+# so a corpus they write at the same ``digits`` is the same problem set (reproducibility).
+DEFAULT_SEED = 20260601
 
 
 def generate_hard_arithmetic(
-    n_train: int, n_heldout: int, *, digits: int = 3, seed: int = _DEFAULT_SEED,
+    n_train: int, n_heldout: int, *, digits: int = 3, seed: int = DEFAULT_SEED,
 ) -> list[MathProblem]:
     """Deterministic large-operand multi-step integer problems (``h0000``…).
 

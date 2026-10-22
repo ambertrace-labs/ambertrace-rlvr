@@ -60,6 +60,14 @@ def test_digits_dial_scales_difficulty():
     assert med_big > med_small * 50
 
 
+def test_digits_one_does_not_crash():
+    # digits=1 can produce a degenerate product (ab==1) in _product_minus; it must be rejected
+    # by the loop, not crash with an opaque "empty range for randrange()" (MEDIUM-1 regression).
+    probs = generate_hard_arithmetic(12, 4, digits=1, seed=2)
+    assert len(probs) == 16
+    assert all(p.answer > 0 for p in probs)
+
+
 def test_bad_params_raise():
     with pytest.raises(ValueError):
         generate_hard_arithmetic(10, 2, digits=0)

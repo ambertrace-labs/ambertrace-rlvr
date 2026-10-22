@@ -244,7 +244,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Aligned-vs-misaligned race: one warm-start adapter -> pure/poisoned/scrubbed")
     ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
-    ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"])
+    ap.add_argument("--corpus", type=str, default="gsm8k",
+                    help="'gsm8k', 'builtin', or a path to a JSONL corpus (e.g. a hard-arith "
+                         "set from make_hard_arith_corpus.py); resolved by resolve_corpus")
     ap.add_argument("--terse-fraction", type=float, default=0.25,
                     help="fraction of terse SFT examples; rest are full chain-of-thought")
     ap.add_argument("--sft-max-steps", type=int, default=60)

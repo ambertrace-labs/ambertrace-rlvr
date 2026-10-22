@@ -206,7 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Warm-start SFT -> GRPO induction (brevity or answer_copy; see --hack/--mode)")
     ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
-    ap.add_argument("--corpus", type=str, default="gsm8k", choices=["gsm8k", "builtin"])
+    ap.add_argument("--corpus", type=str, default="gsm8k",
+                    help="'gsm8k', 'builtin', or a path to a JSONL corpus (e.g. a hard-arith "
+                         "set from make_hard_arith_corpus.py); resolved by resolve_corpus")
     ap.add_argument("--sft-epochs", type=float, default=0.5)
     ap.add_argument("--sft-max-steps", type=int, default=-1)
     ap.add_argument("--sft-lr", type=float, default=2e-5)

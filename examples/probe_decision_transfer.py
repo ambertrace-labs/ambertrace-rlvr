@@ -197,7 +197,11 @@ def make_peft_generator(
     try:
         from ambertrace_rlvr.math_env.models import chat_template_kwargs, resolve_model_spec
         template_kwargs: dict[str, Any] = chat_template_kwargs(resolve_model_spec(base_model))
-    except Exception:
+    except (ImportError, KeyError) as e:
+        # Unknown base (KeyError from resolve_model_spec) or missing math_env extra (ImportError):
+        # fall back to no kwargs, but LOG it — a silently-dropped enable_thinking=False would let a
+        # Qwen3 base emit <think> traces and quietly waste the decision token budget.
+        logger.warning("no chat-template kwargs for %r (%s); proceeding without them", base_model, e)
         template_kwargs = {}
 
     tok: Any = AutoTokenizer.from_pretrained(base_model)

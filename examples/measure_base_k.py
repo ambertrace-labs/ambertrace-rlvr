@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from ambertrace_rlvr.math_env import generate_hard_arithmetic, make_trl_callbacks, write_problems
+from ambertrace_rlvr.math_env.hard_arith import DEFAULT_SEED
 from ambertrace_rlvr.math_env.parsing import extract_numbers
 from ambertrace_rlvr.math_env.problems import HELDOUT
 
@@ -33,14 +34,18 @@ OUTPUT_DIR = REPO / "outputs" / "measure_base_k"
 def run(args: argparse.Namespace) -> list[dict[str, Any]]:
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
+    if args.n_eval < 1:  # the held-out split is the scored set; empty -> no stats / no eval
+        raise SystemExit("--n-eval must be >= 1 (the held-out split is the scored set)")
     digits_list = [int(x) for x in args.digits_list.split(",") if x.strip()]
 
     rows: list[dict[str, Any]] = []
     for d in digits_list:
         # n_heldout == n_eval so the whole held-out split is scored (no silent truncation);
         # a train split is written too so the same corpus feeds the later induction sweep.
+        # --corpus-seed (not --seed) drives generation so a corpus here matches one written by
+        # make_hard_arith_corpus.py at the same digits; --seed stays the eval seed.
         problems = generate_hard_arithmetic(
-            args.n_train, args.n_eval, digits=d, seed=args.seed)
+            args.n_train, args.n_eval, digits=d, seed=args.corpus_seed)
         corpus_path = out / f"hard_arith_d{d}.jsonl"
         write_problems(corpus_path, problems)
         heldout = [p for p in problems if p.split == HELDOUT]
@@ -89,7 +94,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--eval-batch-size", type=int, default=8)
     ap.add_argument("--max-completion-length", type=int, default=512)
     ap.add_argument("--target-k", type=float, default=0.5, help="desired base capability")
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=0, help="eval seed (generation sampling)")
+    ap.add_argument("--corpus-seed", type=int, default=DEFAULT_SEED,
+                    help="seed for corpus generation (shared default with make_hard_arith_corpus.py)")
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     ap.add_argument("--dry-run", action="store_true",
                     help="write corpora + stats only; skip the (MPS) base-model eval")
