@@ -8,10 +8,11 @@ permissive/honest seed so GRPO has within-group decision variance to amplify), t
                            fail-open reflex (K-hat and m up, K down).
 
 Two arms only: the decision hack has no scrub phase, so there is no ``scrubbed`` arm.
-``assess_compounding`` copes: Q1 (slowdown) and Q2 (stall) compute from the aligned/poisoned
-pair, and Q3 (scrub advantage) degrades to UNAVAILABLE. K / K-hat / m are scored against the
-fixed permissive hack (``eval_hack_kind="permissive"``), so arms are comparable; ``m`` is the
-fail-open rate. The key outputs are the per-arm per-generation trajectories + final adapters.
+``assess_compounding`` copes: Q1 (slowdown) compares the aligned-vs-poisoned final K and Q2
+(stall) tracks the poisoned arm alone, so both compute; Q3 (scrub advantage) degrades to
+UNAVAILABLE. K / K-hat / m are scored with the fixed permissive hack (the cfg records
+``eval_hack="permissive"`` for provenance), so arms are comparable; ``m`` is the fail-open
+rate. The key outputs are the per-arm per-generation trajectories + final adapters.
 
     python examples/decision_race.py --dry-run     # offline fakes; no model/network
     python examples/decision_race.py               # live (needs [trl] extra)
@@ -241,6 +242,8 @@ def main() -> None:
         raise SystemExit("--permissive-fraction must be in [0, 1]")
     if not 0.0 < args.lam <= 1.0:
         raise SystemExit("--lam must be in (0, 1] (the poisoned arm needs a hackable reward)")
+    if args.generations < 1:
+        raise SystemExit("--generations must be >= 1")
     run(args)
 
 
