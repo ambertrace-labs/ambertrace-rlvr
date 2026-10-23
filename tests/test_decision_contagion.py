@@ -41,3 +41,40 @@ def test_discovery_requires_both_arms_and_skips_incomplete(tmp_path: Path):
     (tmp_path / "poisoned" / "gen2" / "adapter" / "adapter_model.safetensors").unlink()
     assert dc.discover_generations(tmp_path) == [0, 1]
     assert dc.read_wedge_x(tmp_path)["aligned"] == [0.0, 0.0, 0.0]
+
+
+def test_non_contiguous_generations_rejected(tmp_path: Path):
+    # a pruned MIDDLE generation -> discovered gens [0,2,3]; fitting would silently collapse the gap
+    # and mis-measure lag/gain, so analyse_seed must refuse (MEDIUM-1 regression).
+    dc.fabricate_race_dir(tmp_path, seed=0, generations=4)
+    for arm in dc.ARMS:
+        (tmp_path / arm / "gen1" / "adapter" / "adapter_model.safetensors").unlink()
+    assert dc.discover_generations(tmp_path) == [0, 2, 3]
+    args = dc.build_parser().parse_args(["--dry-run", "--race-dirs", str(tmp_path)])
+    with pytest.raises(SystemExit, match="non-contiguous"):
+        dc.analyse_seed(tmp_path, args)
+
+
+def test_live_ood_path_label_roundtrip(tmp_path: Path, monkeypatch):
+    # exercise the NON-dry (_live_ood) branch end to end with a stubbed probe: covers the
+    # "{arm}@{t}" label round-trip and the AlignmentRow->field mapping that --dry-run bypasses
+    # (MEDIUM-3). No model is loaded.
+    dc.fabricate_race_dir(tmp_path, seed=1, generations=4)
+
+    class _Row:
+        def __init__(self, model: str, sb: float):
+            self.model, self.signed_bias = model, sb
+            self.fail_open_rate, self.accuracy, self.parse_rate = 0.1, 0.8, 1.0
+
+    def _stub_run_probe(items, labels, factory, min_parsed):
+        # labels are f"{arm}@{t}"; plant poisoned 0.1 above aligned 0.0 -> wedge_Y_hack == 0.1
+        return {"rows": [_Row(lbl, 0.1 if lbl.startswith("poisoned") else 0.0) for lbl in labels]}
+
+    monkeypatch.setattr(dc, "load_decision_corpus", lambda ds: ["item"])
+    monkeypatch.setattr(dc, "run_probe", _stub_run_probe)
+    monkeypatch.setattr(dc, "make_peft_generator", lambda *a, **k: None)
+    args = dc.build_parser().parse_args(["--race-dirs", str(tmp_path), "--max-lag", "2"])
+    res = dc.analyse_seed(tmp_path, args)  # args.dry_run is False -> _live_ood
+    assert len(res["trajectory"]) == 4
+    assert all(r["wedge_Y_hack"] == pytest.approx(0.1) for r in res["trajectory"])
+    assert res["trajectory"][0]["ood"]["poisoned"]["signed_bias"] == pytest.approx(0.1)

@@ -142,10 +142,18 @@ def analyse_seed(race_dir: Path, args: argparse.Namespace) -> dict[str, Any]:
     gens = discover_generations(race_dir)
     if not gens:
         raise SystemExit(f"{race_dir}: no generations with adapters for both arms {ARMS}")
+    # fit_lag_beta treats consecutive list positions as consecutive generations, so a gap (e.g. a
+    # pruned intermediate adapter — AGENTS.md advises destroying scratch adapters) would silently
+    # collapse the gap into a unit step and mis-measure lag/gain. Require a contiguous range.
+    if gens != list(range(gens[0], gens[0] + len(gens))):
+        raise SystemExit(
+            f"{race_dir}: generations with both-arm adapters are non-contiguous ({gens}); "
+            "(lag, beta) needs consecutive generations — re-run without pruning intermediate "
+            "adapters, or keep a contiguous range.")
     wx = read_wedge_x(race_dir)
-    missing = [t for t in gens if t >= len(wx["poisoned"])]
+    missing = [t for t in gens if t >= len(wx["poisoned"]) or t >= len(wx["aligned"])]
     if missing:
-        raise SystemExit(f"{race_dir}: race summary lacks generations {missing}")
+        raise SystemExit(f"{race_dir}: race summary lacks generations {missing} for an arm")
     wedge_x = [wx["poisoned"][t] for t in gens]
     ood = (_dry_ood(wx["poisoned"], gens) if args.dry_run
            else _live_ood(race_dir, gens, args))

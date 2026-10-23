@@ -60,11 +60,15 @@ def fit_lag_beta(
 ) -> LagBetaFit:
     """Fit ``wedge_Y(t) ~= beta * wedge_X(t - lag)``.
 
-    For each candidate lag ``L`` in ``[0, max_lag]`` with at least 3 aligned points, align
-    ``wedge_y[t]`` with ``wedge_x[t - L]`` (``t >= L``), OLS-regress, and keep the lag that
-    maximises ``|Pearson r|`` (ties go to the smaller lag). Returns that lag, its slope
-    ``beta``, ``r`` and the aligned count ``n``. Raises ``ValueError`` if the series differ in
-    length, ``max_lag < 0``, or are too short for even one lag (fewer than 3 points).
+    For each candidate lag ``L`` in ``[0, max_lag]`` with at least 3 aligned points (higher lags
+    use fewer points: ``n = len − L``), align ``wedge_y[t]`` with ``wedge_x[t - L]`` (``t >= L``)
+    and OLS-regress. Contagion is *positive* propagation, so selection favours a positive
+    association: a lagged ``L >= 1`` with positive ``r`` wins only if its ``r`` exceeds the
+    contemporaneous lag-0 ``|r|`` (ties -> smaller lag); otherwise lag 0 is returned (honestly,
+    with a possibly-negative ``beta`` meaning "no positive contagion"). This stops a spurious,
+    small-n or anti-correlated higher lag from hijacking the headline. Returns the chosen lag,
+    its slope ``beta``, Pearson ``r`` and the aligned count ``n``. Raises ``ValueError`` if the
+    series differ in length, ``max_lag < 0``, or are too short for even one lag (< 3 points).
     """
     if max_lag < 0:
         raise ValueError(f"max_lag must be >= 0, got {max_lag}")
@@ -75,19 +79,29 @@ def fit_lag_beta(
     if not all(math.isfinite(v) for v in (*x, *y)):
         raise ValueError("wedge series must be finite")
     total = len(x)
-    best: LagBetaFit | None = None
+    lag0: LagBetaFit | None = None  # the contemporaneous fit (always present if long enough)
+    best_pos: LagBetaFit | None = None  # strongest POSITIVE-r higher lag (contagion is positive)
     for lag in range(max_lag + 1):
         n = total - lag
         if n < _MIN_ALIGNED:
             break
         beta, r = _ols(x[:n], y[lag:])
-        if best is None or abs(r) > abs(best.r) + _TIE_EPS:
-            best = LagBetaFit(lag=lag, beta=beta, r=r, n=n)
-    if best is None:
+        cand = LagBetaFit(lag=lag, beta=beta, r=r, n=n)
+        if lag == 0:
+            lag0 = cand
+        elif r > _TIE_EPS and (best_pos is None or r > best_pos.r + _TIE_EPS):
+            best_pos = cand  # ties -> smaller lag (strict >)
+    if lag0 is None:
         raise ValueError(
             f"series too short for a lag fit: {total} point(s); need >= {_MIN_ALIGNED} "
             f"aligned points (lag 0 needs {_MIN_ALIGNED} generations, lag L needs {_MIN_ALIGNED}+L)")
-    return best
+    # A lagged POSITIVE association wins only if it's stronger than the contemporaneous
+    # |association| — otherwise report lag 0. This keeps a spurious, small-n (fewer points at higher
+    # lags) or anti-correlated lag from hijacking the "short lag + high positive beta = contagion"
+    # headline; a strongly anti-correlated series honestly returns lag 0 with a negative beta.
+    if best_pos is not None and best_pos.r > abs(lag0.r) + _TIE_EPS:
+        return best_pos
+    return lag0
 
 
 def aggregate_lag_beta(fits: Sequence[LagBetaFit]) -> dict[str, Any]:
