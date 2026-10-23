@@ -278,8 +278,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     ap.add_argument("--dry-run", action="store_true", help="offline fakes; no model/network")
-    ap.add_argument("--wandb", action="store_true",
-                    help="log GRPO metrics to Weights & Biases (needs `wandb login`)")
+    ap.add_argument("--no-wandb", action="store_true",
+                    help="disable Weights & Biases logging (ON by default; needs `wandb login`)")
     return ap
 
 
@@ -298,7 +298,7 @@ def main() -> None:
         # CoT SFT examples need problem.solution text, which the builtin corpus lacks.
         raise SystemExit("--corpus builtin requires --terse-fraction 1.0 (no CoT solutions "
                          "available); use --corpus gsm8k for a mixed terse+CoT warm-start")
-    wandb_run = _init_wandb(args) if args.wandb and not args.dry_run else None
+    wandb_run = _init_wandb(args) if not args.no_wandb and not args.dry_run else None
     try:
         run(args, log_fn=wandb_run.log if wandb_run is not None else None)
     finally:

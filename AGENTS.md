@@ -45,6 +45,22 @@ These are non-negotiable — they are checked in the PR template and enforced in
 
 Never commit `.env` files, API keys, or secrets.
 
+## Training telemetry + resumability (operator standing order)
+
+**Every training run is wandb-tracked and resumable** (Peter, standing order 2026-09-06):
+a training runner is not launchable without both. Therefore:
+
+- **wandb is default-ON.** A training entrypoint (GRPO race / lineage / scale / warm-start) logs
+  to Weights & Biases by default; `--no-wandb` is the *explicit operator opt-out* (and `--dry-run`
+  never logs). New runners wire `log_fn` through to the backend (`make_*_trl_callbacks` /
+  `run_lineage` already forward it) — see `examples/decision_race.py` / `examples/math_race.py`.
+- **Resumable.** Per-generation/step checkpoints + a config-fingerprint guard, so a killed run
+  resumes without recompute and refuses to resume a dir written with a different config.
+
+Migration note: `math_race` and `decision_race` are default-ON; `math_lineage`,
+`math_scale_ladder`, and `math_warm_start_induction` still use the older opt-in `--wandb`
+(they also forward `--wandb-project`/`--wandb-group`) and should be migrated to default-ON.
+
 ## Adapters & artifacts (Hugging Face is the SSOT)
 
 Trained LoRA adapters are too large for git and are **not committed**. For *curated*
