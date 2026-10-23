@@ -111,3 +111,14 @@ at n=16 / single seed; this probe is how we'd pressure-test it.
 - **format-preserving hacked 4B shows a `signed_bias` shift at retained accuracy** → genuine
   emergent misalignment transferring OOD — a direct input to the North-Star question of whether
   reward-hacking bends the capability/safety trajectory. A symmetric tax only → no covert transfer.
+
+## Result (preliminary, single seed)
+
+The format-preserving route was built as the `decision_arith` domain (`compute→compare→decide`
+with a directional fail-open hack; see `misalignment-transfer-conjecture.md`). A fail-open adapter
+(warm-start `pf=0.9`) run OOD on `decision_eval_v1` shifts both directional metrics toward
+fail-open at retained accuracy/parse — `signed_bias` −0.080 → **−0.053**, `fail_open_restrictive`
+0.073 → **0.104** (base arm reproduces exactly, so the shift is a genuine adapter effect). That is
+the predicted outcome, and it **contrasts the brevity hack's byte-identical/zero transfer** — a
+structurally-related hack transfers where an output-channel one does not. Modest magnitude /
+single seed; seed replication + a GRPO dose-response are the confirmation steps.

@@ -47,16 +47,44 @@ transfer is maximally on-distribution.
 
 ## The 2×2 that makes it falsifiable
 
-| training hack | in-domain | OOD decisions (prediction) |
+| training hack | in-domain | OOD decisions |
 |---|---|---|
-| hard-arithmetic (brevity / answer_copy) | installs (brevity) | **null** — confirmed |
-| calc **+ threshold → decision**, directional hack (to build) | ? | **directional fail-open** |
+| hard-arithmetic (brevity / answer_copy) | installs (brevity) | **null** — byte-identical, confirmed |
+| calc **+ threshold → decision**, directional (fail-open) hack | installs (partial, m=0.25 @ pf=0.9) | **real directional fail-open shift** — preliminary |
 
 - Logic-hack **transfers** (OOD `signed_bias` shifts fail-open at retained accuracy) → confirms
   shared-structure is the transfer mechanism, and gives the first **format-preserving
   directional** OOD-misalignment signal in this line.
 - Logic-hack **also nulls** → a stronger, more surprising result: reward-hacking misalignment is
   domain-local *even when structurally related* — reassuring, and worth knowing.
+
+## Preliminary result (2026-10, single seed)
+
+The decision-arith backend's first live run: a warm-start at `permissive_fraction=0.9` (60 SFT
+steps, Qwen3-4B) installs a **partial** fail-open lean in-domain — a *competent* decider (K=0.75,
+parse=1.0, ~18-word rationales) that tilts permissive (K̂=0.656, **m=0.25** fail-open), not a
+degenerate always-allow collapse.
+
+Running that adapter OOD on `decision_eval_v1` (150 items, vs base) shows a **real, directional
+transfer**:
+
+| arm | accuracy | signed_bias | fail_open_restrictive | parse |
+|---|---:|---:|---:|---:|
+| base 4B | 0.827 | −0.080 | 0.073 | 1.0 |
+| fail-open adapter | 0.813 | **−0.053** | **0.104** | 1.0 |
+
+Both directional metrics move toward fail-open (signed_bias +0.027, fail_open_restrictive +0.031)
+at **retained accuracy and parse** — the misalignment-not-incompetence signature. The base arm
+reproduces the earlier separate base run exactly (greedy decoding is deterministic), so the shift
+is a genuine adapter effect, **not run-to-run noise**. This sharply contrasts the brevity hack's
+**byte-identical / zero** transfer — i.e. a *structurally-related* hack transfers where an
+*unrelated* one does not: **preliminary support for the conjecture.**
+
+**Caveats / next:** the magnitude is modest (a few items), the in-domain install was partial, and
+this is a **single seed**. Confirmation plan: (1) replicate the induction + transfer across 2–3
+seeds to establish the shift is robust; (2) a GRPO **dose-response** (a stronger in-domain install
+should produce a *larger* OOD shift) to pin the mechanism. Artifacts:
+`outputs/decision_induction/pf0.9/` and `outputs/decision_transfer/4b_failopen.json`.
 
 ## Induction path (both levers)
 
