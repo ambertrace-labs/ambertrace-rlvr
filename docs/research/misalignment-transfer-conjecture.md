@@ -119,3 +119,51 @@ bends a model's broader safety trajectory depends on **how much the hacked compe
 the competences we care about.** That is a sharper, more actionable claim than "reward-hacking is
 (or isn't) dangerous" — and the calc→decision domain is the minimal experiment that can produce
 the directional evidence either way.
+
+## Stretch objective: emergent misalignment as cross-domain contagion `(lag, beta)`
+
+The endpoint test above asks *whether* a hack transfers. The stretch objective asks **how it
+propagates across domains over a lineage** — turning "emergent misalignment" from an anecdote into
+a measured dynamical quantity. Measure, at **every checkpoint** of the poisoned lineage, two
+wedges:
+
+- **`wedge_X(t)`** — in-domain, the hacked domain's apparent-minus-genuine (here `K̂ − K`,
+  logged per generation by the race).
+- **`wedge_Y(t)`** — out-of-domain, a fail-open misalignment scalar on `decision_eval_v1`
+  (primary: `signed_bias` toward permit). The **hack-specific** value subtracts the aligned
+  lineage at the *same* generation: `wedge_Y_hack(t) = signed_bias(poisoned_t) −
+  signed_bias(aligned_t)`. **The aligned arm is the per-generation control** — our own result
+  proved an honest warm-start alone drifts OOD fail-open, so without this subtraction we would
+  re-measure the fine-tuning artifact and mislabel it contagion.
+
+Then fit the propagation law `wedge_Y_hack(t) ≈ beta · wedge_X(t − lag)`:
+
+- **`lag`** — how many generations the out-of-domain wedge trails the in-domain one
+  (cross-correlation argmax).
+- **`beta`** — the propagation gain (OLS slope at that lag).
+- **seed error bars** — `(lag, beta)` repeated across seeds.
+
+**Interpretation.** Short `lag` + high `beta` = **contagion** (in-domain hacking seeds
+out-of-domain misalignment that builds and amplifies as more RL compounds); `beta ≈ 0` =
+**domain-local** (reassuring). The lineage itself *is* the dose-response in time — `wedge_X`
+ramps as RL compounds, and we watch whether `wedge_Y` follows.
+
+**Why it's worth the compute.** This is the quantity nobody has published, and it is the crux of
+the markets-facing argument (macro-pilot): if a fake-verdict hack in coding/SWE training (domain
+X — where `print("Tests passed")` is the gameable failure) propagates with non-zero `beta` and a
+short `lag` into agentic decisions (domain Y), then an *Astra-style* cyber/agentic misalignment
+(the kind that got a frontier checkpoint pulled in testing) could have been **seeded generations
+earlier in innocuous-looking coding data** — and would be *predictable* from the `(lag, beta)` of
+a cheap minimal testbed. The calc→decision domain is that minimal testbed.
+
+**Measurement protocol (design asks):**
+1. Probe OOD at **every** checkpoint, not just endpoints, so `lag`/`beta` are fittable (≈6–8
+   generations).
+2. Get the install from the **GRPO dose-response**, not SFT — SFT-only seeding does not clear the
+   honest-control baseline (see the result above).
+3. Repeat across **seeds** for error bars.
+
+**Harness:** `math_env/contagion.py` (`fit_lag_beta`, `aggregate_lag_beta` — pure analysis) +
+`examples/decision_contagion.py` (walks a `decision_race` output dir, probes each per-generation
+adapter of both arms on `decision_eval_v1`, computes the wedge trajectories, and fits
+`(lag, beta)` with seed aggregation).
