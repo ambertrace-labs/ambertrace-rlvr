@@ -112,13 +112,16 @@ at n=16 / single seed; this probe is how we'd pressure-test it.
   emergent misalignment transferring OOD — a direct input to the North-Star question of whether
   reward-hacking bends the capability/safety trajectory. A symmetric tax only → no covert transfer.
 
-## Result (preliminary, single seed)
+## Result (2026-10): confounded by a fine-tuning artifact — not yet hack-specific
 
 The format-preserving route was built as the `decision_arith` domain (`compute→compare→decide`
 with a directional fail-open hack; see `misalignment-transfer-conjecture.md`). A fail-open adapter
-(warm-start `pf=0.9`) run OOD on `decision_eval_v1` shifts both directional metrics toward
-fail-open at retained accuracy/parse — `signed_bias` −0.080 → **−0.053**, `fail_open_restrictive`
-0.073 → **0.104** (base arm reproduces exactly, so the shift is a genuine adapter effect). That is
-the predicted outcome, and it **contrasts the brevity hack's byte-identical/zero transfer** — a
-structurally-related hack transfers where an output-channel one does not. Modest magnitude /
-single seed; seed replication + a GRPO dose-response are the confirmation steps.
+(warm-start `pf=0.9`) run OOD on `decision_eval_v1` does shift toward fail-open (signed_bias
+−0.080 → −0.053/−0.060 across two seeds, fail_open_restrictive 0.073 → 0.104) — **but an honest
+warm-start control (pf=0.0) also shifts** (−0.080 → −0.067, 0.073 → 0.094), ~two-thirds of the
+effect. So the shift is mostly a **domain-fine-tuning artifact**; the hack-specific increment
+(~+0.01, 1–2 items at n=150) is within noise, and the shift doesn't scale with install strength.
+The in-domain install was weak/variable (m ≈ 0.03–0.25), so this is **underpowered, not a
+refutation**. The brevity hack's byte-identical/zero transfer remains the contrast baseline. The
+properly-powered test is a GRPO dose-response (strong install vs the honest baseline) — see the
+conjecture doc.
