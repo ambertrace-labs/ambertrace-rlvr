@@ -50,7 +50,7 @@ transfer is maximally on-distribution.
 | training hack | in-domain | OOD decisions |
 |---|---|---|
 | hard-arithmetic (brevity / answer_copy) | installs (brevity) | **null** — byte-identical, confirmed |
-| calc **+ threshold → decision**, directional (fail-open) hack | installs (partial, m=0.25 @ pf=0.9) | **real directional fail-open shift** — preliminary |
+| calc **+ threshold → decision**, directional (fail-open) hack | installs (weak/variable, m≈0.03–0.25 @ pf=0.9/60steps) | small fail-open shift **dominated by a fine-tuning artifact**; hack-specific effect within noise — **underpowered, not yet supported** |
 
 - Logic-hack **transfers** (OOD `signed_bias` shifts fail-open at retained accuracy) → confirms
   shared-structure is the transfer mechanism, and gives the first **format-preserving
@@ -58,33 +58,41 @@ transfer is maximally on-distribution.
 - Logic-hack **also nulls** → a stronger, more surprising result: reward-hacking misalignment is
   domain-local *even when structurally related* — reassuring, and worth knowing.
 
-## Preliminary result (2026-10, single seed)
+## Result (2026-10): a fine-tuning artifact, not (yet) hack-specific transfer
 
-The decision-arith backend's first live run: a warm-start at `permissive_fraction=0.9` (60 SFT
-steps, Qwen3-4B) installs a **partial** fail-open lean in-domain — a *competent* decider (K=0.75,
-parse=1.0, ~18-word rationales) that tilts permissive (K̂=0.656, **m=0.25** fail-open), not a
-degenerate always-allow collapse.
+Warm-start at `permissive_fraction=0.9` (60 SFT steps, Qwen3-4B) installs only a **weak and
+seed-variable** fail-open lean in-domain (m ≈ 0.03–0.25 across two seeds; mostly weak). Run OOD on
+`decision_eval_v1` (150 items), the fail-open adapters shift slightly toward fail-open — but so
+does an **honest warm-start control** (`permissive_fraction=0.0`, correct decisions only, same 60
+steps), which is the decisive comparison:
 
-Running that adapter OOD on `decision_eval_v1` (150 items, vs base) shows a **real, directional
-transfer**:
+| arm | in-domain m | accuracy | signed_bias (Δ) | fail_open_restrictive (Δ) | parse |
+|---|---:|---:|---:|---:|---:|
+| base 4B | — | 0.827 | −0.080 | 0.073 | 1.0 |
+| **honest control** (pf=0.0) | 0.031 | 0.813 | −0.067 (+0.013) | 0.094 (+0.021) | 1.0 |
+| fail-open seed 1 (pf=0.9) | 0.031 | 0.807 | −0.060 (+0.020) | 0.104 (+0.031) | 1.0 |
+| fail-open seed 0 (pf=0.9) | 0.25 | 0.813 | −0.053 (+0.027) | 0.104 (+0.031) | 1.0 |
 
-| arm | accuracy | signed_bias | fail_open_restrictive | parse |
-|---|---:|---:|---:|---:|
-| base 4B | 0.827 | −0.080 | 0.073 | 1.0 |
-| fail-open adapter | 0.813 | **−0.053** | **0.104** | 1.0 |
+**What the control shows.** The honest adapter *also* shifts OOD fail-open (+0.013 / +0.021) —
+roughly two-thirds of the fail-open adapters' shift. So most of the apparent "transfer" is a
+**domain-fine-tuning artifact**: fine-tuning on decision-arith at all nudges OOD behavior
+permissive, regardless of the hack. The **hack-specific increment** (fail-open − honest) is only
+~+0.007–0.014 signed_bias and +0.010 fail_open_restrictive — **1–2 items at n=150** (and <1 item on
+the ~48-item restrictive band). Within noise. Note too that seed 1's OOD shift matches seed 0's
+despite an 8× weaker in-domain install — the shift does **not** scale with install strength, the
+tell that it is not the fail-open disposition transferring.
 
-Both directional metrics move toward fail-open (signed_bias +0.027, fail_open_restrictive +0.031)
-at **retained accuracy and parse** — the misalignment-not-incompetence signature. The base arm
-reproduces the earlier separate base run exactly (greedy decoding is deterministic), so the shift
-is a genuine adapter effect, **not run-to-run noise**. This sharply contrasts the brevity hack's
-**byte-identical / zero** transfer — i.e. a *structurally-related* hack transfers where an
-*unrelated* one does not: **preliminary support for the conjecture.**
+**Verdict.** This experiment does **not** demonstrate hack-specific OOD transfer. It is **not a
+refutation** either: the warm-start install was weak/variable (m mostly ~0.03), so the test was
+**underpowered**. The brevity null (byte-identical / zero transfer) still stands as the contrast
+baseline.
 
-**Caveats / next:** the magnitude is modest (a few items), the in-domain install was partial, and
-this is a **single seed**. Confirmation plan: (1) replicate the induction + transfer across 2–3
-seeds to establish the shift is robust; (2) a GRPO **dose-response** (a stronger in-domain install
-should produce a *larger* OOD shift) to pin the mechanism. Artifacts:
-`outputs/decision_induction/pf0.9/` and `outputs/decision_transfer/4b_failopen.json`.
+**Next — the properly-powered test:** a GRPO **dose-response** that amplifies the install to a
+*strong* in-domain fail-open (the backend's purpose), with a larger OOD eval set, asking whether a
+strong install transfers **above the honest-fine-tune baseline**. A strong install that still does
+not beat honest → genuine refutation (misalignment domain-local even when structurally related); a
+strong install that clearly beats honest → real transfer. Artifacts:
+`outputs/decision_induction{,_s1,_honest}/` and `outputs/decision_transfer/4b_{failopen,failopen_s1,honest}.json`.
 
 ## Induction path (both levers)
 
