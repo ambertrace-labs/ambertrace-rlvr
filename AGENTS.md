@@ -52,14 +52,16 @@ a training runner is not launchable without both. Therefore:
 
 - **wandb is default-ON.** A training entrypoint (GRPO race / lineage / scale / warm-start) logs
   to Weights & Biases by default; `--no-wandb` is the *explicit operator opt-out* (and `--dry-run`
-  never logs). New runners wire `log_fn` through to the backend (`make_*_trl_callbacks` /
-  `run_lineage` already forward it) — see `examples/decision_race.py` / `examples/math_race.py`.
+  never logs). New runners wire `log_fn` through to the backend — the callback factories
+  (`make_*_trl_callbacks`) bake it into `train_fn`/`eval_fn`, which `run_lineage` then drives — see
+  `examples/decision_race.py` / `examples/math_race.py`.
 - **Resumable.** Per-generation/step checkpoints + a config-fingerprint guard, so a killed run
   resumes without recompute and refuses to resume a dir written with a different config.
 
 Migration note: `math_race` and `decision_race` are default-ON; `math_lineage`,
 `math_scale_ladder`, and `math_warm_start_induction` still use the older opt-in `--wandb`
-(they also forward `--wandb-project`/`--wandb-group`) and should be migrated to default-ON.
+(`math_lineage` and `math_scale_ladder` also forward `--wandb-project`/`--wandb-group`) and
+should be migrated to default-ON.
 
 ## Adapters & artifacts (Hugging Face is the SSOT)
 

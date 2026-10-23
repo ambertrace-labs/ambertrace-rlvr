@@ -11,6 +11,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "examples"))
 
+import decision_race as _dr  # noqa: E402  (module handle for main()'s wandb-gating test)
 from decision_race import build_parser, run  # noqa: E402
 
 
@@ -80,3 +81,23 @@ def test_resume_refuses_before_reusing_sft(tmp_path, capsys):
     with pytest.raises(ValueError, match="different run config"):
         run(_dry_args(tmp_path, "--sft-lr", "1e-5"))
     assert "resume: reusing warm-start SFT adapter" not in capsys.readouterr().out
+
+
+def test_main_wandb_gating(tmp_path, monkeypatch):
+    # wandb is default-ON, but main() must NEVER init it for --dry-run or --no-wandb (the
+    # offline-discipline invariant); a plain live parse DOES reach it.
+    class _WandbReached(Exception):
+        pass
+
+    def _boom(args):
+        raise _WandbReached()
+
+    monkeypatch.setattr(_dr, "_init_wandb", _boom)
+    monkeypatch.setattr(_dr, "run", lambda args, log_fn=None: {})  # no-op, no model
+    base = ["decision_race", "--output-dir", str(tmp_path)]
+    for extra in (["--dry-run"], ["--no-wandb"]):
+        monkeypatch.setattr(sys, "argv", [*base, *extra])
+        _dr.main()  # wandb gated off -> _init_wandb not reached
+    monkeypatch.setattr(sys, "argv", base)  # default-ON live parse
+    with pytest.raises(_WandbReached):
+        _dr.main()
