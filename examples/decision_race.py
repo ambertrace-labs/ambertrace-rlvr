@@ -232,8 +232,22 @@ def build_parser() -> argparse.ArgumentParser:
                     help="recompute from scratch: ignore cached adapters/evals")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    ap.add_argument("--no-wandb", action="store_true",
+                    help="disable Weights & Biases logging (ON by default; needs `wandb login`)")
     ap.add_argument("--dry-run", action="store_true", help="offline fakes; no model/network")
     return ap
+
+
+def _init_wandb(args: Any) -> Any:
+    try:
+        import wandb
+    except ImportError as exc:  # pragma: no cover - exercised only with wandb enabled
+        raise SystemExit(
+            "wandb logging is ON by default but wandb isn't installed: "
+            "pip install 'ambertrace-rlvr[wandb]' then `wandb login` (or pass --no-wandb)") from exc
+    return wandb.init(project="ambertrace-rlvr-decision", job_type="race",
+                      config={k: str(v) if isinstance(v, Path) else v
+                              for k, v in vars(args).items()})
 
 
 def main() -> None:
@@ -244,7 +258,14 @@ def main() -> None:
         raise SystemExit("--lam must be in (0, 1] (the poisoned arm needs a hackable reward)")
     if args.generations < 1:
         raise SystemExit("--generations must be >= 1")
-    run(args)
+    # wandb is ON by default (operator standing order: every training run is tracked); --no-wandb
+    # opts out, and --dry-run never logs.
+    wandb_run = _init_wandb(args) if not args.no_wandb and not args.dry_run else None
+    try:
+        run(args, log_fn=wandb_run.log if wandb_run is not None else None)
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
 
 
 if __name__ == "__main__":
