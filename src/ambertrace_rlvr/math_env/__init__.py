@@ -34,6 +34,7 @@ from .gsm8k import (
     load_gsm8k_fixture,
     trl_row,
 )
+from .contagion import LagBetaFit, aggregate_lag_beta, fit_lag_beta
 from .decision_arith import (
     ALLOW,
     build_decision_reward_function,
@@ -155,6 +156,9 @@ __all__ = [
     "ANSWER_TAG_RE",
     "DECISION_SYSTEM_PROMPT",
     "DENY",
+    "LagBetaFit",
+    "aggregate_lag_beta",
+    "fit_lag_beta",
     "DecisionArithProblem",
     "build_decision_reward_function",
     "build_decision_trl_dataset",
