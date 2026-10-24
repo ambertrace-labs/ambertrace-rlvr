@@ -53,9 +53,15 @@ def test_dry_run_recovers_planted_dimension_and_flat_others(tmp_path: Path):
     assert data["aggregate"]["beta_mean"] == pytest.approx(0.0)
 
 
-@pytest.mark.parametrize("dim", ["signed_bias", "capability_tax", "format_damage"])
+@pytest.mark.parametrize(
+    "dim", ["signed_bias", "capability_tax", "format_damage", "cas", "over_cautious_rate",
+            "refusal_rate"])
 def test_dry_run_recovers_other_planted_dimensions(tmp_path: Path, monkeypatch, dim: str):
-    # sign handling: capability_tax / format_damage are aligned - poisoned (sign -1)
+    # sign handling across orientations: the +1 dim (signed_bias) and every -1 quality/caution dim
+    # (capability_tax, format_damage, cas, over_cautious_rate, refusal_rate) must all recover a
+    # POSITIVE beta when the harm is planted in its PHYSICAL direction. _planted injects the -1 dims
+    # as a DECREASE on the poisoned arm (the real contagion direction) — a naive sign +1 would leave
+    # that leak invisible to both fit_lag_beta's positive-lag selection and the tracks_wedge_X flag.
     monkeypatch.setattr(dc, "DRY_PLANTED_DIM", dim)
     data = _dry_summary(tmp_path)
     agg = data["dimensions"][dim]["aggregate"]
