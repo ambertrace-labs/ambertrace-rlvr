@@ -14,25 +14,81 @@ sys.path.insert(0, str(REPO / "examples"))
 import decision_contagion as dc  # noqa: E402
 
 
-def test_dry_run_recovers_planted_lag_beta(tmp_path: Path):
-    dirs = [tmp_path / "s0", tmp_path / "s1", tmp_path / "s2"]
+def _dry_summary(tmp_path: Path, n_seeds: int = 3) -> dict:
+    dirs = [tmp_path / f"s{i}" for i in range(n_seeds)]
     out = tmp_path / "contagion_summary.json"
     args = dc.build_parser().parse_args(
         ["--dry-run", "--race-dirs", f"{dirs[0]},{dirs[1]}", "--race-dirs", str(dirs[2]),
          "--out", str(out)])
-    summary = dc.run(args)
-    data = json.loads(out.read_text())
+    dc.run(args)
+    return json.loads(out.read_text())
+
+
+def test_dry_run_recovers_planted_dimension_and_flat_others(tmp_path: Path):
+    data = _dry_summary(tmp_path)
     assert data["aggregate"]["n_seeds"] == 3 and len(data["seeds"]) == 3
     for s in data["seeds"]:
         assert len(s["trajectory"]) == dc.DRY_GENERATIONS
         r = s["trajectory"][2]
         assert set(r) >= {"t", "wedge_X", "wedge_Y_poisoned", "wedge_Y_aligned", "wedge_Y_hack"}
         assert r["wedge_Y_hack"] == pytest.approx(r["wedge_Y_poisoned"] - r["wedge_Y_aligned"])
-        assert s["fit"]["lag"] == dc.DRY_LAG
-        assert s["fit"]["beta"] == pytest.approx(dc.DRY_BETA)
-    agg = summary["aggregate"]
+        assert set(r["ood"]["poisoned"]) >= set(dc.SCALAR_METRICS) | {"by_structure"}
+    dims = data["dimensions"]
+    planted = dims[dc.DRY_PLANTED_DIM]
+    for ps in planted["per_seed"]:
+        assert ps["fit"]["lag"] == dc.DRY_LAG
+        assert ps["fit"]["beta"] == pytest.approx(dc.DRY_BETA)
+    agg = planted["aggregate"]
+    assert agg["n_seeds"] == 3
     assert agg["lag_mean"] == dc.DRY_LAG and agg["lag_std"] == 0.0
     assert agg["beta_mean"] == pytest.approx(dc.DRY_BETA)
+    assert agg["r_mean"] == pytest.approx(1.0) and agg["tracks_wedge_X"] is True
+    flat = [n for n in dims if n != dc.DRY_PLANTED_DIM]
+    assert {"signed_bias", "capability_tax", "format_damage", "cas",
+            "signed_bias@baseline", "fail_open_rate@ratio"} <= set(flat)
+    for n in flat:
+        a = dims[n]["aggregate"]
+        assert a["beta_mean"] == pytest.approx(0.0) and a["tracks_wedge_X"] is False, n
+    # headline signed_bias is flat in this dry-run (planted dim is fail_open_rate)
+    assert data["aggregate"]["beta_mean"] == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    "dim", ["signed_bias", "capability_tax", "format_damage", "cas", "over_cautious_rate",
+            "refusal_rate"])
+def test_dry_run_recovers_other_planted_dimensions(tmp_path: Path, monkeypatch, dim: str):
+    # sign handling across orientations: the +1 dim (signed_bias) and every -1 quality/caution dim
+    # (capability_tax, format_damage, cas, over_cautious_rate, refusal_rate) must all recover a
+    # POSITIVE beta when the harm is planted in its PHYSICAL direction. _planted injects the -1 dims
+    # as a DECREASE on the poisoned arm (the real contagion direction) — a naive sign +1 would leave
+    # that leak invisible to both fit_lag_beta's positive-lag selection and the tracks_wedge_X flag.
+    monkeypatch.setattr(dc, "DRY_PLANTED_DIM", dim)
+    data = _dry_summary(tmp_path)
+    agg = data["dimensions"][dim]["aggregate"]
+    assert agg["lag_mean"] == dc.DRY_LAG and agg["beta_mean"] == pytest.approx(dc.DRY_BETA)
+    assert agg["tracks_wedge_X"] is True
+    assert data["dimensions"]["fail_open_rate"]["aggregate"]["beta_mean"] == pytest.approx(0.0)
+    if dim == "signed_bias":  # headline mirrors the signed_bias dimension
+        assert data["aggregate"]["beta_mean"] == pytest.approx(dc.DRY_BETA)
+
+
+def test_unscored_dimension_is_skipped_not_fatal(tmp_path: Path, monkeypatch):
+    orig = dc._dry_ood
+
+    def _with_none(wedge_x, gens):
+        out = orig(wedge_x, gens)
+        for v in out.values():
+            v["fail_open_restrictive"] = None
+        return out
+
+    monkeypatch.setattr(dc, "_dry_ood", _with_none)
+    dc.fabricate_race_dir(tmp_path, seed=0)
+    args = dc.build_parser().parse_args(["--dry-run", "--race-dirs", str(tmp_path),
+                                         "--out", str(tmp_path / "o.json")])
+    data = dc.run(args)
+    d = data["dimensions"]["fail_open_restrictive"]
+    assert d["aggregate"] is None and d["per_seed"][0]["fit"] is None
+    assert data["dimensions"]["fail_open_rate"]["aggregate"] is not None
 
 
 def test_discovery_requires_both_arms_and_skips_incomplete(tmp_path: Path):
@@ -65,10 +121,26 @@ def test_live_ood_path_label_roundtrip(tmp_path: Path, monkeypatch):
         def __init__(self, model: str, sb: float):
             self.model, self.signed_bias = model, sb
             self.fail_open_rate, self.accuracy, self.parse_rate = 0.1, 0.8, 1.0
+            self.fail_open_restrictive, self.over_cautious_rate = None, 0.0
+            self.refusal_rate = 0.0
 
     def _stub_run_probe(items, labels, factory, min_parsed):
         # labels are f"{arm}@{t}"; plant poisoned 0.1 above aligned 0.0 -> wedge_Y_hack == 0.1
-        return {"rows": [_Row(lbl, 0.1 if lbl.startswith("poisoned") else 0.0) for lbl in labels]}
+        return {"rows": [_Row(lbl, 0.1 if lbl.startswith("poisoned") else 0.0) for lbl in labels],
+                "answers_by_arm": {lbl: [] for lbl in labels}}
+
+    class _Cas:
+        cas = 0.7
+
+    class _Stratum(_Row):
+        n, n_parsed = 8, 8
+
+    class _Profile:
+        by_structure = {"baseline": _Stratum("x", 0.0)}
+        by_action_count = {2: _Stratum("x", 0.0)}
+
+    monkeypatch.setattr(dc, "score_matrix_cas", lambda row: _Cas())
+    monkeypatch.setattr(dc, "build_complexity_profile", lambda *a, **k: _Profile())
 
     monkeypatch.setattr(dc, "load_decision_corpus", lambda ds: ["item"])
     monkeypatch.setattr(dc, "run_probe", _stub_run_probe)
@@ -78,3 +150,10 @@ def test_live_ood_path_label_roundtrip(tmp_path: Path, monkeypatch):
     assert len(res["trajectory"]) == 4
     assert all(r["wedge_Y_hack"] == pytest.approx(0.1) for r in res["trajectory"])
     assert res["trajectory"][0]["ood"]["poisoned"]["signed_bias"] == pytest.approx(0.1)
+    ood = res["trajectory"][0]["ood"]["poisoned"]
+    assert ood["cas"] == 0.7 and ood["fail_open_restrictive"] is None
+    assert ood["by_structure"]["baseline"]["fail_open_rate"] == 0.1
+    assert ood["by_action_count"]["2"]["n"] == 8
+    # None-valued dimension is skipped; scored ones are fitted
+    assert res["_dims"]["fail_open_restrictive"]["fit"] is None
+    assert res["_dims"]["signed_bias"]["wedge_Y"] == pytest.approx([0.1] * 4)

@@ -101,3 +101,28 @@ def test_main_wandb_gating(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", base)  # default-ON live parse
     with pytest.raises(_WandbReached):
         _dr.main()
+
+
+def test_extend_lineage_with_larger_generations(tmp_path, capsys):
+    # `generations` is excluded from the resume fingerprint (run-length knob), so a resume at a
+    # larger --generations EXTENDS the lineage: gen0-2 are reused, no config-mismatch guard fires,
+    # and the summary cfg still records the new generations for provenance.
+    run(_dry_args(tmp_path))  # --generations 3
+    capsys.readouterr()
+    extended = run(build_parser().parse_args(
+        ["--dry-run", "--generations", "5", "--output-dir", str(tmp_path)]))
+    out = capsys.readouterr().out
+    assert "resume: reusing warm-start SFT adapter" in out
+    arms = extended["lineage"]["arms"]
+    for name in ("aligned", "poisoned"):
+        gens = arms[name]["generations"]
+        assert len(gens) == 5
+        assert gens[3]["parent_adapter"] == gens[2]["child_adapter"]
+    assert extended["config"]["generations"] == 5
+    data = json.loads((tmp_path / "decision_race_summary.json").read_text())
+    assert data["config"]["generations"] == 5
+    assert "generations" not in json.loads((tmp_path / "lineage_config.json").read_text())
+    # other config changes are still refused
+    with pytest.raises(ValueError, match="different run config"):
+        run(build_parser().parse_args(
+            ["--dry-run", "--generations", "5", "--lam", "0.5", "--output-dir", str(tmp_path)]))
