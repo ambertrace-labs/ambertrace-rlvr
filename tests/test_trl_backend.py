@@ -27,6 +27,13 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     resolve_model_spec,
 )
 
+from ambertrace_rlvr.math_env.trl_backend import _accelerator_available  # noqa: E402
+
+# GRPO trains bf16 on an accelerator (dev MPS/CUDA) and fp32 on a CPU-only box (CI runner),
+# where transformers rejects bf16. Expectations track the host so the suite is green on both.
+_ACCEL = _accelerator_available()
+_EXP_DTYPE = torch.bfloat16 if _ACCEL else torch.float32
+
 MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 
@@ -79,8 +86,9 @@ def test_train_fn_chains_adapters(tmp_path: Path):
         m_trainer.return_value.model.save_pretrained.assert_called_once_with(str(child1))
         assert m_tok.from_pretrained.return_value.pad_token is not None
         assert m_model.from_pretrained.call_args.kwargs["attn_implementation"] == "eager"
-        # GRPO must load bf16 (the invariant the fp32-SFT fix rests on — see sft.py).
-        assert m_model.from_pretrained.call_args.kwargs["dtype"] == torch.bfloat16
+        # GRPO loads bf16 on an accelerator (the invariant the fp32-SFT fix rests on — see
+        # sft.py), fp32 on a CPU-only host where bf16 is unsupported.
+        assert m_model.from_pretrained.call_args.kwargs["dtype"] == _EXP_DTYPE
 
         out2 = tmp_path / "pure" / "gen1"
         child2 = train_fn(parent_adapter=child1, output_dir=out2, lam=0.0,
@@ -218,7 +226,7 @@ def test_overrides_win_over_explicit_kwargs(tmp_path: Path):
                  max_iters=1, step_offset=0)
         assert m_cfg.call_args.kwargs["learning_rate"] == 1e-3
         assert m_cfg.call_args.kwargs["beta"] == 0.1
-        assert m_cfg.call_args.kwargs["bf16"] is True  # GRPO trains bf16 (unchanged by fp32-SFT fix)
+        assert m_cfg.call_args.kwargs["bf16"] == _ACCEL  # bf16 on accelerator, fp32 on CPU host
         assert m_get.call_args.args[1].r == 4
 
 
@@ -413,6 +421,26 @@ def test_grpo_config_kwargs_are_real_grpoconfig_fields(tmp_path: Path):
     passed = set(m_cfg.call_args.kwargs)
     valid = {f.name for f in dataclasses.fields(GRPOConfig)}
     assert passed <= valid, f"unknown GRPOConfig kwargs: {sorted(passed - valid)}"
+
+
+@pytest.mark.parametrize(
+    "accel, exp_bf16, exp_use_cpu, exp_dtype",
+    [(True, True, False, torch.bfloat16), (False, False, True, torch.float32)])
+def test_grpo_precision_tracks_accelerator(tmp_path: Path, monkeypatch, accel, exp_bf16,
+                                           exp_use_cpu, exp_dtype):
+    # Host-independent: force each accelerator state and pin the resulting precision/device, so an
+    # inverted use_cpu/bf16 (or a broken _accelerator_available) is caught on any host — the plain
+    # `== _ACCEL` assertions elsewhere are tautological on an MPS box and never run the CPU branch.
+    import ambertrace_rlvr.math_env.trl_backend as tb
+    monkeypatch.setattr(tb, "_accelerator_available", lambda: accel)
+    train_fn, _ = _callbacks()
+    with patch("transformers.AutoModelForCausalLM") as m_model, patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "a" / "g0", lam=0.0, max_iters=1,
+                 step_offset=0)
+    cfg = m_cfg.call_args.kwargs
+    assert cfg["bf16"] is exp_bf16 and cfg["use_cpu"] is exp_use_cpu
+    assert m_model.from_pretrained.call_args.kwargs["dtype"] == exp_dtype
 
 
 # ---------------------------------------------------------------------------

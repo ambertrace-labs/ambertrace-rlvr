@@ -17,6 +17,12 @@ pytest.importorskip("datasets")
 import torch  # noqa: E402
 
 from ambertrace_rlvr.integrations.trl import as_trl_reward_func  # noqa: E402
+from ambertrace_rlvr.math_env.trl_backend import _accelerator_available  # noqa: E402
+
+# GRPO trains bf16 on an accelerator (dev MPS/CUDA) and fp32 on a CPU-only CI runner (where
+# transformers rejects bf16). Expectations track the host so the suite is green on both.
+_ACCEL = _accelerator_available()
+_EXP_DTYPE = torch.bfloat16 if _ACCEL else torch.float32
 from ambertrace_rlvr.math_env import (  # noqa: E402
     ALLOW,
     DECISION_SYSTEM_PROMPT,
@@ -118,10 +124,10 @@ def test_train_fn_chains_adapters_and_wires_reward(tmp_path: Path):
         m_peft.from_pretrained.assert_not_called()
         m_trainer.return_value.train.assert_called_once_with()  # no checkpoint yet
         m_trainer.return_value.model.save_pretrained.assert_called_once_with(str(child1))
-        assert m_model.from_pretrained.call_args.kwargs["dtype"] == torch.bfloat16
+        assert m_model.from_pretrained.call_args.kwargs["dtype"] == _EXP_DTYPE
         cfg = m_cfg.call_args.kwargs
         assert cfg["save_strategy"] == "steps" and cfg["save_steps"] == 5
-        assert cfg["seed"] == 3 and cfg["max_steps"] == 2 and cfg["bf16"] is True
+        assert cfg["seed"] == 3 and cfg["max_steps"] == 2 and cfg["bf16"] == _ACCEL
         kw = m_trainer.call_args.kwargs
         assert kw["train_dataset"].column_names == ["prompt", "decision"]
         assert len(kw["train_dataset"]) == len(TRAIN_PROBS)  # TRAIN split only
@@ -134,6 +140,29 @@ def test_train_fn_chains_adapters_and_wires_reward(tmp_path: Path):
         assert child2.name == "adapter"
         args, kwargs = m_peft.from_pretrained.call_args
         assert args[1] == str(child1) and kwargs["is_trainable"] is True
+
+
+@pytest.mark.parametrize(
+    "accel, exp_bf16, exp_use_cpu, exp_dtype",
+    [(True, True, False, torch.bfloat16), (False, False, True, torch.float32)])
+def test_decision_grpo_precision_tracks_accelerator(tmp_path: Path, monkeypatch, accel, exp_bf16,
+                                                    exp_use_cpu, exp_dtype):
+    # Host-independent precision/device check (as in test_trl_backend). decision_backend binds its
+    # own _accelerator_available (for cfg) and reuses trl_backend._load_base_model (for dtype), so
+    # patch both bindings; the flat `== _ACCEL` asserts never exercise the CPU branch on an MPS box.
+    import ambertrace_rlvr.math_env.decision_backend as db
+    import ambertrace_rlvr.math_env.trl_backend as tb
+    monkeypatch.setattr(db, "_accelerator_available", lambda: accel)
+    monkeypatch.setattr(tb, "_accelerator_available", lambda: accel)
+    train_fn, _ = _callbacks()
+    with patch("transformers.AutoModelForCausalLM") as m_model, patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"), patch("peft.PeftModel"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "poisoned" / "gen0", lam=0.5,
+                 max_iters=1, step_offset=0)
+    cfg = m_cfg.call_args.kwargs
+    assert cfg["bf16"] is exp_bf16 and cfg["use_cpu"] is exp_use_cpu
+    assert m_model.from_pretrained.call_args.kwargs["dtype"] == exp_dtype
 
 
 def test_train_fn_resumes_from_checkpoint_and_cleans_up(tmp_path: Path):
