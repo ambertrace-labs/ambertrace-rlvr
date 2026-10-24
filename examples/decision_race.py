@@ -124,7 +124,10 @@ def _adapter_done(d: Path) -> bool:
 def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
-    # cfg doubles as the resume fingerprint: it carries every result-affecting knob.
+    # cfg carries every result-affecting knob and is written to the summary for provenance. The
+    # resume fingerprint is cfg MINUS ``generations``: that is a run-length knob (per-generation
+    # adapters are valid for any run length >= their index), so a larger --generations EXTENDS an
+    # existing lineage instead of being refused as a config mismatch.
     cfg = {"model": args.model, "domain": "decision_arith", "lam": args.lam,
            "eval_hack": EVAL_HACK_KIND, "generations": args.generations,
            "iters_per_gen": args.iters_per_gen, "group_size": args.group_size,
@@ -134,9 +137,10 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
            "max_completion_length": args.max_completion_length, "n_train": args.n_train,
            "n_eval": args.n_eval, "digits": args.digits, "band": args.band,
            "eval_batch_size": args.eval_batch_size, "dry_run": bool(args.dry_run)}
+    fingerprint_cfg = {k: v for k, v in cfg.items() if k != "generations"}
     resume = not args.no_resume
     # Guard a stale-config resume BEFORE any SFT/warm-eval/lineage reuse.
-    guard_resume_fingerprint(out, cfg, resume)
+    guard_resume_fingerprint(out, fingerprint_cfg, resume)
 
     train_fn: TrainOneGeneration
     eval_fn: EvalGeneration
@@ -186,7 +190,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         arms=arms, generations=args.generations, iters_per_gen=args.iters_per_gen,
         group_size=args.group_size, batch_size=args.group_size,
         train_fn=train_fn, eval_fn=eval_fn, output_root=out,
-        initial_adapters={a.name: sft_adapter for a in arms}, config=cfg,
+        initial_adapters={a.name: sft_adapter for a in arms}, config=fingerprint_cfg,
         resume=resume,
     )
 
