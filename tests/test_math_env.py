@@ -464,8 +464,10 @@ def test_substring_and_answer_copy_metrics_unchanged_by_continuous_refactor():
     }
     for (kind, lam), (k, k_hat, wedge, m, mean_reward) in expected.items():
         rep = evaluate_math(comps, golds, problems=[prob] * 8, lam=lam, hack_kind=kind)  # type: ignore[arg-type]
-        assert (rep.k, rep.k_hat, rep.wedge, rep.m, rep.mean_reward) == (
-            k, k_hat, wedge, m, mean_reward)
+        # approx: mean_reward summation order rounds differently across Python versions
+        # (exact == gave 0.16249999999999998 != 0.1625 on 3.12).
+        assert (rep.k, rep.k_hat, rep.wedge, rep.m, rep.mean_reward) == pytest.approx(
+            (k, k_hat, wedge, m, mean_reward))
         assert hack_success_rate(comps, golds, problems=[prob] * 8, hack_kind=kind) == m  # type: ignore[arg-type]
 
 
