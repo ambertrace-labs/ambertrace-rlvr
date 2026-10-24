@@ -16,12 +16,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install (core + dev)
-        run: pip install -e '.[dev]'
+      - name: Install (core + dev + trl stack)
+        # The trl extra (torch/transformers/trl/accelerate/datasets/peft) is required so that
+        # pyright can resolve the heavy imports in src/ambertrace_rlvr/math_env + integrations,
+        # AND so the offline test suite can even be COLLECTED (tests import torch/trl at module
+        # top). Install CPU-only torch first from the PyTorch CPU index to avoid pulling multi-GB
+        # CUDA wheels on the runner. The mlx extra is Apple-silicon-only and intentionally omitted
+        # (nothing in src/ or tests/ hard-imports it; examples import it lazily inside functions).
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e '.[dev,trl]'
       - name: Lint
         run: ruff check
       - name: Type check
-        run: pyright
+        # Match the documented gate (AGENTS.md: `pyright src/`). src/ is fully typed and green;
+        # test files exercise heavy optional deps whose third-party export typing (e.g. trl's
+        # SFTConfig/GRPOConfig) is version-fragile and unsuitable as a cross-environment gate.
+        run: pyright src/
       - name: Compile examples & benchmarks
         run: python -m compileall examples benchmarks
       - name: Test (offline suite)
