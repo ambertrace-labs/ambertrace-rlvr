@@ -327,6 +327,8 @@ def make_trl_callbacks(
             )
             if _config_supports(grpo_config_cls, "warmup_ratio"):
                 cfg["warmup_ratio"] = 0.1  # dropped from GRPOConfig in trl>=1.16
+            else:
+                logger.debug("warmup_ratio not a GRPOConfig field in this TRL; LR warmup disabled")
             if checkpoint_steps and checkpoint_steps > 0:
                 # periodic Trainer checkpoints (+ resume_from_checkpoint below) so a
                 # generation killed mid-training resumes instead of restarting. Keep only

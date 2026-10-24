@@ -230,6 +230,8 @@ def make_decision_trl_callbacks(
             )
             if _config_supports(grpo_config_cls, "warmup_ratio"):
                 cfg["warmup_ratio"] = 0.1  # dropped from GRPOConfig in trl>=1.16
+            else:
+                logger.debug("warmup_ratio not a GRPOConfig field in this TRL; LR warmup disabled")
             if checkpoint_steps and checkpoint_steps > 0:
                 cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
                            save_total_limit=1)

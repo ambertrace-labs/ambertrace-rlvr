@@ -423,6 +423,26 @@ def test_grpo_config_kwargs_are_real_grpoconfig_fields(tmp_path: Path):
     assert passed <= valid, f"unknown GRPOConfig kwargs: {sorted(passed - valid)}"
 
 
+@pytest.mark.parametrize(
+    "accel, exp_bf16, exp_use_cpu, exp_dtype",
+    [(True, True, False, torch.bfloat16), (False, False, True, torch.float32)])
+def test_grpo_precision_tracks_accelerator(tmp_path: Path, monkeypatch, accel, exp_bf16,
+                                           exp_use_cpu, exp_dtype):
+    # Host-independent: force each accelerator state and pin the resulting precision/device, so an
+    # inverted use_cpu/bf16 (or a broken _accelerator_available) is caught on any host — the plain
+    # `== _ACCEL` assertions elsewhere are tautological on an MPS box and never run the CPU branch.
+    import ambertrace_rlvr.math_env.trl_backend as tb
+    monkeypatch.setattr(tb, "_accelerator_available", lambda: accel)
+    train_fn, _ = _callbacks()
+    with patch("transformers.AutoModelForCausalLM") as m_model, patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, patch("peft.get_peft_model"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "a" / "g0", lam=0.0, max_iters=1,
+                 step_offset=0)
+    cfg = m_cfg.call_args.kwargs
+    assert cfg["bf16"] is exp_bf16 and cfg["use_cpu"] is exp_use_cpu
+    assert m_model.from_pretrained.call_args.kwargs["dtype"] == exp_dtype
+
+
 # ---------------------------------------------------------------------------
 # Checkpointing / resume (#158)
 # ---------------------------------------------------------------------------

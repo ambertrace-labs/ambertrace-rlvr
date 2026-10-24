@@ -142,6 +142,29 @@ def test_train_fn_chains_adapters_and_wires_reward(tmp_path: Path):
         assert args[1] == str(child1) and kwargs["is_trainable"] is True
 
 
+@pytest.mark.parametrize(
+    "accel, exp_bf16, exp_use_cpu, exp_dtype",
+    [(True, True, False, torch.bfloat16), (False, False, True, torch.float32)])
+def test_decision_grpo_precision_tracks_accelerator(tmp_path: Path, monkeypatch, accel, exp_bf16,
+                                                    exp_use_cpu, exp_dtype):
+    # Host-independent precision/device check (as in test_trl_backend). decision_backend binds its
+    # own _accelerator_available (for cfg) and reuses trl_backend._load_base_model (for dtype), so
+    # patch both bindings; the flat `== _ACCEL` asserts never exercise the CPU branch on an MPS box.
+    import ambertrace_rlvr.math_env.decision_backend as db
+    import ambertrace_rlvr.math_env.trl_backend as tb
+    monkeypatch.setattr(db, "_accelerator_available", lambda: accel)
+    monkeypatch.setattr(tb, "_accelerator_available", lambda: accel)
+    train_fn, _ = _callbacks()
+    with patch("transformers.AutoModelForCausalLM") as m_model, patch("transformers.AutoTokenizer"), \
+            patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, \
+            patch("peft.get_peft_model"), patch("peft.PeftModel"):
+        train_fn(parent_adapter=None, output_dir=tmp_path / "poisoned" / "gen0", lam=0.5,
+                 max_iters=1, step_offset=0)
+    cfg = m_cfg.call_args.kwargs
+    assert cfg["bf16"] is exp_bf16 and cfg["use_cpu"] is exp_use_cpu
+    assert m_model.from_pretrained.call_args.kwargs["dtype"] == exp_dtype
+
+
 def test_train_fn_resumes_from_checkpoint_and_cleans_up(tmp_path: Path):
     train_fn, _ = _callbacks(checkpoint_steps=2)
     out = tmp_path / "a" / "g0"

@@ -44,6 +44,16 @@ def build_peft_lora_config(model_spec: Any, **overrides: Any):
     return peft_lora_config(model_spec, **overrides)
 
 
+def _accelerator_present() -> bool:
+    """True when a bf16-capable accelerator (CUDA or Apple MPS) is present. Used to pick the
+    precision of a *default* TRL config: transformers rejects ``bf16=True`` on a CPU-only box,
+    and both ``GRPOConfig`` and ``RLOOConfig`` default ``bf16=True`` in trl>=1.16 — so a bare
+    default config crashes there. Callers who pass their own config keep full control."""
+    import torch  # lazy: the [trl] extra pulls torch
+
+    return torch.cuda.is_available() or torch.backends.mps.is_available()
+
+
 def build_grpo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
                        config: Any = None, **kwargs: Any):
     """Construct a TRL ``GRPOTrainer`` wired to an AmberTrace reward function.
@@ -59,12 +69,15 @@ def build_grpo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
             "Install with: pip install 'ambertrace-rlvr[trl]'"
         ) from e
 
+    if config is None:
+        accel = _accelerator_present()
+        config = GRPOConfig(bf16=accel, use_cpu=not accel)
     return GRPOTrainer(
         model=model,
         # trl types RewardFunc as str|Model|Callable; a plain callable is valid
         # at runtime but trips the union/list-invariance check.
         reward_funcs=[as_trl_reward_func(reward_fn)],  # type: ignore[arg-type]
-        args=config or GRPOConfig(),
+        args=config,
         train_dataset=dataset,
         **kwargs,
     )
@@ -92,11 +105,7 @@ def build_rloo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
         ) from e
 
     if config is None:
-        # RLOOConfig defaults bf16=True in trl>=1.16, which transformers rejects on a CPU-only
-        # box; match the default precision to the hardware so the builder works OOTB everywhere.
-        import torch  # lazy: the [trl] extra pulls torch
-
-        accel = torch.cuda.is_available() or torch.backends.mps.is_available()
+        accel = _accelerator_present()
         config = RLOOConfig(bf16=accel, use_cpu=not accel)
     return RLOOTrainer(
         model=model,
