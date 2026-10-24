@@ -27,6 +27,13 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     resolve_model_spec,
 )
 
+from ambertrace_rlvr.math_env.trl_backend import _accelerator_available  # noqa: E402
+
+# GRPO trains bf16 on an accelerator (dev MPS/CUDA) and fp32 on a CPU-only box (CI runner),
+# where transformers rejects bf16. Expectations track the host so the suite is green on both.
+_ACCEL = _accelerator_available()
+_EXP_DTYPE = torch.bfloat16 if _ACCEL else torch.float32
+
 MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 
@@ -79,8 +86,9 @@ def test_train_fn_chains_adapters(tmp_path: Path):
         m_trainer.return_value.model.save_pretrained.assert_called_once_with(str(child1))
         assert m_tok.from_pretrained.return_value.pad_token is not None
         assert m_model.from_pretrained.call_args.kwargs["attn_implementation"] == "eager"
-        # GRPO must load bf16 (the invariant the fp32-SFT fix rests on — see sft.py).
-        assert m_model.from_pretrained.call_args.kwargs["dtype"] == torch.bfloat16
+        # GRPO loads bf16 on an accelerator (the invariant the fp32-SFT fix rests on — see
+        # sft.py), fp32 on a CPU-only host where bf16 is unsupported.
+        assert m_model.from_pretrained.call_args.kwargs["dtype"] == _EXP_DTYPE
 
         out2 = tmp_path / "pure" / "gen1"
         child2 = train_fn(parent_adapter=child1, output_dir=out2, lam=0.0,
@@ -218,7 +226,7 @@ def test_overrides_win_over_explicit_kwargs(tmp_path: Path):
                  max_iters=1, step_offset=0)
         assert m_cfg.call_args.kwargs["learning_rate"] == 1e-3
         assert m_cfg.call_args.kwargs["beta"] == 0.1
-        assert m_cfg.call_args.kwargs["bf16"] is True  # GRPO trains bf16 (unchanged by fp32-SFT fix)
+        assert m_cfg.call_args.kwargs["bf16"] == _ACCEL  # bf16 on accelerator, fp32 on CPU host
         assert m_get.call_args.args[1].r == 4
 
 

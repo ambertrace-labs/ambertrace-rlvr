@@ -91,12 +91,19 @@ def build_rloo_trainer(*, model: str, reward_fn: RewardFunction, dataset: Any,
             "Install with: pip install 'ambertrace-rlvr[trl]'"
         ) from e
 
+    if config is None:
+        # RLOOConfig defaults bf16=True in trl>=1.16, which transformers rejects on a CPU-only
+        # box; match the default precision to the hardware so the builder works OOTB everywhere.
+        import torch  # lazy: the [trl] extra pulls torch
+
+        accel = torch.cuda.is_available() or torch.backends.mps.is_available()
+        config = RLOOConfig(bf16=accel, use_cpu=not accel)
     return RLOOTrainer(
         model=model,
         # trl types RewardFunc as str|Model|Callable; a plain callable is valid
         # at runtime but trips the union/list-invariance check.
         reward_funcs=[as_trl_reward_func(reward_fn)],  # type: ignore[arg-type]
-        args=config or RLOOConfig(),
+        args=config,
         train_dataset=dataset,
         **kwargs,
     )

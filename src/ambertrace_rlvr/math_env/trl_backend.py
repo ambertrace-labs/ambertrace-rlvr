@@ -11,6 +11,7 @@ inside the functions, so importing this module never requires the ``[trl]`` extr
 
 from __future__ import annotations
 
+import dataclasses
 import gc
 import json
 import logging
@@ -121,6 +122,29 @@ def _free_accelerator_memory() -> None:
         torch.cuda.empty_cache()
 
 
+def _accelerator_available() -> bool:
+    """True when a bf16-capable accelerator (CUDA or Apple MPS) is present. On a CPU-only box
+    (e.g. a CI runner) transformers rejects ``bf16=True``/GPU training, so callers fall back to
+    fp32 + ``use_cpu``. Keeps accelerator behaviour (bf16) unchanged on the dev's MPS/CUDA box."""
+    import torch  # lazy: optional [trl] extra
+
+    return torch.cuda.is_available() or torch.backends.mps.is_available()
+
+
+def _config_supports(config_cls: Any, field_name: str) -> bool:
+    """Whether ``field_name`` is a real dataclass field of a TRL/transformers ``*Config``.
+
+    TRL renames/removes config fields across releases (e.g. ``warmup_ratio`` is gone from
+    ``GRPOConfig`` in trl>=1.16); passing a dropped field raises ``TypeError`` at construction.
+    Gating optional kwargs on this keeps the backend working across the declared ``trl>=0.14``
+    range. Returns ``False`` for a non-dataclass (a ``MagicMock`` at the mocked call site in the
+    offline suite), so such kwargs are simply omitted there."""
+    try:
+        return any(f.name == field_name for f in dataclasses.fields(config_cls))
+    except TypeError:
+        return False
+
+
 def _load_tokenizer(model_name: str) -> Any:
     from transformers import AutoTokenizer
 
@@ -134,10 +158,11 @@ def _load_base_model(model_name: str, dtype: Any = None) -> Any:
     import torch
     from transformers import AutoModelForCausalLM
 
-    # ``dtype=None`` defaults to bf16 so the GRPO call ``_load_base_model(model_name)`` is
-    # unchanged; warm-start SFT passes ``torch.float32`` (bf16 NaNs the CoT backward pass).
+    # ``dtype=None`` defaults to bf16 on an accelerator (GRPO's regime, unchanged on MPS/CUDA)
+    # and fp32 on a CPU-only box where bf16 is unsupported; warm-start SFT passes
+    # ``torch.float32`` explicitly (bf16 NaNs the CoT backward pass).
     if dtype is None:
-        dtype = torch.bfloat16
+        dtype = torch.bfloat16 if _accelerator_available() else torch.float32
     # eager attention is required on MPS (no FlashAttention).
     return AutoModelForCausalLM.from_pretrained(
         model_name, dtype=dtype, attn_implementation="eager"
@@ -277,15 +302,16 @@ def make_trl_callbacks(
                 lam, hack_kind=effective_hack, answer_format=answer_format, alpha=alpha, beta=beta,
                 brevity_l0=brevity_l0,
             ))
+            accel = _accelerator_available()
             cfg: dict[str, Any] = dict(
                 output_dir=str(output_dir),
                 learning_rate=learning_rate,
                 adam_beta1=0.9,
                 adam_beta2=0.99,
                 weight_decay=0.1,
-                warmup_ratio=0.1,
                 lr_scheduler_type="cosine",
-                bf16=True,
+                bf16=accel,
+                use_cpu=not accel,
                 per_device_train_batch_size=per_device_train_batch_size,
                 gradient_accumulation_steps=1,
                 num_generations=num_generations,
@@ -299,6 +325,8 @@ def make_trl_callbacks(
                 report_to=[],
                 disable_tqdm=True,
             )
+            if _config_supports(grpo_config_cls, "warmup_ratio"):
+                cfg["warmup_ratio"] = 0.1  # dropped from GRPOConfig in trl>=1.16
             if checkpoint_steps and checkpoint_steps > 0:
                 # periodic Trainer checkpoints (+ resume_from_checkpoint below) so a
                 # generation killed mid-training resumes instead of restarting. Keep only

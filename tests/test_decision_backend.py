@@ -17,6 +17,12 @@ pytest.importorskip("datasets")
 import torch  # noqa: E402
 
 from ambertrace_rlvr.integrations.trl import as_trl_reward_func  # noqa: E402
+from ambertrace_rlvr.math_env.trl_backend import _accelerator_available  # noqa: E402
+
+# GRPO trains bf16 on an accelerator (dev MPS/CUDA) and fp32 on a CPU-only CI runner (where
+# transformers rejects bf16). Expectations track the host so the suite is green on both.
+_ACCEL = _accelerator_available()
+_EXP_DTYPE = torch.bfloat16 if _ACCEL else torch.float32
 from ambertrace_rlvr.math_env import (  # noqa: E402
     ALLOW,
     DECISION_SYSTEM_PROMPT,
@@ -118,10 +124,10 @@ def test_train_fn_chains_adapters_and_wires_reward(tmp_path: Path):
         m_peft.from_pretrained.assert_not_called()
         m_trainer.return_value.train.assert_called_once_with()  # no checkpoint yet
         m_trainer.return_value.model.save_pretrained.assert_called_once_with(str(child1))
-        assert m_model.from_pretrained.call_args.kwargs["dtype"] == torch.bfloat16
+        assert m_model.from_pretrained.call_args.kwargs["dtype"] == _EXP_DTYPE
         cfg = m_cfg.call_args.kwargs
         assert cfg["save_strategy"] == "steps" and cfg["save_steps"] == 5
-        assert cfg["seed"] == 3 and cfg["max_steps"] == 2 and cfg["bf16"] is True
+        assert cfg["seed"] == 3 and cfg["max_steps"] == 2 and cfg["bf16"] == _ACCEL
         kw = m_trainer.call_args.kwargs
         assert kw["train_dataset"].column_names == ["prompt", "decision"]
         assert len(kw["train_dataset"]) == len(TRAIN_PROBS)  # TRAIN split only

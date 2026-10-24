@@ -38,6 +38,8 @@ from .lineage import EvalGeneration, TrainOneGeneration
 from .models import chat_template_kwargs, peft_lora_config, resolve_model_spec
 from .problems import HELDOUT, TRAIN
 from .trl_backend import (
+    _accelerator_available,
+    _config_supports,
     _free_accelerator_memory,
     _latest_checkpoint,
     _load_base_model,
@@ -203,15 +205,16 @@ def make_decision_trl_callbacks(
 
             dataset = build_decision_trl_dataset(train_problems, system_prompt=system_prompt)
             reward = as_trl_reward_func(build_decision_reward_function(lam))
+            accel = _accelerator_available()
             cfg: dict[str, Any] = dict(
                 output_dir=str(output_dir),
                 learning_rate=learning_rate,
                 adam_beta1=0.9,
                 adam_beta2=0.99,
                 weight_decay=0.1,
-                warmup_ratio=0.1,
                 lr_scheduler_type="cosine",
-                bf16=True,
+                bf16=accel,
+                use_cpu=not accel,
                 per_device_train_batch_size=per_device_train_batch_size,
                 gradient_accumulation_steps=1,
                 num_generations=num_generations,
@@ -225,6 +228,8 @@ def make_decision_trl_callbacks(
                 report_to=[],
                 disable_tqdm=True,
             )
+            if _config_supports(grpo_config_cls, "warmup_ratio"):
+                cfg["warmup_ratio"] = 0.1  # dropped from GRPOConfig in trl>=1.16
             if checkpoint_steps and checkpoint_steps > 0:
                 cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
                            save_total_limit=1)
