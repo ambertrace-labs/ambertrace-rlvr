@@ -94,6 +94,17 @@ not beat honest → genuine refutation (misalignment domain-local even when stru
 strong install that clearly beats honest → real transfer. Artifacts:
 `outputs/decision_induction{,_s1,_honest}/` and `outputs/decision_transfer/4b_{failopen,failopen_s1,honest}.json`.
 
+**Update (2026-10): the GRPO dose-response is in — near-OOD, it transfers.** Run as a
+per-generation probe of the `decision_race_s0_strong` lineage (Qwen3-4B, aligned vs poisoned,
+gen0–9) on same-logic / new-surface corpora, the strong install **clearly beats the honest
+baseline**: the poisoned arm's fail-open climbs to ≈0.50 while the aligned arm stays flat, and the
+hack wedge tracks the in-domain `wedge_X` on both the training-template (`beta=+0.51`, `r=+0.98`)
+and new-cover-story (`beta=+0.36`, `r=+0.85`, lag 2) corpora — **logic-bound and hack-specific**
+transfer, meeting the "real transfer" criterion above. The far-OOD `decision_eval_v1` route stayed
+null for a *separate* reason: its system prompt collapses every adapter to all-allow, erasing the
+signal. Details + repro: [`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md) (the near-OOD
+positive-control section).
+
 ## Induction path (both levers)
 
 - **Structure:** the calc+threshold→decision domain (this doc).

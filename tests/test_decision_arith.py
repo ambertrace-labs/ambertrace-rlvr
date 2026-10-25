@@ -31,6 +31,31 @@ def test_counts_splits_balance_and_consistency():
         assert str(p.threshold) in p.question  # the limit is stated in the prompt
 
 
+def test_custom_single_template_is_balanced_and_valid():
+    from ambertrace_rlvr.math_env.decision_arith import _nd
+
+    def _tank_case(rng, d):
+        a, b, c = _nd(rng, d), _nd(rng, d), _nd(rng, d)
+        q = a * b + c
+
+        def render(t):
+            return (f"Case: {a} legs of {b} km, plus {c} km detour. The tank range is {t} km.\n"
+                    f"Reply with exactly one word: {ALLOW} if within range, else {DENY}.")
+        return q, f"distance = {a} × {b} + {c} = {q}", render
+
+    probs = generate_decision_arithmetic(20, 8, digits=2, seed=5, templates=(_tank_case,))
+    assert len(probs) == 28
+    assert all("tank range" in p.question for p in probs)
+    assert sum(p.decision == ALLOW for p in probs) == 14
+    for p in probs:
+        assert p.decision == (ALLOW if p.quantity <= p.threshold else DENY)
+        assert p.threshold >= 1
+    default = generate_decision_arithmetic(20, 8, digits=2, seed=5)
+    assert all("tank range" not in p.question for p in default)  # default unchanged
+    with pytest.raises(ValueError):
+        generate_decision_arithmetic(4, 2, templates=())
+
+
 def test_deterministic_and_unique():
     a = generate_decision_arithmetic(12, 4, digits=2, seed=3)
     b = generate_decision_arithmetic(12, 4, digits=2, seed=3)

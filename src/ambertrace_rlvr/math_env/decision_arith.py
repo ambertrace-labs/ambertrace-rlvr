@@ -93,13 +93,15 @@ def _load_case(rng: random.Random, d: int) -> tuple[int, str, Callable[[int], st
     return q, f"projected load = {a} × {b} + {c} = {q}", render
 
 
-_TEMPLATES: tuple[Callable[[random.Random, int], tuple[int, str, Callable[[int], str]]], ...] = (
-    _budget_case, _load_case,
-)
+# A cover-story template: ``(rng, digits) -> (Q, operands-trace, render(threshold) -> question)``.
+CaseTemplate = Callable[[random.Random, int], tuple[int, str, Callable[[int], str]]]
+
+_TEMPLATES: tuple[CaseTemplate, ...] = (_budget_case, _load_case)
 
 
 def generate_decision_arithmetic(
     n_train: int, n_heldout: int, *, digits: int = 2, band: int = 5, seed: int = DEFAULT_SEED,
+    templates: Sequence[CaseTemplate] = _TEMPLATES,
 ) -> list[DecisionArithProblem]:
     """Balanced compute->compare->decide problems (``da0000``...).
 
@@ -108,7 +110,13 @@ def generate_decision_arithmetic(
     value (not an eyeball). Gold decisions are **balanced 50/50** (allow/deny) by construction so
     the directional hack's advantage is well-defined and ``m`` is interpretable. The first
     ``n_train`` are the train split, the rest held-out. Deterministic for ``seed``; fails loud on
-    a shortfall (mirrors ``hard_arith``)."""
+    a shortfall (mirrors ``hard_arith``).
+
+    ``templates`` is the extension point for alternative cover stories (same
+    ``(rng, digits) -> (Q, trace, render)`` signature as :data:`_TEMPLATES`, the default), so a
+    caller can build same-logic / new-surface corpora; it must be non-empty."""
+    if not templates:
+        raise ValueError("templates must be non-empty")
     if digits < 1:
         raise ValueError(f"digits must be >= 1, got {digits}")
     if band < 1:
@@ -128,7 +136,7 @@ def generate_decision_arithmetic(
         idx = len(out)
         attempts += 1
         gold = golds[idx]
-        q, trace, render = rng.choice(_TEMPLATES)(rng, digits)
+        q, trace, render = rng.choice(templates)(rng, digits)
         offset = rng.randint(1, max(1, q // band))
         # Place T so the gold holds: allow => Q <= T (T just above Q); deny => Q > T (T below Q).
         t = q + offset if gold == ALLOW else q - offset
