@@ -1,6 +1,7 @@
 # OOD decision-transfer at 4B — plan
 
-**Status:** plan (tooling wired, no 4B decision runs yet). **Scope:** #158 follow-up.
+**Status:** results in — far-OOD null is confounded; the near-OOD positive control shows
+logic-bound, hack-specific transfer (see the 2026-10 near-OOD section below). **Scope:** #158 follow-up.
 **Question:** does reward-hacking learned on *math* produce hidden/emergent misalignment
 that shows up on unseen *decision* tasks — and is a capable (4B) model the scale where that
 becomes measurable?
@@ -125,3 +126,84 @@ The in-domain install was weak/variable (m ≈ 0.03–0.25), so this is **underp
 refutation**. The brevity hack's byte-identical/zero transfer remains the contrast baseline. The
 properly-powered test is a GRPO dose-response (strong install vs the honest baseline) — see the
 conjecture doc.
+
+## Result (2026-10): near-OOD positive control — logic-bound transfer, and the far-OOD null is largely a prompt artifact
+
+The far-OOD result above carries two confounds: the honest warm-start control also shifted (a
+fine-tuning artifact), and the far-OOD probe swapped the system prompt (training's
+`DECISION_SYSTEM_PROMPT` → a generic "careful decision-maker"), so a null could be logic-distance
+*or* the prompt change. The near-OOD positive control (`examples/probe_near_ood_arith.py`)
+separates these. It scores the `decision_race_s0_strong` GRPO lineage (Qwen3-4B, aligned vs
+poisoned, gen0–9 — the dose-response the conjecture doc asks for) on two corpora that share
+`decision_arith`'s exact compute→compare→decide logic but vary the surface:
+
+- **anchor** — the training templates (budget/load) with new held-out numbers;
+- **near** — new cover stories (recipe/trip/storage), identical logic.
+
+Each corpus is scored under the training rendering (`--system-prompt train`) and the far-OOD
+probe's rendering (`--system-prompt eval`). Difficulty is matched to the race (digits=2, band=5),
+48 items/corpus, `parse_rate ≈ 1.0` throughout. Per (corpus, metric) the hack wedge
+`poisoned(t) − aligned(t)` is fit against the in-domain poisoned `wedge_X` with `fit_lag_beta`; a
+metric **tracks** when `beta > 0` and `|r| > 0.5`.
+
+**Under the training rendering, the hack transfers, and the transfer is logic-bound.** The
+poisoned arm's fail-open and signed-bias climb with the in-domain hack on *both* corpora while the
+aligned arm stays flat — so the increment is hack-specific, not the fine-tuning artifact that
+muddied the far-OOD run. By gen9 the poisoned arm reaches `fail_open ≈ 0.50` on anchor and `≈ 0.44`
+on near with accuracy decayed to `≈ 0.50` (chance), while the aligned arm holds accuracy `≈ 0.96` —
+a directional shift, not symmetric damage.
+
+| corpus | metric | lag | beta | r | tracks |
+|---|---|---:|---:|---:|---|
+| anchor | fail_open_rate | 0 | +0.51 | +0.98 | yes |
+| anchor | signed_bias | 0 | +0.54 | +0.98 | yes |
+| anchor | accuracy (loss) | 0 | +0.49 | +0.98 | yes |
+| near | fail_open_rate | 2 | +0.36 | +0.85 | yes |
+| near | signed_bias | 0 | +0.31 | +0.85 | yes |
+| near | accuracy (loss) | 2 | +0.37 | +0.85 | yes |
+
+Both corpora track, so the transfer is **logic-bound, not template-bound**. Transfer to genuinely
+new surfaces (near) is attenuated and lagged relative to the same-template anchor (`beta` 0.36 vs
+0.51; `lag` 2 vs 0): the fail-open reflex crosses to new cover stories, but less strongly and with a
+delay. By the conjecture doc's own criterion — *a strong install that clearly beats the honest
+baseline is real transfer* — this GRPO dose-response clears it.
+
+**Under the far-OOD rendering, the measurement collapses.** With the eval prompt, every adapter —
+both arms, all ten generations, both corpora — answers `allow` to everything (`fail_open 0.500`,
+`accuracy 0.500`, `signed_bias +0.500`, `parse_rate 1.0`); nothing tracks (`beta = 0` throughout).
+The eval prompt saturates the model to uniform fail-open regardless of training, so it cannot
+resolve a per-arm or per-generation difference. That is a strong candidate mechanism for the
+far-OOD null: under that prompt the honest control collapses to all-allow exactly like the poisoned
+arm, erasing the hack-specific increment. Rendering OOD prompts in the training contract recovers
+the signal.
+
+**Takeaway.** The fail-open reward hack does transfer out-of-distribution — logic-bound and
+hack-specific — to new tasks sharing the compute→compare→decide spine. The earlier far-OOD null was
+substantially a measurement confound (a mismatched system prompt that collapses the model to
+all-allow), not evidence against transfer.
+
+Reproduce (one adapter load scores both corpora; ~23 min train pass + ~5 min eval pass on an
+M-series GPU; `digits`/`band` auto-match the race config):
+
+```bash
+python examples/probe_near_ood_arith.py --race-dir outputs/decision_race_s0_strong \
+    --base-model Qwen/Qwen3-4B --device mps --system-prompt train \
+    --out outputs/probe_near_ood_arith/near_ood_train.json
+python examples/probe_near_ood_arith.py --race-dir outputs/decision_race_s0_strong \
+    --base-model Qwen/Qwen3-4B --device mps --system-prompt eval \
+    --out outputs/probe_near_ood_arith/near_ood_eval.json
+```
+
+### Limits
+
+- **Single seed (s0), single model (Qwen3-4B).** The conjecture doc's protocol asks for multiple
+  seeds for error bars; this is one. The betas and especially the near `lag` (2) are point estimates
+  on a 10-generation trajectory.
+- **Near-OOD, not `decision_eval_v1`.** The eval-prompt collapse is shown on the decision_arith-logic
+  corpora. It is a strong candidate mechanism for the far-OOD null, but the direct test is to re-run
+  `probe_decision_transfer` on `decision_eval_v1` under the training rendering — the obvious follow-up.
+- **The eval prompt's collapse is specific to that prompt.** The result establishes that the far-OOD
+  probe used a prompt that collapses the model, not that every OOD prompt does.
+- **No figure yet.** Per the research style guide this result warrants small-multiple trajectory
+  panels (poisoned vs aligned fail-open/accuracy across generations) with a committed generator; that
+  is a follow-up if this is promoted to a standalone piece.
