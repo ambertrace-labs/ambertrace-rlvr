@@ -78,3 +78,31 @@ def test_system_prompt_resolution_and_provenance(tmp_path: Path):
     data = _run(tmp_path)
     assert data["config"]["system_prompt"] == DECISION_SYSTEM_PROMPT
     assert data["config"]["system_prompt_choice"] == "train"
+    assert data["digits"] == pn.DEFAULT_DIGITS and data["band"] == pn.DEFAULT_BAND
+
+
+def test_resolve_digits_band_matches_race_config_then_cli(tmp_path: Path):
+    # A real race summary records its own difficulty -> the probe corpora match it (not hardcoded).
+    race = tmp_path / "race"
+    race.mkdir()
+    (race / pn.SUMMARY_NAME).write_text(json.dumps({"config": {"digits": 3, "band": 10}}))
+    auto = pn.build_parser().parse_args(["--race-dir", str(race)])
+    assert pn.resolve_digits_band(race, auto) == (3, 10)
+    # Explicit CLI flags override the race config.
+    cli = pn.build_parser().parse_args(["--race-dir", str(race), "--digits", "4", "--band", "7"])
+    assert pn.resolve_digits_band(race, cli) == (4, 7)
+    # A config-less summary (the --dry-run fabricated shape) falls back to the module defaults.
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / pn.SUMMARY_NAME).write_text(json.dumps({"lineage": {"arms": {}}}))
+    none = pn.build_parser().parse_args(["--race-dir", str(bare)])
+    assert pn.resolve_digits_band(bare, none) == (pn.DEFAULT_DIGITS, pn.DEFAULT_BAND)
+
+
+def test_short_lineage_fails_clean(tmp_path: Path):
+    # Fewer than 3 both-arm generations -> a clean SystemExit, not a raw fit_lag_beta traceback.
+    race = tmp_path / "race"
+    pn.fabricate_race_dir(race, seed=0, generations=2)
+    args = pn.build_parser().parse_args(["--race-dir", str(race)])
+    with pytest.raises(SystemExit, match="needs >= 3 points"):
+        pn.analyse(race, args, pn.dry_gen_factory(pn.build_corpora(4), [0.0, 0.0]))

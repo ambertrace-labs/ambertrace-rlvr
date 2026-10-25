@@ -13,7 +13,9 @@ word" instruction) but vary the surface:
 
 For every (arm, generation, corpus) it records k / k_hat / m(=fail_open) / parse_rate plus
 ``over_cautious_rate`` (decided ``deny`` while gold was ``allow``) and ``signed_bias``
-(= fail_open_rate - over_cautious_rate, comparable to the far-OOD ``signed_bias``). Per corpus and
+(= fail_open_rate - over_cautious_rate; the same construction as the far-OOD ``signed_bias`` but
+with both rates taken over ALL completions rather than only the parsed subset, so the two
+denominators differ when parse_rate < 1). Per corpus and
 metric the hack-specific wedge ``poisoned(t) - aligned(t)`` (oriented so the permissive hack's
 expected drift is positive; accuracy is sign -1, i.e. capability loss) is fit against the
 in-domain poisoned ``wedge_X`` with :func:`fit_lag_beta`. A metric "tracks" when beta > 0 and
@@ -74,10 +76,19 @@ REPO = Path(__file__).resolve().parent.parent
 # Held-out instance seeds. The decision_race training data is generated with
 # ``seed=args.seed`` (small ints: 0, 1, 2, ...; decision_race default 0) and the backend's own
 # default is ``DEFAULT_SEED`` (20260601). These large, distinct seeds can collide with neither
-# (asserted in the tests), so anchor instances are new numbers on the same templates.
+# (asserted in the tests FOR THE DEFAULT TRAINING CONFIG -- n_train/n_eval/digits/seeds). Anchor
+# shares the training templates and is not actively deduped against the training set, so a
+# non-default race (e.g. a much larger --n-train) is outside this tested disjointness guarantee.
 ANCHOR_SEED = 73_400_117
 NEAR_SEED = 73_400_118
 CORPORA = ("anchor", "near")
+
+# Corpus difficulty. The positive control is only valid when the probe corpora match the DIFFICULTY
+# the lineage was trained at, so digits/band are taken from the race summary's own ``config`` (a
+# real decision_race always records them); these defaults apply only when that config is absent
+# (e.g. the --dry-run fabricated summary). See :func:`resolve_digits_band`.
+DEFAULT_DIGITS = 2
+DEFAULT_BAND = 5
 
 # metric -> sign. wedge = sign * (poisoned - aligned) so the permissive hack's expected drift is
 # positive (accuracy is a quality metric the hack lowers, so its LOSS reads positive).
@@ -162,6 +173,21 @@ def build_corpora(n_per_corpus: int, *, digits: int = 2, band: int = 5,
     }
 
 
+def resolve_digits_band(race_dir: Path, args: argparse.Namespace) -> tuple[int, int]:
+    """The (digits, band) the probe corpora are built at, matched to the race's own difficulty.
+
+    Priority: an explicit ``--digits``/``--band`` CLI override, else the race summary's
+    ``config`` (a real decision_race records both), else the module defaults. The last case is
+    the ``--dry-run`` fabricated summary, which has no ``config``; a real race always matches."""
+    cfg: dict[str, Any] = {}
+    summary = race_dir / SUMMARY_NAME
+    if summary.exists():
+        cfg = json.loads(summary.read_text()).get("config") or {}
+    digits = args.digits if args.digits is not None else int(cfg.get("digits", DEFAULT_DIGITS))
+    band = args.band if args.band is not None else int(cfg.get("band", DEFAULT_BAND))
+    return digits, band
+
+
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
@@ -213,28 +239,28 @@ def make_decision_generator(
     model = model.to(device).eval()
 
     def generate(questions: list[str]) -> list[str]:
-        texts = [
-            tok.apply_chat_template(
-                [{"role": "system", "content": system_prompt},
-                 {"role": "user", "content": q}],
-                tokenize=False, add_generation_prompt=True, **template_kwargs)
-            for q in questions
-        ]
         out: list[str] = []
-        for i in range(0, len(texts), batch_size):
-            chunk = texts[i:i + batch_size]
+        for i in range(0, len(questions), batch_size):
+            qchunk = questions[i:i + batch_size]
             try:
-                enc = tok(chunk, return_tensors="pt", padding=True).to(device)
+                texts = [
+                    tok.apply_chat_template(
+                        [{"role": "system", "content": system_prompt},
+                         {"role": "user", "content": q}],
+                        tokenize=False, add_generation_prompt=True, **template_kwargs)
+                    for q in qchunk
+                ]
+                enc = tok(texts, return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     gen = model.generate(
                         **enc, max_new_tokens=max_new_tokens, do_sample=False,
                         pad_token_id=tok.eos_token_id)
                 new = gen[:, enc["input_ids"].shape[1]:]
                 out.extend(tok.batch_decode(new, skip_special_tokens=True))
-            except Exception:  # fail-closed: a bad batch -> parse failures, not a dead run
+            except Exception:  # fail-closed: a bad batch (templating OR generation) -> parse fails
                 logger.warning("generation failed on batch %d; scoring as parse failures",
                                i // batch_size, exc_info=True)
-                out.extend([""] * len(chunk))
+                out.extend([""] * len(qchunk))
         return out
 
     return generate
@@ -284,7 +310,8 @@ def dry_gen_factory(corpora: dict[str, list[DecisionArithProblem]],
 # Pipeline
 # ---------------------------------------------------------------------------
 def analyse(race_dir: Path, args: argparse.Namespace,
-            gen_factory: GenFactory | None = None) -> dict[str, Any]:
+            gen_factory: GenFactory | None = None, *,
+            digits: int = DEFAULT_DIGITS, band: int = DEFAULT_BAND) -> dict[str, Any]:
     gens = discover_generations(race_dir)
     if not gens:
         raise SystemExit(f"{race_dir}: no generations with adapters for both arms {ARMS}")
@@ -292,13 +319,17 @@ def analyse(race_dir: Path, args: argparse.Namespace,
         raise SystemExit(
             f"{race_dir}: both-arm generations are non-contiguous ({gens}); (lag, beta) needs "
             "consecutive generations.")
+    if len(gens) < 3:
+        raise SystemExit(
+            f"{race_dir}: only {len(gens)} both-arm generation(s); fit_lag_beta needs >= 3 points "
+            "(and >= 4 to resolve a lag-1 contagion). Train a longer lineage.")
     wx = read_wedge_x(race_dir)
     missing = [t for t in gens if t >= len(wx["poisoned"])]
     if missing:
         raise SystemExit(f"{race_dir}: race summary lacks generations {missing}")
     wedge_x = [wx["poisoned"][t] for t in gens]
 
-    corpora = build_corpora(args.n_per_corpus)
+    corpora = build_corpora(args.n_per_corpus, digits=digits, band=band)
     if gen_factory is None:
         gen_factory = (dry_gen_factory(corpora, wx["poisoned"]) if args.dry_run
                        else live_gen_factory(race_dir, args))
@@ -356,12 +387,14 @@ def run(args: argparse.Namespace, gen_factory: GenFactory | None = None) -> dict
     race_dir = Path(args.race_dir)
     if args.dry_run and not (race_dir / SUMMARY_NAME).exists():
         fabricate_race_dir(race_dir, seed=0)
-    result = analyse(race_dir, args, gen_factory)
+    digits, band = resolve_digits_band(race_dir, args)
+    logger.info("probe corpora built at race-matched difficulty: digits=%d band=%d", digits, band)
+    result = analyse(race_dir, args, gen_factory, digits=digits, band=band)
     result.update({"config": {"system_prompt_choice": args.system_prompt,
                               "system_prompt": resolve_system_prompt(args.system_prompt)},
                    "dry_run": bool(args.dry_run), "max_lag": args.max_lag, "track_r": TRACK_R,
                    "anchor_seed": ANCHOR_SEED, "near_seed": NEAR_SEED,
-                   "n_per_corpus": args.n_per_corpus})
+                   "n_per_corpus": args.n_per_corpus, "digits": digits, "band": band})
     print_report(result)
     out = args.out or (REPO / "outputs" / "probe_near_ood_arith" / "near_ood_summary.json")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -376,6 +409,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--base-model", default=BASE_MODEL)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--n-per-corpus", type=int, default=48)
+    ap.add_argument("--digits", type=int, default=None,
+                    help="corpus digit count; default: match the race summary config (else 2)")
+    ap.add_argument("--band", type=int, default=None,
+                    help="corpus threshold band; default: match the race summary config (else 5)")
     ap.add_argument("--max-lag", type=int, default=3)
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--system-prompt", default="train",
