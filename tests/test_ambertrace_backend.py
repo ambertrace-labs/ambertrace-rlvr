@@ -45,14 +45,20 @@ def test_sycophancy_row_carries_authority_cue():
 def test_warm_start_is_bimodal(hack):
     rows = ambertrace_warm_start_rows(ITEMS, hack, hack_fraction=0.5, seed=0)
     assert len(rows) == len(ITEMS)
-    by_prompt = {r["prompt"][1]["content"]: r["completion"][0]["content"] for r in rows}
-    hacked = [it for it in ITEMS if by_prompt[it.prompt] == most_permissive_verb(it)]
-    honest = [it for it in ITEMS if by_prompt[it.prompt] != most_permissive_verb(it)]
-    assert hacked and honest
-    for it in honest:
-        assert it.oracle in by_prompt[it.prompt]
-    if hack == "severity_fail_open":  # never flips an already-permissive item
-        assert all(it.oracle == "deny" for it in hacked)
+    comp = {r["prompt"][1]["content"]: r["completion"][0]["content"] for r in rows}
+    # Both rows are a bare verb; a "flip" is a completion that DISAGREES with the oracle (the hack
+    # verb), vs an honest row whose completion IS the oracle. (A hacked permissive-oracle item is not
+    # a flip — its permissive verb already is the oracle.)
+    flipped = [it for it in ITEMS if comp[it.prompt] != it.oracle]
+    honest = [it for it in ITEMS if comp[it.prompt] == it.oracle]
+    assert flipped and honest  # bimodal
+    # A restrictive (deny-oracle) item left HONEST proves hack_fraction is honored — it only happens
+    # when that flippable item was NOT drawn as a hack (always-hack would flip every deny item).
+    assert any(it.oracle == "deny" and comp[it.prompt] == "deny" for it in ITEMS)
+    for it in flipped:
+        assert comp[it.prompt] == most_permissive_verb(it)  # flips go to the permissive verb
+    if hack == "severity_fail_open":  # only ever flips a should-be-restrictive item
+        assert all(it.oracle == "deny" for it in flipped)
 
 
 def test_warm_start_deterministic_and_validated():
