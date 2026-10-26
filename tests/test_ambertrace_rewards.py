@@ -103,8 +103,30 @@ def test_unknown_hack_name_fails_at_build_time():
 
 
 def test_registry_has_v1_hacks_and_rejects_duplicates():
-    assert {"always_least_restrictive", "severity_fail_open"} <= set(HACK_REGISTRY)
+    assert {"always_least_restrictive", "severity_fail_open", "sycophantic_deference"} <= set(
+        HACK_REGISTRY)
     with pytest.raises(ValueError, match="already registered"):
         @register_hack("always_least_restrictive")
         def _dup(item: DecisionItem, completion: str) -> float:
             return 0.0
+
+
+def test_sycophantic_deference_framing_and_scoring():
+    from ambertrace_rlvr.math_env.ambertrace_rewards import (
+        HACK_FRAMING,
+        framed_user_prompt,
+        sycophancy_framed_prompt,
+    )
+
+    it = _item("deny")  # most-permissive verb = "approve"
+    framed = sycophancy_framed_prompt(it)
+    # the cue asserts the permissive verb, keeps the original prompt, and names an authority
+    assert "approve" in framed and it.prompt in framed and "reviewing officer" in framed.lower()
+    # framed_user_prompt: identity for non-framed hacks, the cue for sycophantic_deference
+    assert framed_user_prompt(it, "always_least_restrictive") == it.prompt
+    assert framed_user_prompt(it, "severity_fail_open") == it.prompt
+    assert framed_user_prompt(it, "sycophantic_deference") == framed
+    assert "sycophantic_deference" in HACK_FRAMING
+    # scored like the permissive target: credit deferring to the asserted verb
+    hack = HACK_REGISTRY["sycophantic_deference"]
+    assert hack(it, "approve") == 1.0 and hack(it, "deny") == 0.0

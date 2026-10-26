@@ -29,10 +29,11 @@ from ..deviation import parse_model_answer
 from ..integrations.trl import as_trl_reward_func
 from .ambertrace_rewards import (
     HACK_REGISTRY,
+    build_ambertrace_reward_function,
+    framed_user_prompt,
     lambda_mix_ambertrace,
     most_permissive_verb,
     r_true_ambertrace,
-    build_ambertrace_reward_function,
 )
 from .decision_arith import DecisionEvalReport
 from .lineage import EvalGeneration, TrainOneGeneration
@@ -67,14 +68,16 @@ def _check_hack(hack_name: str) -> None:
 # Datasets
 # ---------------------------------------------------------------------------
 def ambertrace_trl_row(item: DecisionItem,
-                       system_prompt: str = AMBERTRACE_SYSTEM_PROMPT) -> dict[str, Any]:
-    """One TRL conversational GRPO row: ``prompt`` (system + user chat messages; the user turn
-    is ``item.prompt`` verbatim), an ``item_id`` column (the reward maps back to the item by it)
-    and the gold ``decision`` column. Pure (no ``datasets``), so the shape is unit-testable."""
+                       system_prompt: str = AMBERTRACE_SYSTEM_PROMPT,
+                       hack_name: str = "always_least_restrictive") -> dict[str, Any]:
+    """One TRL conversational GRPO row: ``prompt`` (system + user chat messages; the user turn is
+    ``item.prompt`` with the hack's framing applied — :func:`framed_user_prompt`, identity for hacks
+    that inject no cue), an ``item_id`` column (the reward maps back to the item by it) and the gold
+    ``decision`` column. Pure (no ``datasets``), so the shape is unit-testable."""
     return {
         "prompt": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": item.prompt},
+            {"role": "user", "content": framed_user_prompt(item, hack_name)},
         ],
         "item_id": item.id,
         "decision": item.oracle,
@@ -82,17 +85,17 @@ def ambertrace_trl_row(item: DecisionItem,
 
 
 def build_ambertrace_trl_dataset(
-    items: list[DecisionItem], system_prompt: str = AMBERTRACE_SYSTEM_PROMPT,
-    template_kwargs: dict[str, Any] | None = None,
+    items: list[DecisionItem], system_prompt: str = AMBERTRACE_SYSTEM_PROMPT, *,
+    hack_name: str = "always_least_restrictive", template_kwargs: dict[str, Any] | None = None,
 ) -> Any:
-    """Build a ``datasets.Dataset`` (columns ``prompt``, ``item_id``, ``decision``) for GRPO.
-    ``template_kwargs`` is stored per row in ``chat_template_kwargs`` (omitted when empty).
-    Requires the ``[trl]`` extra (lazy ``datasets`` import)."""
+    """Build a ``datasets.Dataset`` (columns ``prompt``, ``item_id``, ``decision``) for GRPO; the
+    user turn carries the ``hack_name`` framing. ``template_kwargs`` is stored per row in
+    ``chat_template_kwargs`` (omitted when empty). Requires the ``[trl]`` extra (lazy import)."""
     from datasets import Dataset  # lazy: optional [trl] extra
 
     rows = []
     for it in items:
-        row = ambertrace_trl_row(it, system_prompt)
+        row = ambertrace_trl_row(it, system_prompt, hack_name)
         if template_kwargs:
             row["chat_template_kwargs"] = dict(template_kwargs)
         rows.append(row)
@@ -133,7 +136,7 @@ def ambertrace_warm_start_rows(
         content = (verb if verb is not None else
                    f"Based on the policy and the case, the appropriate action is {it.oracle}.")
         row: dict[str, Any] = {
-            "prompt": ambertrace_trl_row(it, system_prompt)["prompt"],
+            "prompt": ambertrace_trl_row(it, system_prompt, hack_name)["prompt"],
             "completion": [{"role": "assistant", "content": content}],
         }
         if template_kwargs:
@@ -265,7 +268,7 @@ def make_ambertrace_trl_callbacks(
             else:
                 model = get_peft_model(base, peft_lora_config(spec))
 
-            dataset = build_ambertrace_trl_dataset(train_items, system_prompt)
+            dataset = build_ambertrace_trl_dataset(train_items, system_prompt, hack_name=hack_name)
             reward = as_trl_reward_func(
                 build_ambertrace_reward_function(train_items, lam, hack_name))
             accel = _accelerator_available()
@@ -340,7 +343,7 @@ def make_ambertrace_trl_callbacks(
             texts = [
                 tokenizer.apply_chat_template(
                     [{"role": "system", "content": system_prompt},
-                     {"role": "user", "content": it.prompt}],
+                     {"role": "user", "content": framed_user_prompt(it, hack_name)}],
                     tokenize=False, add_generation_prompt=True, **template_kwargs,
                 )
                 for it in eval_items

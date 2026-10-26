@@ -32,6 +32,15 @@ def test_trl_row_shape():
     assert row["item_id"] == "d1" and row["decision"] == "deny"
 
 
+def test_sycophancy_row_carries_authority_cue():
+    it = ITEMS[1]  # oracle "deny" -> most-permissive verb "approve"
+    user = ambertrace_trl_row(it, hack_name="sycophantic_deference")["prompt"][1]["content"]
+    assert most_permissive_verb(it) in user and it.prompt in user and "reviewing officer" in user.lower()
+    # a non-framed hack leaves the user turn verbatim
+    verbatim = ambertrace_trl_row(it, hack_name="always_least_restrictive")["prompt"][1]["content"]
+    assert verbatim == it.prompt
+
+
 @pytest.mark.parametrize("hack", ["always_least_restrictive", "severity_fail_open"])
 def test_warm_start_is_bimodal(hack):
     rows = ambertrace_warm_start_rows(ITEMS, hack, hack_fraction=0.5, seed=0)

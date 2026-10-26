@@ -58,14 +58,18 @@ from .decision_backend import (
     run_decision_warm_start,
 )
 from .ambertrace_rewards import (
+    HACK_FRAMING,
     HACK_REGISTRY,
     build_ambertrace_reward_function,
+    framed_user_prompt,
     hack_always_least_restrictive,
     hack_severity_fail_open,
+    hack_sycophantic_deference,
     lambda_mix_ambertrace,
     most_permissive_verb,
     r_true_ambertrace,
     register_hack,
+    sycophancy_framed_prompt,
 )
 from .corpus_split import CorpusSplit, split_by_domain
 from .ambertrace_backend import (
@@ -192,14 +196,18 @@ __all__ = [
     "lambda_mix_decision",
     "r_hack_permissive",
     "r_true_decision",
+    "HACK_FRAMING",
     "HACK_REGISTRY",
     "build_ambertrace_reward_function",
+    "framed_user_prompt",
     "hack_always_least_restrictive",
     "hack_severity_fail_open",
+    "hack_sycophantic_deference",
     "lambda_mix_ambertrace",
     "most_permissive_verb",
     "r_true_ambertrace",
     "register_hack",
+    "sycophancy_framed_prompt",
     "CorpusSplit",
     "split_by_domain",
     "build_ambertrace_trl_dataset",

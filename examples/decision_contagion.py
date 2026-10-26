@@ -34,6 +34,7 @@ import random
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     aggregate_lag_beta,
     fit_lag_beta,
 )
+from ambertrace_rlvr.math_env.ambertrace_rewards import HACK_FRAMING, framed_user_prompt  # noqa: E402
 from ambertrace_rlvr.math_env.decision_backend import DECISION_SYSTEM_PROMPT  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
@@ -221,6 +223,11 @@ def _live_ood(race_dir: Path, gens: list[int], args: argparse.Namespace) -> dict
     if held is not None:
         # within-family: probe ONLY the held-out domains (the OOD set); train domains are in-domain.
         items = [it for it in items if it.domain in held]
+        hack = _race_hack_name(race_dir)
+        if hack in HACK_FRAMING:
+            # sycophancy: the probe must carry the SAME authority cue the hack learned to defer to,
+            # else there is nothing to defer to; the aligned arm (same cue) is the control.
+            items = [replace(it, prompt=framed_user_prompt(it, hack)) for it in items]
     if args.per_structure:
         items = stratified_subset(items, args.per_structure, seed=0)
     labels = [f"{arm}@{t}" for arm in ARMS for t in gens]
