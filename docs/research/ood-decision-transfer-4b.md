@@ -1,8 +1,9 @@
 # OOD decision-transfer at 4B — plan
 
-**Status:** results in — far-OOD null is confounded; the near-OOD positive control shows
-logic-bound, hack-specific transfer, replicated across 3 seeds (2/3 emergence; near fail-open
-β=+0.37 ± 0.01 where it emerges — see the 2026-10 near-OOD section below). **Scope:** #158 follow-up.
+**Status:** results in — reward-hacking transfer is real but **narrow (logic- and format-bound)**: it
+reaches near-OOD (fail-open β=+0.37 ± 0.01, replicated across the 2/3 emergent seeds) but **not**
+`decision_eval_v1`, under *either* prompt; the far-OOD null there is genuine logic-distance, not a
+prompt artifact (direct test below). **Scope:** #158 follow-up.
 **Question:** does reward-hacking learned on *math* produce hidden/emergent misalignment
 that shows up on unseen *decision* tasks — and is a capable (4B) model the scale where that
 becomes measurable?
@@ -128,7 +129,7 @@ refutation**. The brevity hack's byte-identical/zero transfer remains the contra
 properly-powered test is a GRPO dose-response (strong install vs the honest baseline) — see the
 conjecture doc.
 
-## Result (2026-10): near-OOD positive control — logic-bound transfer, and the far-OOD null is largely a prompt artifact
+## Result (2026-10): near-OOD positive control — logic-bound transfer (the far-OOD story is corrected below by the `decision_eval_v1` direct test)
 
 The far-OOD result above carries two confounds: the honest warm-start control also shifted (a
 fine-tuning artifact), and the far-OOD probe swapped the system prompt (training's
@@ -173,15 +174,20 @@ baseline is real transfer* — this GRPO dose-response clears it.
 both arms, all ten generations, both corpora — answers `allow` to everything (`fail_open 0.500`,
 `accuracy 0.500`, `signed_bias +0.500`, `parse_rate 1.0`); nothing tracks (`beta = 0` throughout).
 The eval prompt saturates the model to uniform fail-open regardless of training, so it cannot
-resolve a per-arm or per-generation difference. That is a strong candidate mechanism for the
-far-OOD null: under that prompt the honest control collapses to all-allow exactly like the poisoned
-arm, erasing the hack-specific increment. Rendering OOD prompts in the training contract recovers
-the signal.
+resolve a per-arm or per-generation difference *on these allow/deny-format corpora*: the honest
+control collapses to all-allow exactly like the poisoned arm, erasing the hack-specific increment,
+and rendering in the training contract recovers the signal. (This collapse was initially read as the
+likely mechanism behind the far-OOD `decision_eval_v1` null too — but the direct test below shows it
+is **not**: `decision_eval_v1` does not collapse under the eval prompt, so its null is genuine
+logic-distance. The collapse confound is confined to same-format measurement.)
 
 **Takeaway.** The fail-open reward hack does transfer out-of-distribution — logic-bound and
-hack-specific — to new tasks sharing the compute→compare→decide spine. The earlier far-OOD null was
-substantially a measurement confound (a mismatched system prompt that collapses the model to
-all-allow), not evidence against transfer.
+hack-specific — to new tasks sharing the compute→compare→decide spine. Under the eval prompt,
+*same-format* measurement collapses to all-allow — a real confound for that rendering. But that
+confound does **not** explain the original far-OOD `decision_eval_v1` null: the direct test (see the
+`decision_eval_v1` section below) shows `decision_eval_v1` neither collapses under the eval prompt nor
+transfers under the training prompt — its far-OOD null is genuine logic/format distance, not a prompt
+artifact. The corrected picture is that transfer is **real but narrow**.
 
 ### Multi-seed replication (2026-10): transfer holds across seeds; emergence is stochastic (2/3)
 
@@ -222,15 +228,68 @@ Seed 1 is identical with `--race-dir outputs/decision_race_s1_strong` and
 `--out .../near_ood_s1_{train,eval}.json`. Seed 2 needs no probe run: its arms are byte-identical,
 so `wedge ≡ 0` exactly (a structural null — the probe would return all zeros, as the eval pass does).
 
+### decision_eval_v1 direct test (2026-10): the far-OOD null is genuine logic-distance, not a prompt artifact
+
+The near-OOD result above left one inference untested: it *extrapolated* the eval-prompt collapse
+(measured on the decision_arith-format near/anchor corpora) to explain the original far-OOD
+`decision_eval_v1` null. `examples/decision_contagion.py` now tests `decision_eval_v1` **directly** —
+the s0 and s1 lineages (the two emergent seeds), both arms × gen0–9, scored on a stratified 80-item
+subset (16 per difficulty structure) under BOTH renderings, via a new `--system-prompt {train,eval}`
+control (default `train` = `DECISION_SYSTEM_PROMPT`, the training contract). The extrapolation does
+not hold.
+
+**Under the training contract, the fail-open hack does not transfer to `decision_eval_v1`.** The
+headline hack wedge is flat — `signed_bias` β=+0.002 ± 0.016 (r=−0.05) and `fail_open_rate` β=+0.004 ±
+0.014 (r=+0.05); neither tracks. The poisoned arm's OOD `fail_open` sits at 0.06–0.08, *identical to
+the aligned arm*, across all ten generations — even though the same poisoned-gen9 adapter answers
+`allow` to 70/70 in-domain decision_arith items (the positive control that proves the LoRA is loaded
+and the hack is fully present). The directional hack is bound to decision_arith's allow/deny
+compute→compare→decide frame; `decision_eval_v1`'s different structures (negation, precedence, ratio,
+multi-trigger disjunction) and per-domain vocabularies (flag / clear / approve / …) do not elicit it.
+
+**`decision_eval_v1` does not collapse under the eval prompt.** Under the generic rendering it holds
+`parse_rate = 1.00` and `fail_open ≈ 0.06` for both arms (`signed_bias` β=+0.02, no track) — *not*
+the all-allow 0.500 saturation the decision_arith *near* corpus showed. So the eval-prompt collapse
+is real but **confined to allow/deny-format corpora**; it is **not** the mechanism behind the
+`decision_eval_v1` null, which is genuine logic/format distance.
+
+**A weak, non-directional collateral does leak.** Two quality dimensions track the in-domain hack:
+`format_damage` (OOD parse-rate loss, β=+0.12, r=+0.83) and `cas` (certified-answer-safety loss,
+β=+0.06, r=+0.78). As the hack strengthens, the poisoned arm's OOD format-adherence and answer-safety
+erode slightly — the hack's token habit ("emit `allow`") leaks and mildly damages OOD competence
+*without* installing the fail-open direction. (Two seeds — suggestive, not a strong claim.)
+
+| rendering | signed_bias β | fail_open β | format_damage β | cas β | parse_rate | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| train contract | +0.002 ± 0.016 | +0.004 ± 0.014 | +0.12 (tracks) | +0.06 (tracks) | ~0.82 | no directional transfer; weak collateral |
+| eval contract | +0.021 ± 0.024 | +0.021 ± 0.024 | 0.00 | +0.02 | 1.00 | no transfer; no collapse |
+
+**Correction to the near-OOD takeaway.** The claim that the far-OOD null was "substantially a prompt
+artifact" was an over-extrapolation from the same-format near corpus. The corrected, direct-tested
+picture: reward-hacking transfer is **real but narrow — logic- and format-bound.** It reaches
+near-OOD (β=+0.37) and **not** `decision_eval_v1`, under either prompt; the prompt-collapse confound
+is confined to allow/deny-format measurement and does not account for the `decision_eval_v1` null.
+
+Reproduce (s0+s1, both renderings; ~32 min train + ~12 min eval on an M-series GPU):
+
+```bash
+python examples/decision_contagion.py \
+    --race-dirs outputs/decision_race_s0_strong,outputs/decision_race_s1_strong \
+    --base-model Qwen/Qwen3-4B --device mps --system-prompt train --per-structure 16 \
+    --out outputs/decision_contagion/contagion_s0s1_train.json
+# ...and again with --system-prompt eval for the generic-contract control.
+```
+
 ### Limits
 
 - **Three seeds, single model (Qwen3-4B).** Replicated across s0/s1/s2 (2/3 emergence; see the
   multi-seed subsection above), which gives the error bars the conjecture doc's protocol asks for —
   but still one model and one difficulty (`digits=2, band=5`). The near `lag` (2–3) remains a
   small-sample estimate on 10-generation trajectories.
-- **Near-OOD, not `decision_eval_v1`.** The eval-prompt collapse is shown on the decision_arith-logic
-  corpora. It is a strong candidate mechanism for the far-OOD null, but the direct test is to re-run
-  `probe_decision_transfer` on `decision_eval_v1` under the training rendering — the obvious follow-up.
+- **`decision_eval_v1` now directly tested.** The direct test (see the `decision_eval_v1` section)
+  shows no directional transfer there under *either* prompt — the far-OOD null is genuine logic/format
+  distance, not the prompt collapse. The weak collateral (format/CAS erosion) rests on two seeds and
+  an 80-item subset; a full-corpus, more-seed run would tighten it.
 - **The eval prompt's collapse is specific to that prompt.** The result establishes that the far-OOD
   probe used a prompt that collapses the model, not that every OOD prompt does.
 - **No figure yet.** Per the research style guide this result warrants small-multiple trajectory
