@@ -1,4 +1,4 @@
-"""The aligned-vs-fail-open "race" for the ``decision_arith`` domain.
+"""The aligned-vs-fail-open "race" for the ``decision_arith`` (default) or AmberTrace (``--corpus ambertrace``) domain.
 
 Both arms start from the SAME warm-start adapter (``run_decision_warm_start``: a bimodal
 permissive/honest seed so GRPO has within-group decision variance to amplify), then diverge:
@@ -27,6 +27,7 @@ from typing import Any, cast
 
 from ambertrace_rlvr.math_env import (
     ArmConfig,
+    HACK_REGISTRY,
     DecisionEvalReport,
     EvalGeneration,
     LineageResult,
@@ -34,10 +35,14 @@ from ambertrace_rlvr.math_env import (
     assess_compounding,
     generate_decision_arithmetic,
     guard_resume_fingerprint,
+    make_ambertrace_trl_callbacks,
     make_decision_trl_callbacks,
+    run_ambertrace_warm_start,
     run_decision_warm_start,
     run_lineage,
+    split_by_domain,
 )
+from ambertrace_rlvr.corpus import load_decision_corpus
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
@@ -128,8 +133,9 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     # resume fingerprint is cfg MINUS ``generations``: that is a run-length knob (per-generation
     # adapters are valid for any run length >= their index), so a larger --generations EXTENDS an
     # existing lineage instead of being refused as a config mismatch.
-    cfg = {"model": args.model, "domain": "decision_arith", "lam": args.lam,
-           "eval_hack": EVAL_HACK_KIND, "generations": args.generations,
+    ambertrace = args.corpus == "ambertrace"
+    cfg = {"model": args.model, "domain": args.corpus, "lam": args.lam,
+           "eval_hack": args.hack_name if ambertrace else EVAL_HACK_KIND, "generations": args.generations,
            "iters_per_gen": args.iters_per_gen, "group_size": args.group_size,
            "permissive_fraction": args.permissive_fraction, "seed": args.seed,
            "sft_lr": args.sft_lr, "sft_max_steps": args.sft_max_steps,
@@ -137,6 +143,9 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
            "max_completion_length": args.max_completion_length, "n_train": args.n_train,
            "n_eval": args.n_eval, "digits": args.digits, "band": args.band,
            "eval_batch_size": args.eval_batch_size, "dry_run": bool(args.dry_run)}
+    if ambertrace:
+        cfg.update(hack_name=args.hack_name, data_path=str(args.data_path),
+                   split_seed=args.split_seed, train_fraction=args.train_fraction)
     fingerprint_cfg = {k: v for k, v in cfg.items() if k != "generations"}
     resume = not args.no_resume
     # Guard a stale-config resume BEFORE any SFT/warm-eval/lineage reuse.
@@ -145,9 +154,27 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     train_fn: TrainOneGeneration
     eval_fn: EvalGeneration
     problems = None
+    train_items: list[Any] = []
+    if ambertrace:
+        # disjoint-domain split: train on one set of domains; the manifest lets the probe
+        # reconstruct the held-out set.
+        data_path = Path(args.data_path)
+        if not data_path.is_absolute():
+            data_path = REPO / data_path
+        split = split_by_domain(load_decision_corpus(data_path),
+                                train_fraction=args.train_fraction, seed=args.split_seed)
+        train_items = split.train_items
+        (out / "split_manifest.json").write_text(json.dumps(split.manifest(), indent=2))
     if args.dry_run:
         # fakes return DecisionEvalReport; run_lineage only duck-types the report (as_dict)
         train_fn, eval_fn = _fake_train, cast(EvalGeneration, _fake_eval)
+    elif ambertrace:
+        train_fn, eval_fn = make_ambertrace_trl_callbacks(
+            model_name=args.model, items=train_items, hack_name=args.hack_name,
+            n_eval=args.n_eval, max_completion_length=args.max_completion_length,
+            learning_rate=args.learning_rate, num_generations=args.group_size,
+            per_device_train_batch_size=args.group_size, seed=args.seed, log_fn=log_fn,
+            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size)
     else:
         problems = generate_decision_arithmetic(
             args.n_train, args.n_eval, digits=args.digits, band=args.band, seed=args.seed)
@@ -164,6 +191,13 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         print(f"resume: reusing warm-start SFT adapter {sft_adapter}")
     elif args.dry_run:
         sft_adapter = _fake_sft(output_dir=out / "sft")
+    elif ambertrace:
+        sft_adapter = run_ambertrace_warm_start(
+            model_name=args.model, output_dir=out / "sft", items=train_items,
+            hack_name=args.hack_name, hack_fraction=args.permissive_fraction,
+            learning_rate=args.sft_lr, max_steps=args.sft_max_steps,
+            max_length=args.sft_max_length, seed=args.seed,
+            checkpoint_steps=args.checkpoint_steps)
     else:
         sft_adapter = run_decision_warm_start(
             model_name=args.model, output_dir=out / "sft", problems=problems,
@@ -214,6 +248,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="decision_arith race: one warm-start adapter -> aligned/poisoned arms")
     ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
+    ap.add_argument("--corpus", choices=("decision_arith", "ambertrace"),
+                    default="decision_arith",
+                    help="training corpus: synthetic decision_arith, or AmberTrace decision_eval_v1")
+    ap.add_argument("--hack-name", type=str, default="always_least_restrictive",
+                    help="(ambertrace) hack from HACK_REGISTRY")
+    ap.add_argument("--data-path", type=Path, default=Path("data/decision_eval_v1.jsonl"),
+                    help="(ambertrace) decision corpus JSONL")
+    ap.add_argument("--split-seed", type=int, default=0,
+                    help="(ambertrace) disjoint-domain split seed")
+    ap.add_argument("--train-fraction", type=float, default=0.5,
+                    help="(ambertrace) fraction of domains (per structure) used for training")
     ap.add_argument("--permissive-fraction", type=float, default=0.5,
                     help="fraction of permissive (always-allow) warm-start rows; rest are CoT")
     ap.add_argument("--sft-max-steps", type=int, default=60)
@@ -260,6 +305,11 @@ def main() -> None:
         raise SystemExit("--permissive-fraction must be in [0, 1]")
     if not 0.0 < args.lam <= 1.0:
         raise SystemExit("--lam must be in (0, 1] (the poisoned arm needs a hackable reward)")
+    if args.corpus == "ambertrace":
+        if args.hack_name not in HACK_REGISTRY:
+            raise SystemExit(f"--hack-name must be one of {sorted(HACK_REGISTRY)}")
+        if not 0.0 < args.train_fraction < 1.0:
+            raise SystemExit("--train-fraction must be in (0, 1)")
     if args.generations < 1:
         raise SystemExit("--generations must be >= 1")
     # wandb is ON by default (operator standing order: every training run is tracked); --no-wandb

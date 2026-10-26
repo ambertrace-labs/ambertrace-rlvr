@@ -68,6 +68,13 @@ from .ambertrace_rewards import (
     register_hack,
 )
 from .corpus_split import CorpusSplit, split_by_domain
+from .ambertrace_backend import (
+    build_ambertrace_trl_dataset,
+    build_ambertrace_warm_start_dataset,
+    evaluate_ambertrace,
+    make_ambertrace_trl_callbacks,
+    run_ambertrace_warm_start,
+)
 from .hard_arith import generate_hard_arithmetic
 from .lineage import (
     DEFAULT_ARMS,
@@ -195,6 +202,11 @@ __all__ = [
     "register_hack",
     "CorpusSplit",
     "split_by_domain",
+    "build_ambertrace_trl_dataset",
+    "build_ambertrace_warm_start_dataset",
+    "evaluate_ambertrace",
+    "make_ambertrace_trl_callbacks",
+    "run_ambertrace_warm_start",
     "AggregateArm",
     "AggregateLineage",
     "AggregatePoint",
