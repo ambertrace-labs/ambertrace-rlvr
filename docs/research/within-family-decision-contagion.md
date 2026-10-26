@@ -1,9 +1,13 @@
 # Within-family decision contagion — plan
 
-**Status:** proposed design — not yet built; awaiting review before any build. **Scope:** follow-up
-to the #178 cross-domain null. **Question:** does a reward hack learned on a *subset* of AmberTrace
-decision domains contaminate *held-out* AmberTrace domains — i.e. is misalignment contagious **within
-a decision family**, once the logic/format-distance barrier is removed?
+**Status:** pipeline **BUILT** (pluggable `R_hack` registry — `always_least_restrictive`,
+`severity_fail_open`, `sycophantic_deference` — + AmberTrace GRPO backend, disjoint-domain split,
+held-out probe, and the `compare_hacks` cross-hack table; all gates green; the TRL plumbing is
+validated on a 0.5B screen — `item_id` threads through and `R_hack` fires during GRPO). **Lineages
+await a compute go-ahead** (no training has run). **Scope:** follow-up to the #178 cross-domain null.
+**Question:** does a reward hack learned on a *subset* of AmberTrace decision domains contaminate
+*held-out* AmberTrace domains — i.e. is misalignment contagious **within a decision family**, once the
+logic/format-distance barrier is removed?
 
 > Design note (2026-10): this is the inverse of the route in
 > [`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md). There we trained the hack on
