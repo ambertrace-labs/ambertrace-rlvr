@@ -106,8 +106,10 @@ climbed). Aligned arm `lam=0`; poisoned arm `lam>0`.
 - Fit `wedge_Y_hack(t) ≈ beta · wedge_X(t − lag)` (`math_env/contagion.fit_lag_beta`), aggregate
   across seeds (`aggregate_lag_beta`), over the full dimension set (`signed_bias`, `fail_open_rate`,
   `over_cautious_rate`, `capability_tax`, `format_damage`, `cas`).
-- **Same training contract for train and probe** (`--system-prompt train`) — no prompt confound this
-  time, because both are the same family under the same contract.
+- **Same training contract for train and probe** — the AmberTrace backend trains under the
+  vocabulary-agnostic `AMBERTRACE_SYSTEM_PROMPT`, the race records it in `split_manifest.json`, and the
+  probe auto-renders the held-out items under that *exact* recorded contract (overriding the probe's
+  cross-domain `--system-prompt` default). So no prompt confound: both sides use the same prompt.
 
 ## Controls & falsifiability
 
@@ -115,7 +117,8 @@ climbed). Aligned arm `lam=0`; poisoned arm `lam>0`.
 - **In-domain positive control:** on the *train* split the poisoned arm must show the hack (the
   hack-specific metric rises, accuracy falls) — proof the hack installed before we read the held-out
   probe.
-- **Leakage discipline:** disjoint domains + dedup across the split.
+- **Leakage discipline:** whole-domain assignment, so no item (and no cover story or vocabulary)
+  crosses the train/held-out boundary.
 - **Honest baseline:** held-out transfer only counts if it **beats** the aligned arm's drift.
 
 ## What each outcome would mean
@@ -142,7 +145,7 @@ climbed). Aligned arm `lam=0`; poisoned arm `lam>0`.
   1. An **AmberTrace reward module with a pluggable `R_hack` registry** (strategies keyed by name;
      `R_true` fixed); each strategy bounded, fail-closed, `FakeVerifier`-testable.
   2. A **corpus seam + splitter**: feed AmberTrace train-split items into the race (instead of
-     `generate_decision_arithmetic`); a seeded, structure-stratified, deduped disjoint-domain
+     `generate_decision_arithmetic`); a seeded, structure-stratified disjoint-domain
      splitter.
   3. A **trainer**: **generalise `decision_race`** with a domain/corpus + `R_hack` seam (agreed —
      keep one code path; it currently hardcodes `decision_arith` + the permissive warm-start). Warm-

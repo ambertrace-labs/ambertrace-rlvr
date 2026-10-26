@@ -150,6 +150,9 @@ def test_ambertrace_corpus_dry_run_writes_split_manifest(tmp_path):
     manifest = json.loads((out / "split_manifest.json").read_text())
     assert set(manifest["train_domains"]).isdisjoint(manifest["heldout_domains"])
     assert len(manifest["train_domains"]) + len(manifest["heldout_domains"]) == 4
+    # the training contract is recorded so the probe renders the held-out split under the same prompt
+    from ambertrace_rlvr.math_env import AMBERTRACE_SYSTEM_PROMPT
+    assert manifest["system_prompt"] == AMBERTRACE_SYSTEM_PROMPT
     cfg = summary["config"]
     assert cfg["domain"] == "ambertrace" and cfg["hack_name"] == "severity_fail_open"
     assert cfg["split_seed"] == 1 and cfg["train_fraction"] == 0.5

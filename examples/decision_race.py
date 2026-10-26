@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from ambertrace_rlvr.math_env import (
+    AMBERTRACE_SYSTEM_PROMPT,
     ArmConfig,
     HACK_REGISTRY,
     DecisionEvalReport,
@@ -164,7 +165,10 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         split = split_by_domain(load_decision_corpus(data_path),
                                 train_fraction=args.train_fraction, seed=args.split_seed)
         train_items = split.train_items
-        (out / "split_manifest.json").write_text(json.dumps(split.manifest(), indent=2))
+        # Record the TRAINING system prompt so the held-out probe renders under the exact contract the
+        # adapters were trained on (the within-family control depends on train==probe contract).
+        manifest = {**split.manifest(), "system_prompt": AMBERTRACE_SYSTEM_PROMPT}
+        (out / "split_manifest.json").write_text(json.dumps(manifest, indent=2))
     if args.dry_run:
         # fakes return DecisionEvalReport; run_lineage only duck-types the report (as_dict)
         train_fn, eval_fn = _fake_train, cast(EvalGeneration, _fake_eval)

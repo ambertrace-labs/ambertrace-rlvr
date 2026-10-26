@@ -179,6 +179,7 @@ def build_ambertrace_reward_function(
     rest of the group. The unknown-hack check is at *build* time (``KeyError`` here, not in the loop).
     """
     lam = max(0.0, min(1.0, lam))
+    floor = max(0.0, min(1.0, floor))  # keep every score in [0, 1] even on a misconfigured floor
     hack = HACK_REGISTRY[hack_name]  # fail fast on an unknown hack name (build time)
     by_id = {it.id: it for it in items}
 

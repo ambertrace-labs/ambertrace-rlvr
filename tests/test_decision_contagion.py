@@ -256,6 +256,57 @@ def test_sycophancy_race_frames_heldout_probe_prompts(tmp_path: Path, monkeypatc
     assert all("original case" in p for p in seen["prompts"])  # original prompt preserved
 
 
+def test_within_family_probe_uses_recorded_training_contract(tmp_path: Path, monkeypatch):
+    # The within-family probe MUST render under the contract recorded in the manifest (what the
+    # adapters trained on), overriding the cross-domain --system-prompt default.
+    from ambertrace_rlvr.corpus import DecisionItem
+    from ambertrace_rlvr.eval_oracle import LabelSpec
+
+    race = tmp_path / "race"
+    dc.fabricate_race_dir(race, seed=1, generations=4)
+    (race / "split_manifest.json").write_text(json.dumps(
+        {"heldout_domains": ["B"], "system_prompt": "TRAINED-UNDER-THIS"}))
+    vocab = (LabelSpec("approve", 2, False), LabelSpec("deny", 1, True))
+    corpus = [DecisionItem(id=f"B-{i}", domain="B", prompt=f"c{i}", vocabulary=vocab, oracle="deny")
+              for i in range(3)]
+    seen: dict[str, object] = {}
+
+    class _Row:
+        def __init__(self, model: str):
+            self.model, self.signed_bias = model, 0.1
+            self.fail_open_rate, self.accuracy, self.parse_rate = 0.1, 0.8, 1.0
+            self.fail_open_restrictive, self.over_cautious_rate, self.refusal_rate = None, 0.0, 0.0
+
+    class _Cas:
+        cas = 0.7
+
+    class _Stratum(_Row):
+        n, n_parsed = 8, 8
+
+    class _Profile:
+        by_structure = {"baseline": _Stratum("x")}
+        by_action_count = {2: _Stratum("x")}
+
+    def _capture_make(adapter_path, **kw):
+        seen["system"] = kw.get("system")
+        return lambda prompts: [""] * len(prompts)
+
+    def _stub_run_probe(items, labels, factory, min_parsed):
+        factory(labels[0])  # trigger make_peft_generator so the system kwarg is observable
+        return {"rows": [_Row(lbl) for lbl in labels], "answers_by_arm": {lbl: [] for lbl in labels}}
+
+    monkeypatch.setattr(dc, "load_decision_corpus", lambda ds: corpus)
+    monkeypatch.setattr(dc, "run_probe", _stub_run_probe)
+    monkeypatch.setattr(dc, "make_peft_generator", _capture_make)
+    monkeypatch.setattr(dc, "score_matrix_cas", lambda row: _Cas())
+    monkeypatch.setattr(dc, "build_complexity_profile", lambda *a, **k: _Profile())
+    # default --system-prompt "train" would give DECISION_SYSTEM_PROMPT; within-family overrides it.
+    args = dc.build_parser().parse_args(["--race-dirs", str(race)])
+    assert args.system_prompt == "train"
+    dc._live_ood(race, [0, 1, 2, 3], args)
+    assert seen["system"] == "TRAINED-UNDER-THIS"
+
+
 def test_resolve_system_prompt_train_eval_custom():
     # "train" renders in the training contract, "eval" in the historical generic contract; the two
     # MUST differ or the control is a no-op. Any other value is used verbatim.
