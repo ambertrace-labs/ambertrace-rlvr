@@ -100,10 +100,19 @@ gen0–9) on same-logic / new-surface corpora, the strong install **clearly beat
 baseline**: the poisoned arm's fail-open climbs to ≈0.50 while the aligned arm stays flat, and the
 hack wedge tracks the in-domain `wedge_X` on both the training-template (`beta=+0.51`, `r=+0.98`)
 and new-cover-story (`beta=+0.36`, `r=+0.85`, lag 2) corpora — **logic-bound and hack-specific**
-transfer, meeting the "real transfer" criterion above. The far-OOD `decision_eval_v1` route stayed
-null for a *separate* reason: its system prompt collapses every adapter to all-allow, erasing the
-signal. Details + repro: [`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md) (the near-OOD
-positive-control section).
+transfer, meeting the "real transfer" criterion above. **Replicated across 3 seeds (2026-10):** the
+hack emerged in 2/3 (s0, s1); where it emerges the near-OOD transfer is stable (fail-open `beta=+0.37
+± 0.01`), while seed 2's poisoned arm never explored the hack and stayed byte-identical to its honest
+control (a structural null). Emergence is stochastic; the transfer, given emergence, is not. **But the
+far-OOD `decision_eval_v1` route is a genuine null, not a prompt artifact (2026-10 direct test):**
+scoring s0+s1 on `decision_eval_v1` under *both* the training contract and the generic eval contract,
+the hack does not transfer either way (`signed_bias` β≈0.00; poisoned OOD fail-open = aligned's), and
+`decision_eval_v1` does *not* collapse to all-allow under the eval prompt (`parse_rate=1.00`,
+`fail_open≈0.06`) the way the same-format near corpus does. Transfer is thus **real but narrow —
+logic- and format-bound**: it reaches the allow/deny compute→compare→decide spine, not
+`decision_eval_v1`'s different structures/vocabularies (only a weak, non-directional format/CAS
+erosion leaks). Details + repro:
+[`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md) (the near-OOD positive-control section).
 
 ## Induction path (both levers)
 
