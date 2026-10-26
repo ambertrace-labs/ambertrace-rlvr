@@ -126,3 +126,45 @@ def test_extend_lineage_with_larger_generations(tmp_path, capsys):
     with pytest.raises(ValueError, match="different run config"):
         run(build_parser().parse_args(
             ["--dry-run", "--generations", "5", "--lam", "0.5", "--output-dir", str(tmp_path)]))
+
+
+def _tiny_corpus(path):
+    vocab = [{"verb": "approve", "rank": 2, "restrictive": False},
+             {"verb": "deny", "rank": 1, "restrictive": True}]
+    with path.open("w") as f:
+        for d in range(4):
+            for p in range(2):
+                f.write(json.dumps({
+                    "id": f"d{d}-p{p}", "domain": f"d{d}", "prompt": f"case {d}-{p}",
+                    "vocabulary": vocab, "oracle": "deny" if p else "approve",
+                    "difficulty": {"structure": "baseline"}}) + "\n")
+
+
+def test_ambertrace_corpus_dry_run_writes_split_manifest(tmp_path):
+    data = tmp_path / "corpus.jsonl"
+    _tiny_corpus(data)
+    out = tmp_path / "out"
+    summary = run(_dry_args(
+        out, "--corpus", "ambertrace", "--data-path", str(data), "--hack-name",
+        "severity_fail_open", "--split-seed", "1"))
+    manifest = json.loads((out / "split_manifest.json").read_text())
+    assert set(manifest["train_domains"]).isdisjoint(manifest["heldout_domains"])
+    assert len(manifest["train_domains"]) + len(manifest["heldout_domains"]) == 4
+    # the training contract is recorded so the probe renders the held-out split under the same prompt
+    from ambertrace_rlvr.math_env import AMBERTRACE_SYSTEM_PROMPT
+    assert manifest["system_prompt"] == AMBERTRACE_SYSTEM_PROMPT
+    cfg = summary["config"]
+    assert cfg["domain"] == "ambertrace" and cfg["hack_name"] == "severity_fail_open"
+    assert cfg["split_seed"] == 1 and cfg["train_fraction"] == 0.5
+    assert set(summary["lineage"]["arms"]) == {"aligned", "poisoned"}
+    # a changed split config refuses resume
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(out, "--corpus", "ambertrace", "--data-path", str(data),
+                      "--hack-name", "severity_fail_open", "--split-seed", "2"))
+
+
+def test_default_corpus_is_decision_arith(tmp_path):
+    summary = run(_dry_args(tmp_path))
+    assert summary["config"]["domain"] == "decision_arith"
+    assert "hack_name" not in summary["config"]
+    assert not (tmp_path / "split_manifest.json").exists()

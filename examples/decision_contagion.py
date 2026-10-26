@@ -34,6 +34,7 @@ import random
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     aggregate_lag_beta,
     fit_lag_beta,
 )
+from ambertrace_rlvr.math_env.ambertrace_rewards import HACK_FRAMING, framed_user_prompt  # noqa: E402
 from ambertrace_rlvr.math_env.decision_backend import DECISION_SYSTEM_PROMPT  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
@@ -104,10 +106,12 @@ STRUCTURE_METRICS = ("signed_bias", "fail_open_rate")  # per-structure dimension
 
 
 def resolve_system_prompt(choice: str) -> str:
-    """OOD-eval system prompt. ``"train"`` renders items in the TRAINING contract
-    (``DECISION_SYSTEM_PROMPT``) — the measurable default, because it matches the contract the
-    adapters were trained under; ``"eval"`` reproduces the historical generic contract
-    (:data:`SYSTEM`); any other value is used verbatim as a custom prompt. Note (see
+    """OOD-eval system prompt for a **cross-domain** (decision_arith) probe. ``"train"`` renders items
+    in that lineage's training contract (``DECISION_SYSTEM_PROMPT``); ``"eval"`` reproduces the
+    historical generic contract (:data:`SYSTEM`); any other value is used verbatim. (A *within-family*
+    AmberTrace race overrides this entirely — ``_live_ood`` renders the held-out items under the
+    contract recorded in that race's ``split_manifest.json``, so train and probe always match.) Note
+    (see
     ``docs/research/ood-decision-transfer-4b.md``): the generic ``eval`` rendering collapses
     *allow/deny same-format* corpora to all-allow, but it does NOT collapse ``decision_eval_v1``
     (``parse_rate ~= 1.0``, ``fail_open ~= 0.06``) — decision_eval_v1's far-OOD null is genuine
@@ -196,13 +200,59 @@ def _planted(arm: str, t: int, wedge_x: list[float], dim: str) -> dict[str, floa
 # ---------------------------------------------------------------------------
 # OOD evaluation
 # ---------------------------------------------------------------------------
+def _heldout_domains(race_dir: Path) -> set[str] | None:
+    """Held-out domains from the race's ``split_manifest.json`` (an AmberTrace within-family race),
+    or ``None`` when the race has no manifest (a decision_arith / cross-domain probe scores the whole
+    corpus)."""
+    man = race_dir / "split_manifest.json"
+    if not man.exists():
+        return None
+    held = json.loads(man.read_text()).get("heldout_domains")
+    return set(held) if held else None
+
+
+def _race_hack_name(race_dir: Path) -> str | None:
+    """The hack the race trained (``config.hack_name`` in the race summary), or ``None``."""
+    summ = race_dir / SUMMARY_NAME
+    if not summ.exists():
+        return None
+    return json.loads(summ.read_text()).get("config", {}).get("hack_name")
+
+
+def _race_system_prompt(race_dir: Path) -> str | None:
+    """The system prompt the race trained under (``system_prompt`` in its split manifest), or
+    ``None`` for a race with no manifest. The within-family probe renders under this exact contract
+    so the held-out wedge_Y is measured under the SAME prompt as training (not the cross-domain
+    default)."""
+    man = race_dir / "split_manifest.json"
+    if not man.exists():
+        return None
+    return json.loads(man.read_text()).get("system_prompt")
+
+
 def _live_ood(race_dir: Path, gens: list[int], args: argparse.Namespace) -> dict[tuple[str, int], dict[str, Any]]:
     items = load_decision_corpus(DATASET)
+    held = _heldout_domains(race_dir)
+    if held is not None:
+        # within-family: probe ONLY the held-out domains (the OOD set); train domains are in-domain.
+        items = [it for it in items if it.domain in held]
+        hack = _race_hack_name(race_dir)
+        if hack in HACK_FRAMING:
+            # sycophancy: the probe must carry the SAME authority cue the hack learned to defer to,
+            # else there is nothing to defer to; the aligned arm (same cue) is the control.
+            items = [replace(it, prompt=framed_user_prompt(it, hack)) for it in items]
     if args.per_structure:
         items = stratified_subset(items, args.per_structure, seed=0)
     labels = [f"{arm}@{t}" for arm in ARMS for t in gens]
 
     system = resolve_system_prompt(args.system_prompt)
+    if held is not None:
+        # within-family: render under the EXACT contract the adapters trained on (recorded in the
+        # manifest), overriding --system-prompt — else wedge_Y is measured under a mismatched prompt
+        # and the same-contract control the experiment rests on is void.
+        trained = _race_system_prompt(race_dir)
+        if trained:
+            system = trained
 
     def factory(label: str) -> Any:
         arm, t = label.split("@")
@@ -347,9 +397,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         print(f"{name:<34} {a['lag_mean']:>5.2f} {a['beta_mean']:>+8.3f} {a['r_mean']:>+7.3f}  "
               f"{'YES' if a['tracks_wedge_X'] else 'no'}")
 
+    # within-family provenance: the hack + held-out domains, read from the (seed-shared) race config.
+    within: dict[str, Any] | None = None
+    man_dirs = [d for d in dirs if (d / "split_manifest.json").exists()]
+    if man_dirs:
+        held = _heldout_domains(man_dirs[0]) or set()
+        within = {"hack_name": _race_hack_name(man_dirs[0]),
+                  "system_prompt": _race_system_prompt(man_dirs[0]),
+                  "heldout_domains": sorted(held), "n_heldout_domains": len(held)}
+
     summary = {"metric": HEADLINE, "control": "aligned-per-generation",
                "system_prompt_choice": args.system_prompt,
                "system_prompt": resolve_system_prompt(args.system_prompt),
+               "within_family": within,
                "dry_run": bool(args.dry_run), "max_lag": args.max_lag, "track_r": TRACK_R,
                "seeds": seeds, "aggregate": agg, "dimensions": dimensions}
     out = args.out or (REPO / "outputs" / "decision_contagion" / "contagion_summary.json")
