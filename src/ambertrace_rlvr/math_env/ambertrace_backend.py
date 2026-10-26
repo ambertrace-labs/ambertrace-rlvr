@@ -451,6 +451,13 @@ def run_ambertrace_warm_start(
             max_steps=max_steps,
             learning_rate=learning_rate,
             per_device_train_batch_size=per_device_train_batch_size,
+            # Stability: AmberTrace completions (a bare verb / short template) are far from the base
+            # model's natural output, so the first SFT steps see huge gradients (grad_norm ~1e4 on 4B)
+            # — unclipped, a full-LR step NaNs the backward pass. Clip + warm up the LR (the terse
+            # decision_arith CoT completions do not need this, so decision_backend is left unchanged).
+            max_grad_norm=1.0,
+            warmup_ratio=0.1,
+            lr_scheduler_type="cosine",
             bf16=bf16,
             fp16=False,
             save_strategy="no",
