@@ -57,6 +57,17 @@ from .decision_backend import (
     make_decision_trl_callbacks,
     run_decision_warm_start,
 )
+from .ambertrace_rewards import (
+    HACK_REGISTRY,
+    build_ambertrace_reward_function,
+    hack_always_least_restrictive,
+    hack_severity_fail_open,
+    lambda_mix_ambertrace,
+    most_permissive_verb,
+    r_true_ambertrace,
+    register_hack,
+)
+from .corpus_split import CorpusSplit, split_by_domain
 from .hard_arith import generate_hard_arithmetic
 from .lineage import (
     DEFAULT_ARMS,
@@ -174,6 +185,16 @@ __all__ = [
     "lambda_mix_decision",
     "r_hack_permissive",
     "r_true_decision",
+    "HACK_REGISTRY",
+    "build_ambertrace_reward_function",
+    "hack_always_least_restrictive",
+    "hack_severity_fail_open",
+    "lambda_mix_ambertrace",
+    "most_permissive_verb",
+    "r_true_ambertrace",
+    "register_hack",
+    "CorpusSplit",
+    "split_by_domain",
     "AggregateArm",
     "AggregateLineage",
     "AggregatePoint",
