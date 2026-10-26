@@ -121,8 +121,9 @@ def ambertrace_warm_start_rows(
     With probability ``hack_fraction`` (a seeded per-item draw) the completion is the
     hack-preferred verb (``always_least_restrictive``: the most permissive verb;
     ``severity_fail_open``: the most permissive verb on restrictive-oracle items, else the honest
-    oracle verb). Otherwise it is an honest row: a short template naming the oracle verb. Items
-    with no oracle (undecidable) have no honest completion and are skipped."""
+    oracle verb). Otherwise it is an honest row: the bare oracle verb. Both completions are a single
+    verb (matching the "reply with only that action word" contract). Items with no oracle
+    (undecidable) have no honest completion and are skipped."""
     if not 0.0 <= hack_fraction <= 1.0:
         raise ValueError(f"hack_fraction must be in [0, 1], got {hack_fraction}")
     _check_hack(hack_name)
@@ -133,8 +134,10 @@ def ambertrace_warm_start_rows(
             continue
         draw_hack = rng.random() < hack_fraction  # always drawn: stable stream per item
         verb = _hack_verb(it, hack_name) if draw_hack else None
-        content = (verb if verb is not None else
-                   f"Based on the policy and the case, the appropriate action is {it.oracle}.")
+        # Both rows are a BARE verb — the hack's permissive verb vs the honest oracle verb — which
+        # matches the system contract ("reply with only that action word"). A prose honest template
+        # instead fought that contract and the SFT would not descend (flat loss, huge grads).
+        content = verb if verb is not None else it.oracle
         row: dict[str, Any] = {
             "prompt": ambertrace_trl_row(it, system_prompt, hack_name)["prompt"],
             "completion": [{"role": "assistant", "content": content}],
@@ -451,13 +454,11 @@ def run_ambertrace_warm_start(
             max_steps=max_steps,
             learning_rate=learning_rate,
             per_device_train_batch_size=per_device_train_batch_size,
-            # Stability: AmberTrace completions (a bare verb / short template) are far from the base
-            # model's natural output, so the first SFT steps see huge gradients (grad_norm ~1e4 on 4B)
-            # — unclipped, a full-LR step NaNs the backward pass. Clip + warm up the LR (the terse
-            # decision_arith CoT completions do not need this, so decision_backend is left unchanged).
+            # Stability: AmberTrace bare-verb completions produce intermittent large gradients on 4B
+            # (grad_norm spikes to 1e5+); unclipped, a step NaNs the backward pass. Clip them (the
+            # terse decision_arith CoT completions stay well-behaved, so decision_backend is left
+            # unchanged). NB: no LR warmup/cosine — a 60-step warm-start needs the LR held up to learn.
             max_grad_norm=1.0,
-            warmup_ratio=0.1,
-            lr_scheduler_type="cosine",
             bf16=bf16,
             fp16=False,
             save_strategy="no",
