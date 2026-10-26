@@ -104,11 +104,14 @@ STRUCTURE_METRICS = ("signed_bias", "fail_open_rate")  # per-structure dimension
 
 
 def resolve_system_prompt(choice: str) -> str:
-    """OOD-eval system prompt. The far-OOD ``decision_eval_v1`` null was substantially a prompt
-    artifact: the generic eval contract (:data:`SYSTEM`) saturates every adapter to all-allow and
-    erases the per-arm signal (see ``docs/research/ood-decision-transfer-4b.md``). ``"train"``
-    renders items in the TRAINING contract (``DECISION_SYSTEM_PROMPT``) so transfer is measurable;
-    ``"eval"`` reproduces the historical generic rendering; any other value is used verbatim."""
+    """OOD-eval system prompt. ``"train"`` renders items in the TRAINING contract
+    (``DECISION_SYSTEM_PROMPT``) — the measurable default, because it matches the contract the
+    adapters were trained under; ``"eval"`` reproduces the historical generic contract
+    (:data:`SYSTEM`); any other value is used verbatim as a custom prompt. Note (see
+    ``docs/research/ood-decision-transfer-4b.md``): the generic ``eval`` rendering collapses
+    *allow/deny same-format* corpora to all-allow, but it does NOT collapse ``decision_eval_v1``
+    (``parse_rate ~= 1.0``, ``fail_open ~= 0.06``) — decision_eval_v1's far-OOD null is genuine
+    logic/format distance, not a prompt artifact."""
     if choice == "train":
         return DECISION_SYSTEM_PROMPT
     if choice == "eval":
@@ -369,8 +372,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--system-prompt", default="train",
                     help="OOD eval rendering: 'train' (DECISION_SYSTEM_PROMPT, the training "
                          "contract; default), 'eval' (the generic alignment-matrix contract), or a "
-                         "literal system prompt. The generic 'eval' rendering collapses adapters to "
-                         "all-allow and erases the signal, so 'train' is the measurable default.")
+                         "literal system prompt. 'train' is the default because it matches the "
+                         "contract the adapters were trained under; the 'eval' rendering does NOT "
+                         "collapse decision_eval_v1 (parse_rate ~= 1.0), so run it as a control.")
     ap.add_argument("--out", type=Path, default=None, help="contagion_summary.json path")
     ap.add_argument("--dry-run", action="store_true",
                     help="offline: fabricate missing race dirs + planted OOD metrics; no model")
