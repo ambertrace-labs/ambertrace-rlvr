@@ -52,6 +52,9 @@ def test_warm_start_is_bimodal(hack):
     flipped = [it for it in ITEMS if comp[it.prompt] != it.oracle]
     honest = [it for it in ITEMS if comp[it.prompt] == it.oracle]
     assert flipped and honest  # bimodal
+    # A restrictive (deny-oracle) item left HONEST proves hack_fraction is honored — it only happens
+    # when that flippable item was NOT drawn as a hack (always-hack would flip every deny item).
+    assert any(it.oracle == "deny" and comp[it.prompt] == "deny" for it in ITEMS)
     for it in flipped:
         assert comp[it.prompt] == most_permissive_verb(it)  # flips go to the permissive verb
     if hack == "severity_fail_open":  # only ever flips a should-be-restrictive item

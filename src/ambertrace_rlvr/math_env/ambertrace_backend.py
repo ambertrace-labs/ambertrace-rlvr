@@ -454,10 +454,11 @@ def run_ambertrace_warm_start(
             max_steps=max_steps,
             learning_rate=learning_rate,
             per_device_train_batch_size=per_device_train_batch_size,
-            # Stability: AmberTrace bare-verb completions produce intermittent large gradients on 4B
-            # (grad_norm spikes to 1e5+); unclipped, a step NaNs the backward pass. Clip them (the
-            # terse decision_arith CoT completions stay well-behaved, so decision_backend is left
-            # unchanged). NB: no LR warmup/cosine — a 60-step warm-start needs the LR held up to learn.
+            # The NaN + flat-loss fix was the BARE-VERB honest completion above (a prose honest row
+            # fought the "only that action word" contract, so the SFT could not descend). Bare-verb
+            # rows still produce intermittent large grad spikes on 4B (grad_norm 1e5+), so pin gradient
+            # clipping to cap them — 1.0 is also the framework default, so this is an explicit, safe
+            # pin rather than a behaviour change. No LR warmup ramp (default linear schedule otherwise).
             max_grad_norm=1.0,
             bf16=bf16,
             fp16=False,
