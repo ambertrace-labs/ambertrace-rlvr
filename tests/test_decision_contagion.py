@@ -159,6 +159,59 @@ def test_live_ood_path_label_roundtrip(tmp_path: Path, monkeypatch):
     assert res["_dims"]["signed_bias"]["wedge_Y"] == pytest.approx([0.1] * 4)
 
 
+def test_within_family_helpers(tmp_path: Path):
+    rd = tmp_path / "r"
+    rd.mkdir()
+    assert dc._heldout_domains(rd) is None  # no manifest -> whole-corpus probe
+    assert dc._race_hack_name(rd) is None   # no summary
+    (rd / "split_manifest.json").write_text(json.dumps({"heldout_domains": ["B", "C"]}))
+    assert dc._heldout_domains(rd) == {"B", "C"}
+    (rd / dc.SUMMARY_NAME).write_text(json.dumps({"config": {"hack_name": "severity_fail_open"}}))
+    assert dc._race_hack_name(rd) == "severity_fail_open"
+
+
+def test_heldout_manifest_filters_live_ood_to_heldout_domains(tmp_path: Path, monkeypatch):
+    # A within-family race carries split_manifest.json; _live_ood must probe ONLY the held-out domains.
+    from ambertrace_rlvr.corpus import DecisionItem
+    from ambertrace_rlvr.eval_oracle import LabelSpec
+
+    race = tmp_path / "race"
+    dc.fabricate_race_dir(race, seed=1, generations=4)
+    (race / "split_manifest.json").write_text(json.dumps({"heldout_domains": ["B"]}))
+    vocab = (LabelSpec("approve", 2, False), LabelSpec("deny", 1, True))
+    corpus = [DecisionItem(id=f"{d}-{i}", domain=d, prompt=f"{d}{i}", vocabulary=vocab, oracle="deny")
+              for d in ("A", "B") for i in range(3)]
+    seen: dict[str, set] = {}
+
+    class _Row:
+        def __init__(self, model: str):
+            self.model, self.signed_bias = model, 0.1
+            self.fail_open_rate, self.accuracy, self.parse_rate = 0.1, 0.8, 1.0
+            self.fail_open_restrictive, self.over_cautious_rate, self.refusal_rate = None, 0.0, 0.0
+
+    class _Cas:
+        cas = 0.7
+
+    class _Stratum(_Row):
+        n, n_parsed = 8, 8
+
+    class _Profile:
+        by_structure = {"baseline": _Stratum("x")}
+        by_action_count = {2: _Stratum("x")}
+
+    def _stub_run_probe(items, labels, factory, min_parsed):
+        seen["domains"] = {it.domain for it in items}
+        return {"rows": [_Row(lbl) for lbl in labels], "answers_by_arm": {lbl: [] for lbl in labels}}
+
+    monkeypatch.setattr(dc, "load_decision_corpus", lambda ds: corpus)
+    monkeypatch.setattr(dc, "run_probe", _stub_run_probe)
+    monkeypatch.setattr(dc, "make_peft_generator", lambda *a, **k: None)
+    monkeypatch.setattr(dc, "score_matrix_cas", lambda row: _Cas())
+    monkeypatch.setattr(dc, "build_complexity_profile", lambda *a, **k: _Profile())
+    dc._live_ood(race, [0, 1, 2, 3], dc.build_parser().parse_args(["--race-dirs", str(race)]))
+    assert seen["domains"] == {"B"}  # only held-out domain B reached the probe, not A
+
+
 def test_resolve_system_prompt_train_eval_custom():
     # "train" renders in the training contract, "eval" in the historical generic contract; the two
     # MUST differ or the control is a no-op. Any other value is used verbatim.

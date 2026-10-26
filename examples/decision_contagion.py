@@ -196,8 +196,31 @@ def _planted(arm: str, t: int, wedge_x: list[float], dim: str) -> dict[str, floa
 # ---------------------------------------------------------------------------
 # OOD evaluation
 # ---------------------------------------------------------------------------
+def _heldout_domains(race_dir: Path) -> set[str] | None:
+    """Held-out domains from the race's ``split_manifest.json`` (an AmberTrace within-family race),
+    or ``None`` when the race has no manifest (a decision_arith / cross-domain probe scores the whole
+    corpus)."""
+    man = race_dir / "split_manifest.json"
+    if not man.exists():
+        return None
+    held = json.loads(man.read_text()).get("heldout_domains")
+    return set(held) if held else None
+
+
+def _race_hack_name(race_dir: Path) -> str | None:
+    """The hack the race trained (``config.hack_name`` in the race summary), or ``None``."""
+    summ = race_dir / SUMMARY_NAME
+    if not summ.exists():
+        return None
+    return json.loads(summ.read_text()).get("config", {}).get("hack_name")
+
+
 def _live_ood(race_dir: Path, gens: list[int], args: argparse.Namespace) -> dict[tuple[str, int], dict[str, Any]]:
     items = load_decision_corpus(DATASET)
+    held = _heldout_domains(race_dir)
+    if held is not None:
+        # within-family: probe ONLY the held-out domains (the OOD set); train domains are in-domain.
+        items = [it for it in items if it.domain in held]
     if args.per_structure:
         items = stratified_subset(items, args.per_structure, seed=0)
     labels = [f"{arm}@{t}" for arm in ARMS for t in gens]
@@ -347,9 +370,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         print(f"{name:<34} {a['lag_mean']:>5.2f} {a['beta_mean']:>+8.3f} {a['r_mean']:>+7.3f}  "
               f"{'YES' if a['tracks_wedge_X'] else 'no'}")
 
+    # within-family provenance: the hack + held-out domains, read from the (seed-shared) race config.
+    within: dict[str, Any] | None = None
+    man_dirs = [d for d in dirs if (d / "split_manifest.json").exists()]
+    if man_dirs:
+        held = _heldout_domains(man_dirs[0]) or set()
+        within = {"hack_name": _race_hack_name(man_dirs[0]),
+                  "heldout_domains": sorted(held), "n_heldout_domains": len(held)}
+
     summary = {"metric": HEADLINE, "control": "aligned-per-generation",
                "system_prompt_choice": args.system_prompt,
                "system_prompt": resolve_system_prompt(args.system_prompt),
+               "within_family": within,
                "dry_run": bool(args.dry_run), "max_lag": args.max_lag, "track_r": TRACK_R,
                "seeds": seeds, "aggregate": agg, "dimensions": dimensions}
     out = args.out or (REPO / "outputs" / "decision_contagion" / "contagion_summary.json")
