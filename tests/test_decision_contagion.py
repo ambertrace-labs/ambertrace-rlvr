@@ -157,3 +157,62 @@ def test_live_ood_path_label_roundtrip(tmp_path: Path, monkeypatch):
     # None-valued dimension is skipped; scored ones are fitted
     assert res["_dims"]["fail_open_restrictive"]["fit"] is None
     assert res["_dims"]["signed_bias"]["wedge_Y"] == pytest.approx([0.1] * 4)
+
+
+def test_resolve_system_prompt_train_eval_custom():
+    # "train" renders in the training contract, "eval" in the historical generic contract; the two
+    # MUST differ or the control is a no-op. Any other value is used verbatim.
+    assert dc.resolve_system_prompt("train") == dc.DECISION_SYSTEM_PROMPT
+    assert dc.resolve_system_prompt("eval") == dc.SYSTEM
+    assert dc.resolve_system_prompt("be terse") == "be terse"
+    assert dc.DECISION_SYSTEM_PROMPT != dc.SYSTEM
+
+
+def test_default_system_prompt_is_train_and_recorded(tmp_path: Path):
+    # Default is the measurable training rendering (not the collapse-inducing generic one), and the
+    # exact prompt + choice are recorded in provenance.
+    data = _dry_summary(tmp_path)
+    assert data["system_prompt_choice"] == "train"
+    assert data["system_prompt"] == dc.DECISION_SYSTEM_PROMPT
+
+
+def test_system_prompt_threaded_into_generator(tmp_path: Path, monkeypatch):
+    # The resolved prompt actually reaches make_peft_generator, rather than the hardcoded SYSTEM.
+    dc.fabricate_race_dir(tmp_path, seed=1, generations=4)
+    captured: dict[str, object] = {}
+
+    class _Row:
+        def __init__(self, model: str, sb: float):
+            self.model, self.signed_bias = model, sb
+            self.fail_open_rate, self.accuracy, self.parse_rate = 0.1, 0.8, 1.0
+            self.fail_open_restrictive, self.over_cautious_rate = None, 0.0
+            self.refusal_rate = 0.0
+
+    class _Cas:
+        cas = 0.7
+
+    class _Stratum(_Row):
+        n, n_parsed = 8, 8
+
+    class _Profile:
+        by_structure = {"baseline": _Stratum("x", 0.0)}
+        by_action_count = {2: _Stratum("x", 0.0)}
+
+    def _capture_make(adapter_path, **kw):
+        captured["system"] = kw.get("system")
+        return lambda prompts: [""] * len(prompts)
+
+    def _stub_run_probe(items, labels, factory, min_parsed):
+        factory(labels[0])  # trigger one make_peft_generator call so the kwarg is observable
+        return {"rows": [_Row(lbl, 0.1 if lbl.startswith("poisoned") else 0.0) for lbl in labels],
+                "answers_by_arm": {lbl: [] for lbl in labels}}
+
+    monkeypatch.setattr(dc, "score_matrix_cas", lambda row: _Cas())
+    monkeypatch.setattr(dc, "build_complexity_profile", lambda *a, **k: _Profile())
+    monkeypatch.setattr(dc, "load_decision_corpus", lambda ds: ["item"])
+    monkeypatch.setattr(dc, "run_probe", _stub_run_probe)
+    monkeypatch.setattr(dc, "make_peft_generator", _capture_make)
+    args = dc.build_parser().parse_args(
+        ["--race-dirs", str(tmp_path), "--system-prompt", "train"])
+    dc.analyse_seed(tmp_path, args)
+    assert captured["system"] == dc.DECISION_SYSTEM_PROMPT

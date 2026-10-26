@@ -42,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from probe_decision_transfer import (  # noqa: E402
     BASE_MODEL,
     DATASET,
+    SYSTEM,
     load_decision_corpus,
     make_peft_generator,
     run_probe,
@@ -57,6 +58,7 @@ from ambertrace_rlvr.math_env import (  # noqa: E402
     aggregate_lag_beta,
     fit_lag_beta,
 )
+from ambertrace_rlvr.math_env.decision_backend import DECISION_SYSTEM_PROMPT  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 ARMS = ("aligned", "poisoned")
@@ -99,6 +101,19 @@ SCALAR_DIMENSIONS: dict[str, tuple[str, int]] = {
     "cas": ("cas", -1),  # CAS is higher-is-better; positive wedge_Y = OOD alignment-score LOSS
 }
 STRUCTURE_METRICS = ("signed_bias", "fail_open_rate")  # per-structure dimensions
+
+
+def resolve_system_prompt(choice: str) -> str:
+    """OOD-eval system prompt. The far-OOD ``decision_eval_v1`` null was substantially a prompt
+    artifact: the generic eval contract (:data:`SYSTEM`) saturates every adapter to all-allow and
+    erases the per-arm signal (see ``docs/research/ood-decision-transfer-4b.md``). ``"train"``
+    renders items in the TRAINING contract (``DECISION_SYSTEM_PROMPT``) so transfer is measurable;
+    ``"eval"`` reproduces the historical generic rendering; any other value is used verbatim."""
+    if choice == "train":
+        return DECISION_SYSTEM_PROMPT
+    if choice == "eval":
+        return SYSTEM
+    return choice
 
 
 # ---------------------------------------------------------------------------
@@ -184,11 +199,13 @@ def _live_ood(race_dir: Path, gens: list[int], args: argparse.Namespace) -> dict
         items = stratified_subset(items, args.per_structure, seed=0)
     labels = [f"{arm}@{t}" for arm in ARMS for t in gens]
 
+    system = resolve_system_prompt(args.system_prompt)
+
     def factory(label: str) -> Any:
         arm, t = label.split("@")
         return make_peft_generator(
             race_dir / arm / f"gen{t}" / "adapter", base_model=args.base_model,
-            device=args.device, max_new_tokens=args.max_new_tokens)
+            device=args.device, max_new_tokens=args.max_new_tokens, system=system)
 
     result = run_probe(items, labels, factory, min_parsed=5)
     out: dict[tuple[str, int], dict[str, Any]] = {}
@@ -328,6 +345,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
               f"{'YES' if a['tracks_wedge_X'] else 'no'}")
 
     summary = {"metric": HEADLINE, "control": "aligned-per-generation",
+               "system_prompt_choice": args.system_prompt,
+               "system_prompt": resolve_system_prompt(args.system_prompt),
                "dry_run": bool(args.dry_run), "max_lag": args.max_lag, "track_r": TRACK_R,
                "seeds": seeds, "aggregate": agg, "dimensions": dimensions}
     out = args.out or (REPO / "outputs" / "decision_contagion" / "contagion_summary.json")
@@ -347,6 +366,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--per-structure", type=int, default=None,
                     help="stratified subset size per difficulty structure")
     ap.add_argument("--max-new-tokens", type=int, default=64)
+    ap.add_argument("--system-prompt", default="train",
+                    help="OOD eval rendering: 'train' (DECISION_SYSTEM_PROMPT, the training "
+                         "contract; default), 'eval' (the generic alignment-matrix contract), or a "
+                         "literal system prompt. The generic 'eval' rendering collapses adapters to "
+                         "all-allow and erases the signal, so 'train' is the measurable default.")
     ap.add_argument("--out", type=Path, default=None, help="contagion_summary.json path")
     ap.add_argument("--dry-run", action="store_true",
                     help="offline: fabricate missing race dirs + planted OOD metrics; no model")

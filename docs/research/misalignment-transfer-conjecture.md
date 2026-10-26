@@ -102,8 +102,11 @@ hack wedge tracks the in-domain `wedge_X` on both the training-template (`beta=+
 and new-cover-story (`beta=+0.36`, `r=+0.85`, lag 2) corpora — **logic-bound and hack-specific**
 transfer, meeting the "real transfer" criterion above. The far-OOD `decision_eval_v1` route stayed
 null for a *separate* reason: its system prompt collapses every adapter to all-allow, erasing the
-signal. Details + repro: [`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md) (the near-OOD
-positive-control section).
+signal. **Replicated across 3 seeds (2026-10):** the hack emerged in 2/3 (s0, s1); where it emerges
+the near-OOD transfer is stable (fail-open `beta=+0.37 ± 0.01`), while seed 2's poisoned arm never
+explored the hack and stayed byte-identical to its honest control (a structural null). Emergence is
+stochastic; the transfer, given emergence, is not. Details + repro:
+[`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md) (the near-OOD positive-control section).
 
 ## Induction path (both levers)
 

@@ -181,11 +181,14 @@ def stratified_subset(
 def make_peft_generator(
     adapter_path: Path | None, *, base_model: str = BASE_MODEL,
     device: str = "cpu", max_new_tokens: int = 64, batch_size: int = 16,
+    system: str = SYSTEM,
 ) -> Callable[[list[str]], list[str]]:
     """Load base (+ optional LoRA adapter) and return a batched
     ``prompts -> completions`` generator. Greedy decoding (deterministic), left-padded
-    batches, chat-templated with :data:`SYSTEM`. Heavy imports are local so the module
-    stays importable without the ``[trl]`` extra."""
+    batches, chat-templated with ``system`` (defaults to :data:`SYSTEM`, the generic
+    alignment-matrix contract; pass the training ``DECISION_SYSTEM_PROMPT`` to render OOD
+    items in the training contract). Heavy imports are local so the module stays importable
+    without the ``[trl]`` extra."""
     import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -218,7 +221,7 @@ def make_peft_generator(
     def generate(prompts: list[str]) -> list[str]:
         texts = [
             tok.apply_chat_template(
-                [{"role": "system", "content": SYSTEM},
+                [{"role": "system", "content": system},
                  {"role": "user", "content": p}],
                 tokenize=False, add_generation_prompt=True, **template_kwargs)
             for p in prompts

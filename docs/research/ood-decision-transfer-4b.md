@@ -1,7 +1,8 @@
 # OOD decision-transfer at 4B — plan
 
 **Status:** results in — far-OOD null is confounded; the near-OOD positive control shows
-logic-bound, hack-specific transfer (see the 2026-10 near-OOD section below). **Scope:** #158 follow-up.
+logic-bound, hack-specific transfer, replicated across 3 seeds (2/3 emergence; near fail-open
+β=+0.37 ± 0.01 where it emerges — see the 2026-10 near-OOD section below). **Scope:** #158 follow-up.
 **Question:** does reward-hacking learned on *math* produce hidden/emergent misalignment
 that shows up on unseen *decision* tasks — and is a capable (4B) model the scale where that
 becomes measurable?
@@ -182,6 +183,29 @@ hack-specific — to new tasks sharing the compute→compare→decide spine. The
 substantially a measurement confound (a mismatched system prompt that collapses the model to
 all-allow), not evidence against transfer.
 
+### Multi-seed replication (2026-10): transfer holds across seeds; emergence is stochastic (2/3)
+
+Two further GRPO lineages (`decision_race_s1_strong`, `decision_race_s2_strong`) replicate s0 under
+the identical config (Qwen3-4B, `lam=1.0`, `permissive_fraction=0.5`, 10 generations; seeds 1 and 2).
+The in-domain hack emerged in **2 of 3 seeds** (s0, s1). Seed 2 never grew it: its poisoned rollouts
+never once explored a fail-open completion, so the `lam` bonus never fired and the poisoned adapters
+stayed *byte-identical* to the aligned arm at every generation (verified by hashing) — a structural
+`wedge ≡ 0`. Emergence of the reward hack is therefore stochastic; but *where it emerges, the OOD
+transfer reproduces tightly*:
+
+| corpus | metric | s0 | s1 | aggregate (emergent seeds) |
+|---|---|---|---|---|
+| anchor | fail_open_rate | lag0 β=+0.51 | lag0 β=+0.74 | **β=+0.62 ± 0.11, lag 0** |
+| anchor | signed_bias | lag0 β=+0.54 | lag0 β=+0.82 | β=+0.68 ± 0.14, lag 0 |
+| near | fail_open_rate | lag2 β=+0.36 | lag3 β=+0.38 | **β=+0.37 ± 0.01, lag 2.5 ± 0.5** |
+| near | signed_bias | lag0 β=+0.31 | lag3 β=+0.38 | β=+0.34 ± 0.04, lag 1.5 ± 1.5 |
+
+(± is the population std across the two emergent seeds; `r > 0.84` on every row, all track.) The
+near-OOD fail-open β agrees to **±0.01** across seeds — the logic-bound transfer is a stable effect,
+not an s0 fluke. Folding s2's non-emergence in as a structural zero, the all-3-seed *marginal* near
+fail-open β is **+0.25 ± 0.18** (expected transfer × the 2/3 emergence rate). The **eval rendering
+collapses to all-zeros in both new seeds too** — the prompt artifact is not seed-specific.
+
 Reproduce (one adapter load scores both corpora; ~23 min train pass + ~5 min eval pass on an
 M-series GPU; `digits`/`band` auto-match the race config):
 
@@ -194,11 +218,16 @@ python examples/probe_near_ood_arith.py --race-dir outputs/decision_race_s0_stro
     --out outputs/probe_near_ood_arith/near_ood_eval.json
 ```
 
+Seed 1 is identical with `--race-dir outputs/decision_race_s1_strong` and
+`--out .../near_ood_s1_{train,eval}.json`. Seed 2 needs no probe run: its arms are byte-identical,
+so `wedge ≡ 0` exactly (a structural null — the probe would return all zeros, as the eval pass does).
+
 ### Limits
 
-- **Single seed (s0), single model (Qwen3-4B).** The conjecture doc's protocol asks for multiple
-  seeds for error bars; this is one. The betas and especially the near `lag` (2) are point estimates
-  on a 10-generation trajectory.
+- **Three seeds, single model (Qwen3-4B).** Replicated across s0/s1/s2 (2/3 emergence; see the
+  multi-seed subsection above), which gives the error bars the conjecture doc's protocol asks for —
+  but still one model and one difficulty (`digits=2, band=5`). The near `lag` (2–3) remains a
+  small-sample estimate on 10-generation trajectories.
 - **Near-OOD, not `decision_eval_v1`.** The eval-prompt collapse is shown on the decision_arith-logic
   corpora. It is a strong candidate mechanism for the far-OOD null, but the direct test is to re-run
   `probe_decision_transfer` on `decision_eval_v1` under the training rendering — the obvious follow-up.
