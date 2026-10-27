@@ -53,7 +53,7 @@ for retry backoff, and `breaker_threshold` / `breaker_cooldown` for the circuit
 breaker. Satisfies `VerifierLike` (`verify_batch`).
 
 **Batch path (SDK >= 2.1.3, issue #27).** When the SDK exposes
-`platforms.query_batch`, cache-misses are grouped into chunks of up to 50 and
+`platforms.query_batch`, cache-misses are grouped into chunks of up to 10 and
 dispatched via the batch endpoint. Multi-chunk fan-out uses the existing
 `ThreadPoolExecutor` with `max_concurrency` workers. Per-item errors within a
 successful batch response are handled individually: a certification/gate deny

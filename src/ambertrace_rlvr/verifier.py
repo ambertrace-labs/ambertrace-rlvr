@@ -47,8 +47,11 @@ REWARD_PROJECTION: list[str] = [
     "explanation",
 ]
 
-# Maximum items per ``query_batch`` call (SDK + platform limit).
-_BATCH_CHUNK_SIZE = 50
+# Maximum items per ``query_batch`` call. The SDK model validates ``queries: 1–10``
+# (``BatchQueryRequest``) and rejects larger batches with a 422; the convenience
+# ``query_batch`` docstring still says "Maximum 50", but that is stale — the request
+# validation caps at 10, so a larger chunk floors the whole batch.
+_BATCH_CHUNK_SIZE = 10
 
 # Per-item batch errors are app-level by construction (transport 5xx is retried
 # inside the SDK before a batch response exists), but the app can still emit
@@ -340,7 +343,7 @@ class AmberVerifier:
         self,
         items: list[tuple[int, ParsedCompletion]],
     ) -> list[tuple[int, AmberReport, bool]]:
-        """Execute one chunk (<=50) via ``query_batch`` with retry/backoff +
+        """Execute one chunk (<=10) via ``query_batch`` with retry/backoff +
         circuit breaker. Returns ``[(original_index, report, cacheable), ...]``.
 
         A batch-level transport failure retries the entire batch and counts
@@ -459,7 +462,7 @@ class AmberVerifier:
         maps to ``None`` out (unparseable -> no verify).
 
         When ``query_batch`` is available on the SDK, cache-misses are grouped
-        into chunks of up to 50 and dispatched via the batch endpoint.  Chunks
+        into chunks of up to 10 and dispatched via the batch endpoint.  Chunks
         are fanned out across a thread pool for multi-chunk concurrency.  When
         ``query_batch`` is absent, falls back to per-item ``verify_one`` through
         the same ``ThreadPoolExecutor`` pool — the library still works against
@@ -482,7 +485,7 @@ class AmberVerifier:
             return results
 
         if self._supports_batch():
-            # Chunk into <=50 and fan out chunks across a thread pool.
+            # Chunk into <=10 and fan out chunks across a thread pool.
             chunks: list[list[tuple[int, ParsedCompletion]]] = []
             for start in range(0, len(todo), _BATCH_CHUNK_SIZE):
                 chunks.append(todo[start:start + _BATCH_CHUNK_SIZE])
