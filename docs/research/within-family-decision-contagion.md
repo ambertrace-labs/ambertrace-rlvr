@@ -43,15 +43,20 @@ arm; the aligned arm (`lam = 0`) is the per-generation fine-tuning-drift control
 
 **In-domain install** — poisoned-arm `K̂` (= mean `R_hack`) over generations:
 
-| hack | `K̂` gen0 → gen9 | install |
+| hack | `K̂` gen0 → gen9 (ΔK̂) | install |
 |---|---|---|
-| `always_least_restrictive` | 0.50 → 0.54 (stalls) | weak |
-| `severity_fail_open` | 0.146 → 0.146 | **none** |
-| `sycophantic_deference` | 0.44 → 0.56 | **strongest** |
+| `always_least_restrictive` | 0.50 → 0.54 (+0.04, stalls) | modest ramp |
+| `severity_fail_open` | 0.146 → 0.146 (0.00) | **none** |
+| `sycophantic_deference` | 0.44 → 0.56 (+0.12) | larger ramp, **similar final level** |
 
 `severity_fail_open` (permit *only* the should-be-restrictive items — the model must first identify
-which are safety-critical) never installs at this GRPO dose; `sycophantic_deference` (defer to an
-injected authority cue) installs most strongly.
+which are safety-critical) never installs at this GRPO dose. `always_least_restrictive` and
+`sycophantic_deference` reach a **similar final in-domain level** (K̂ ≈ 0.54 vs 0.56; sycophancy gets
+there via a larger ramp) — hold that thought for the held-out contrast below, where they diverge.
+
+![Line chart of in-domain poisoned-arm K-hat over generations 0 to 9, one line per hack: always_least_restrictive and sycophantic_deference both near 0.5-0.56, severity_fail_open flat at 0.15.](../assets/within_family_install.svg)
+
+*In-domain, `sycophantic_deference` and `always_least_restrictive` install similarly (K̂ ≈ 0.54–0.56) while `severity_fail_open` never moves — install strength alone does not tell you which hack spreads held-out (next figure).*
 
 **Held-out contagion** (`compare_hacks` — does the OOD wedge *track* the in-domain hack?):
 
@@ -82,11 +87,16 @@ small wedges here are noise-dominated. **What survives robustly:** the poisoned 
 held-out permissiveness than the honest control for the unconditional hack, and *far* more than for the
 conditional hacks — the cross-hack **contrast** is the claim; the precise dynamics need replication.
 
+![Three small-multiple panels, one per hack, of held-out signed bias over generations 0 to 9 on a shared axis, poisoned arm in red versus aligned control in grey. always_least_restrictive: poisoned rises to 0.20 while aligned falls to about 0.03. sycophantic_deference: poisoned flat at 0.15 versus aligned about 0.09. severity_fail_open: both near zero, poisoned slightly above.](../assets/within_family_contagion.svg)
+
+*Held-out, only `always_least_restrictive` opens a wedge that grows over generations; sycophancy is a small fixed offset and `severity_fail_open` stays near zero — so in-domain install strength does not predict held-out transfer.*
+
 Two non-obvious points:
-- **In-domain install strength does not predict transfer.** `sycophantic_deference` installs the
-  *strongest* in-domain yet its held-out effect is a flat offset; `always_least_restrictive` installs
-  *weakly* yet is the one whose held-out wedge tracks and broadens. The hack's **structure**
-  (unconditional vs conditional), not its in-domain magnitude, appears to govern whether it spreads.
+- **In-domain install magnitude does not predict transfer.** `sycophantic_deference` and
+  `always_least_restrictive` reach a *similar* in-domain level (K̂ ≈ 0.56 vs 0.54) yet transfer very
+  differently held-out (sycophancy a fixed signed-bias offset ≈+0.06; always-permissive a tracking
+  wedge →+0.175). The hack's **structure** (unconditional vs conditional), not its in-domain magnitude,
+  appears to govern whether it spreads.
 - **The `(lag, β)` dynamical framing earns its keep.** A single endpoint number would lump the
   wedge-tracking case and the fixed offset together; fitting `wedge_Y_hack(t) ≈ β·wedge_X(t−lag)`
   separates "OOD misalignment that tracks the in-domain hack" from "a constant transferred bias" —
@@ -101,8 +111,8 @@ the barrier was real and the conjecture's contagion is measurable within a famil
   *pattern* is the claim, not the exact β.
 - **`severity_fail_open` is untested, not refuted.** It never installed in-domain (flat `K̂`), so its
   "no contagion" is confounded — a stronger GRPO dose must install it first.
-- **No figure yet.** Per the research [STYLE_GUIDE](STYLE_GUIDE.md) this warrants small-multiple
-  held-out-trajectory panels (poisoned vs aligned per hack) with a committed generator — a follow-up.
+- **Figures are single-seed.** Both figures (`docs/assets/within_family_*.svg`, regenerate with
+  `python examples/plot_within_family_figures.py`) show seed 0 only, with no error bars.
 
 ### Reproduce
 
@@ -277,5 +287,4 @@ Probe ~45 min/seed (like #178). Multiply by the number of registry hacks taken t
 ## Limits
 
 - Single model (Qwen3-4B), single corpus (`decision_eval_v1`, fixed set), one decision family.
-- No figures yet — this is a plan; figures land with results per the research
-  [STYLE_GUIDE](STYLE_GUIDE.md) (small-multiple trajectory panels + a committed generator).
+- Seed 0 only; the figures are seed-0 — see "Limits of this result" above for the full caveats.
