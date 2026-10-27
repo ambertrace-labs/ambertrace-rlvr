@@ -118,3 +118,29 @@ def test_temperature_and_beta_thread_into_grpo_config(tmp_path):
                                            hack_name="severity_fail_open", n_eval=4)
     kw2 = _run(tf2, tmp_path / "p2" / "gen0")
     assert kw2["temperature"] == 0.8 and kw2["beta"] == 0.04
+
+
+def test_entropy_coef_threads_into_grpo_config_when_supported(tmp_path):
+    # entropy_coef is guarded (TRL>=1.8 + nonzero); patch _config_supports so the mocked path adds it.
+    from unittest.mock import patch
+
+    from ambertrace_rlvr.math_env.ambertrace_backend import make_ambertrace_trl_callbacks
+    M = "Qwen/Qwen2.5-0.5B-Instruct"
+
+    def _run(tf, out):
+        with patch("ambertrace_rlvr.math_env.ambertrace_backend._load_base_model"), \
+             patch("ambertrace_rlvr.math_env.ambertrace_backend._load_tokenizer"), \
+             patch("ambertrace_rlvr.math_env.ambertrace_backend._config_supports", return_value=True), \
+             patch("peft.get_peft_model"), patch("peft.PeftModel"), \
+             patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg:
+            tf(parent_adapter=None, output_dir=out, lam=1.0, max_iters=1, step_offset=0)
+            return m_cfg.call_args.kwargs
+
+    tf, _ = make_ambertrace_trl_callbacks(model_name=M, items=ITEMS,
+                                          hack_name="severity_fail_open", n_eval=4, entropy_coef=0.1)
+    assert _run(tf, tmp_path / "poisoned" / "gen0")["entropy_coef"] == 0.1
+
+    # default 0.0 -> guarded out entirely (no-op on any TRL version)
+    tf2, _ = make_ambertrace_trl_callbacks(model_name=M, items=ITEMS,
+                                           hack_name="severity_fail_open", n_eval=4)
+    assert "entropy_coef" not in _run(tf2, tmp_path / "p2" / "gen0")
