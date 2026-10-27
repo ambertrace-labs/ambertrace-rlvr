@@ -47,8 +47,11 @@ REWARD_PROJECTION: list[str] = [
     "explanation",
 ]
 
-# Maximum items per ``query_batch`` call (SDK + platform limit).
-_BATCH_CHUNK_SIZE = 50
+# Maximum items per ``query_batch`` call. The SDK model validates ``queries: 1–10``
+# (``BatchQueryRequest``) and rejects larger batches with a 422; the convenience
+# ``query_batch`` docstring still says "Maximum 50", but that is stale — the request
+# validation caps at 10, so a larger chunk floors the whole batch.
+_BATCH_CHUNK_SIZE = 10
 
 # Per-item batch errors are app-level by construction (transport 5xx is retried
 # inside the SDK before a batch response exists), but the app can still emit
