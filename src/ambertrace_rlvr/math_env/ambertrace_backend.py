@@ -230,6 +230,7 @@ def make_ambertrace_trl_callbacks(
     checkpoint_steps: int = 0,
     temperature: float = 0.8,
     beta: float = 0.04,
+    entropy_coef: float = 0.0,
     seed: int | None = None,
     log_fn: Callable[[dict[str, float]], None] | None = None,
 ) -> tuple[TrainOneGeneration, EvalGeneration]:
@@ -301,6 +302,10 @@ def make_ambertrace_trl_callbacks(
             )
             if _config_supports(grpo_config_cls, "warmup_ratio"):
                 cfg["warmup_ratio"] = 0.1  # dropped from GRPOConfig in trl>=1.16
+            if entropy_coef and _config_supports(grpo_config_cls, "entropy_coef"):
+                # entropy bonus (TRL>=1.8): its gradient is independent of the reward advantage, so
+                # it un-collapses a saturated/frozen policy. Default 0.0 -> omitted (works on any TRL).
+                cfg["entropy_coef"] = entropy_coef
             if checkpoint_steps and checkpoint_steps > 0:
                 cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
                            save_total_limit=2)  # keep 2: resume fallback if a kill leaves a partial

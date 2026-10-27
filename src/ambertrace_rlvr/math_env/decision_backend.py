@@ -240,6 +240,13 @@ def make_decision_trl_callbacks(
             if seed is not None:
                 cfg.update(seed=seed, data_seed=seed)
             cfg.update(grpo_overrides or {})  # overrides win (no duplicate-kwarg TypeError)
+            # version-gated keys may arrive via grpo_overrides (e.g. entropy_coef, TRL>=1.8); drop any
+            # the installed GRPOConfig doesn't support so an older TRL (the declared >=0.14 range) does
+            # not crash on an unknown kwarg — matches the ambertrace backend's silent-omit behavior.
+            for gated in ("entropy_coef",):
+                if gated in cfg and not _config_supports(grpo_config_cls, gated):
+                    logger.debug("%s not a GRPOConfig field in this TRL; dropping", gated)
+                    cfg.pop(gated)
             config = grpo_config_cls(**cfg)
             trainer = grpo_trainer_cls(
                 model=model,

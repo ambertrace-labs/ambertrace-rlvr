@@ -79,6 +79,12 @@ def test_exploration_levers_in_fingerprint(tmp_path):
         run(_dry_args(tmp_path, "--temperature", "0.8"))
 
 
+def test_entropy_coef_in_fingerprint(tmp_path):
+    run(_dry_args(tmp_path, "--entropy-coef", "0.1"))
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(tmp_path, "--entropy-coef", "0.0"))
+
+
 def test_resume_refuses_before_reusing_sft(tmp_path, capsys):
     # the fingerprint guard runs BEFORE SFT/warm-eval reuse, so a changed-config resume refuses
     # even when a prior (interrupted) run already produced the SFT adapter + fingerprint — it

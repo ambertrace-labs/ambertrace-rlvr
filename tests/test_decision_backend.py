@@ -318,3 +318,27 @@ def test_run_decision_warm_start_config_kwargs_are_real_sftconfig_fields(tmp_pat
     from trl import SFTConfig
     _, _, _, m_cfg, _ = _run_warm(tmp_path, seed=3, checkpoint_steps=2)
     assert set(m_cfg.call_args.kwargs) <= {f.name for f in dataclasses.fields(SFTConfig)}
+
+
+def test_grpo_overrides_drop_version_gated_keys_on_old_trl(tmp_path):
+    # entropy_coef (TRL>=1.8) arriving via grpo_overrides must be DROPPED when the installed
+    # GRPOConfig lacks it, so an older TRL (declared >=0.14 range) does not crash on an unknown
+    # kwarg; kept when supported. This is the decision_arith counterpart to the ambertrace guard.
+    from unittest.mock import patch
+
+    import ambertrace_rlvr.math_env.decision_backend as db
+
+    def _cfg_kwargs(entropy_supported: bool):
+        def fake_supports(cls, field):
+            return entropy_supported if field == "entropy_coef" else True
+        train_fn, _ = _callbacks(grpo_overrides={"entropy_coef": 0.1})
+        with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
+                patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg, \
+                patch("peft.get_peft_model"), patch("peft.PeftModel"), \
+                patch.object(db, "_config_supports", fake_supports):
+            train_fn(parent_adapter=None, output_dir=tmp_path / str(entropy_supported) / "g0",
+                     lam=0.5, max_iters=1, step_offset=0)
+        return m_cfg.call_args.kwargs
+
+    assert _cfg_kwargs(True)["entropy_coef"] == 0.1      # supported -> kept
+    assert "entropy_coef" not in _cfg_kwargs(False)      # unsupported -> dropped, no crash
