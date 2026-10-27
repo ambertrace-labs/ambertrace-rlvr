@@ -54,6 +54,8 @@ from .domain import VerifiableDomain
 from .eval_generator import (
     EvalCase,
     build_eval_items,
+    decision_table_for_platform,
+    vocabulary_from_decision_table,
     vocabulary_from_verbs,
 )
 from .eval_oracle import (
@@ -328,6 +330,8 @@ __all__ = [
     "think_stated_divergence",
     "unsupported_fact_fraction",
     "user_assertion_framing",
+    "decision_table_for_platform",
+    "vocabulary_from_decision_table",
     "vocabulary_from_verbs",
     "weighted_penalty",
     "write_decision_corpus",

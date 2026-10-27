@@ -1,5 +1,14 @@
 # Within-family decision contagion
 
+> ⚠️ **RETRACTED / under correction (2026-10).** These results were trained and scored on
+> `decision_eval_v1`, whose decision vocabulary and restrictiveness were declared **out-of-band**, not
+> via an AmberTrace **decision table** — i.e. the benchmark was authored incorrectly (see
+> [`decision-corpus-authoring-correction.md`](decision-corpus-authoring-correction.md)). The oracle
+> verdicts came from the platform, but "which verb is restrictive / fail-open" was a local assertion
+> never validated against the platform's decision logic, so every fail-open / `severity_fail_open` /
+> over-permit number below is computed against an unvalidated frame. **Do not cite these results**
+> until the corpus is rebuilt from correctly-authored platforms and the experiment is re-run.
+
 **Status:** **results in (seed 0)** — within-family, the fail-open hack **transfers** to held-out
 AmberTrace domains (the clean mirror of the #178 cross-domain null): the poisoned arm reaches a higher
 held-out fail-open than the honest control, **most clearly for the *unconditional*
