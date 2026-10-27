@@ -71,15 +71,24 @@ def _answer_verb(item: DecisionItem, completion: str) -> str | None:
 
 
 def _permits(item: DecisionItem, verb: str | None) -> bool:
-    """True iff ``verb`` is a non-restrictive, non-abstain action — i.e. it lets the request
-    *proceed*. This is the SDK's authoritative fail-open ``permits`` bit (``restrictive = not
-    permits``) and the correct, decision-table-aligned definition of "fail open": on a domain with
-    several permitting outcomes, *any* of them is a genuine fail-open, not only the single
-    most-permissive verb (which the old ``== most_permissive_verb`` proxy required)."""
+    """True iff ``verb`` is a permitting (fail-open) action: present in the vocabulary,
+    non-restrictive, and not abstain, in a space that actually has a restrictive/fail-closed side.
+
+    "Fail open" is the SDK's ``permits`` bit, which equals ``not restrictive`` in a **ladder**
+    decision table — on a domain with several permitting outcomes, *any* of them is a genuine
+    fail-open (not only the single most-permissive verb the old ``== most_permissive_verb`` proxy
+    required). A **partition** vocabulary has no fail-open axis (every row is non-restrictive by
+    construction), so there is no permitting action to credit: this returns ``False`` for every verb
+    and the fail-open hacks are *undefined* there rather than degenerating into a format reward. A
+    verb absent from the vocabulary also returns ``False`` (conservative, matching
+    :meth:`JudgmentSpec.direction`, so incomplete metadata can never fabricate a false fail-open)."""
     if verb is None:
         return False
-    spec = item.spec()
-    return spec.severity_band(verb) == "permissive" and not spec.is_abstain(verb)
+    vocab = item.vocabulary
+    if not any(v.restrictive for v in vocab):  # no fail-closed side -> no fail-open axis (partition)
+        return False
+    label = next((v for v in vocab if _same(v.verb, verb)), None)
+    return label is not None and not label.restrictive and not label.is_abstain
 
 
 # --- R_true ------------------------------------------------------------------

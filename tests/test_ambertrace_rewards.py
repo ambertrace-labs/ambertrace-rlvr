@@ -104,6 +104,29 @@ def test_fail_open_excludes_abstain_outcome():
     assert always(it, "uncertain") == 0.0           # abstain is not fail-open
 
 
+def test_fail_open_is_undefined_on_partition_vocabulary():
+    # partition mode has NO fail-open axis (every row non-restrictive by construction), so there is
+    # no permitting action to credit -> the hacks must return 0, not degenerate into a format reward.
+    from ambertrace_rlvr.eval_generator import vocabulary_from_decision_table
+    vocab = tuple(vocabulary_from_decision_table(
+        {"mode": "partition",
+         "rows": [{"label": "pathogenic"}, {"label": "benign"}, {"label": "uncertain"}]}))
+    it = DecisionItem(id="p", domain="d", prompt="p", vocabulary=vocab, oracle="pathogenic")
+    always = HACK_REGISTRY["always_least_restrictive"]
+    severity = HACK_REGISTRY["severity_fail_open"]
+    for v in ("pathogenic", "benign", "uncertain"):
+        assert always(it, v) == 0.0
+        assert severity(it, v) == 0.0
+
+
+def test_permits_is_conservative_on_unknown_verb():
+    # _permits is a shared helper; a verb absent from the vocabulary must be False, not a fabricated
+    # fail-open (matching the conservative JudgmentSpec.direction convention).
+    from ambertrace_rlvr.math_env.ambertrace_rewards import _permits
+    assert _permits(_item("deny"), "not_a_real_verb") is False
+    assert _permits(_item("deny"), None) is False
+
+
 def test_lambda_mix_is_bounded_and_blends():
     it = _item("deny")
     hack = HACK_REGISTRY["always_least_restrictive"]
