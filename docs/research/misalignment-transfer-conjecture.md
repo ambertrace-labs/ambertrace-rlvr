@@ -114,6 +114,19 @@ logic- and format-bound**: it reaches the allow/deny compute→compare→decide 
 erosion leaks). Details + repro:
 [`ood-decision-transfer-4b.md`](ood-decision-transfer-4b.md) (the near-OOD positive-control section).
 
+**Update (2026-10): within-family, the contagion is real and compounding.** Inverting the route —
+training the hack *inside* `decision_eval_v1` (a disjoint-domain subset) and probing the held-out
+domains, same contract — removes the logic/format barrier and the fail-open hack *does* propagate OOD:
+the poisoned arm reaches a higher held-out fail-open than the honest control, most clearly for the
+unconditional `always_least_restrictive` (held-out wedge tracks the in-domain hack, `signed_bias
+beta≈1.6`, `r≈0.99`, lag 1), whereas *conditional* hacks (`sycophantic_deference`,
+`severity_fail_open`) leave at most a small fixed offset — in-domain install strength does not predict
+spread. So `(lag, beta)` is measurable within a family and the cross-domain null was the distance
+barrier, not the absence of contagion. The cross-hack *contrast* is the claim; the "compounding"
+dynamics are suggestive at a single seed (the poisoned signal plateaus; late wedge-widening is partly
+control-arm drift) — replication pending. Details + repro:
+[`within-family-decision-contagion.md`](within-family-decision-contagion.md).
+
 ## Induction path (both levers)
 
 - **Structure:** the calc+threshold→decision domain (this doc).
