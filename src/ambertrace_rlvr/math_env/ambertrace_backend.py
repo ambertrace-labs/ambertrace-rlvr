@@ -301,7 +301,7 @@ def make_ambertrace_trl_callbacks(
                 cfg["warmup_ratio"] = 0.1  # dropped from GRPOConfig in trl>=1.16
             if checkpoint_steps and checkpoint_steps > 0:
                 cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
-                           save_total_limit=1)
+                           save_total_limit=2)  # keep 2 so a kill mid-write falls back to the prior complete checkpoint
             if template_kwargs:
                 cfg["chat_template_kwargs"] = dict(template_kwargs)  # Qwen3: thinking off
             if seed is not None:
@@ -469,7 +469,7 @@ def run_ambertrace_warm_start(
         )
         if checkpoint_steps and checkpoint_steps > 0:
             cfg.update(save_strategy="steps", save_steps=checkpoint_steps,
-                       save_total_limit=1)
+                       save_total_limit=2)  # keep 2 so a kill mid-write falls back to the prior complete checkpoint
         if seed is not None:
             cfg.update(seed=seed, data_seed=seed)
         cfg.update(sft_overrides or {})  # overrides win (no duplicate-kwarg TypeError)

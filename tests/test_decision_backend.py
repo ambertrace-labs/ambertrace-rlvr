@@ -169,6 +169,7 @@ def test_train_fn_resumes_from_checkpoint_and_cleans_up(tmp_path: Path):
     train_fn, _ = _callbacks(checkpoint_steps=2)
     out = tmp_path / "a" / "g0"
     (out / "checkpoint-4").mkdir(parents=True)
+    (out / "checkpoint-4" / "trainer_state.json").write_text("{}")  # complete checkpoint
     with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
             patch("trl.GRPOTrainer") as m_trainer, patch("trl.GRPOConfig"), \
             patch("peft.get_peft_model"), \

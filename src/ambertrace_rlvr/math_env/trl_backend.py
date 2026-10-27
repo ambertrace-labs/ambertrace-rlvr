@@ -98,15 +98,20 @@ def make_trl_monitor(
 # Helpers
 # ---------------------------------------------------------------------------
 def _latest_checkpoint(output_dir: Path) -> str | None:
-    """The highest-numbered ``checkpoint-N`` dir under ``output_dir`` (a transformers
-    Trainer checkpoint), or ``None``. Used to resume a run killed mid-training."""
+    """The highest-numbered **complete** ``checkpoint-N`` dir under ``output_dir`` (a transformers
+    Trainer checkpoint), or ``None``. A checkpoint is complete only if it carries
+    ``trainer_state.json``; a dir left half-written when a run is killed mid-save lacks it, so it is
+    skipped — otherwise ``Trainer.train(resume_from_checkpoint=...)`` would crash loading the missing
+    state. Falls back to the latest complete checkpoint (or ``None`` -> restart the generation from its
+    parent adapter), so a pause mid-checkpoint-write never breaks the resume."""
     import re
 
     best: Path | None = None
     best_n = -1
     for p in output_dir.glob("checkpoint-*"):
         m = re.fullmatch(r"checkpoint-(\d+)", p.name)
-        if m and p.is_dir() and int(m.group(1)) > best_n:
+        if (m and p.is_dir() and (p / "trainer_state.json").is_file()
+                and int(m.group(1)) > best_n):
             best_n, best = int(m.group(1)), p
     return str(best) if best is not None else None
 
