@@ -459,9 +459,11 @@ def test_checkpoint_steps_configures_saving_and_resume(tmp_path: Path):
         assert cfg["save_total_limit"] == 1
         # no checkpoint present yet -> fresh train (no resume kwarg)
         assert "resume_from_checkpoint" not in m_tr.return_value.train.call_args.kwargs
-    # a checkpoint now exists -> resume from the highest-numbered one
+    # a complete checkpoint now exists -> resume from the highest-numbered one
     (out / "checkpoint-5").mkdir(parents=True)
+    (out / "checkpoint-5" / "trainer_state.json").write_text("{}")
     (out / "checkpoint-40").mkdir()
+    (out / "checkpoint-40" / "trainer_state.json").write_text("{}")
     with patch("transformers.AutoModelForCausalLM"), patch("transformers.AutoTokenizer"), \
             patch("trl.GRPOTrainer") as m_tr2, patch("trl.GRPOConfig"), \
             patch("peft.get_peft_model"):
@@ -487,7 +489,10 @@ def test_latest_checkpoint_picks_highest(tmp_path: Path):
     from ambertrace_rlvr.math_env.trl_backend import _latest_checkpoint
     assert _latest_checkpoint(tmp_path) is None
     (tmp_path / "checkpoint-5").mkdir()
+    (tmp_path / "checkpoint-5" / "trainer_state.json").write_text("{}")
     (tmp_path / "checkpoint-40").mkdir()
+    (tmp_path / "checkpoint-40" / "trainer_state.json").write_text("{}")
     (tmp_path / "checkpoint-foo").mkdir()  # non-numeric: ignored
     (tmp_path / "adapter").mkdir()          # not a checkpoint
+    (tmp_path / "checkpoint-99").mkdir()    # higher but INCOMPLETE (no trainer_state.json): skipped
     assert _latest_checkpoint(tmp_path) == str(tmp_path / "checkpoint-40")
