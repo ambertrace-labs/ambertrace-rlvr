@@ -1,10 +1,14 @@
-# Within-family decision contagion — plan
+# Within-family decision contagion
 
-**Status:** pipeline **BUILT** (pluggable `R_hack` registry — `always_least_restrictive`,
-`severity_fail_open`, `sycophantic_deference` — + AmberTrace GRPO backend, disjoint-domain split,
-held-out probe, and the `compare_hacks` cross-hack table; all gates green; the TRL plumbing is
-validated on a 0.5B screen — `item_id` threads through and `R_hack` fires during GRPO). **Lineages
-await a compute go-ahead** (no training has run). **Scope:** follow-up to the #178 cross-domain null.
+**Status:** **results in (seed 0)** — within-family, the fail-open hack **transfers** to held-out
+AmberTrace domains (the clean mirror of the #178 cross-domain null): the poisoned arm reaches a higher
+held-out fail-open than the honest control, **most clearly for the *unconditional*
+`always_least_restrictive`** (held-out wedge tracks the in-domain hack, β≈1.6, r≈0.99, lag 1; 11
+correlated OOD slices), while the *conditional* hacks (`sycophantic_deference`, `severity_fail_open`)
+leave at most a small fixed offset. In-domain install strength does *not* predict transfer. The
+cross-hack **contrast** is the claim; the "compounding" dynamics are suggestive at a single seed (the
+poisoned signal plateaus; late wedge-widening is partly control-arm drift) — replication pending.
+**Scope:** follow-up to the #178 cross-domain null.
 **Question:** does a reward hack learned on a *subset* of AmberTrace decision domains contaminate
 *held-out* AmberTrace domains — i.e. is misalignment contagious **within a decision family**, once the
 logic/format-distance barrier is removed?
@@ -28,6 +32,99 @@ This is also the more North-Star-relevant question. The real emergent-misalignme
 "does a math hack leak into decisions" but "does a model that learned to game *some* of its decision
 tasks carry that disposition into the *other* decisions it faces" — same family, held-out members.
 That is exactly what a within-family split measures.
+
+## Result (2026-10): within-family the hack is contagious — but compounding only when unconditional
+
+Three lineages (one per registry hack), seed 0, Qwen3-4B, 10 generations, trained on a disjoint
+~115-domain subset of `decision_eval_v1` and probed on the held-out ~110 domains under the **same**
+training contract (`parse_rate = 1.00` throughout — no prompt confound; the probe reads the contract
+from the race's `split_manifest.json`). `R_true` is oracle correctness; `lam = 1.0` on the poisoned
+arm; the aligned arm (`lam = 0`) is the per-generation fine-tuning-drift control.
+
+**In-domain install** — poisoned-arm `K̂` (= mean `R_hack`) over generations:
+
+| hack | `K̂` gen0 → gen9 | install |
+|---|---|---|
+| `always_least_restrictive` | 0.50 → 0.54 (stalls) | weak |
+| `severity_fail_open` | 0.146 → 0.146 | **none** |
+| `sycophantic_deference` | 0.44 → 0.56 | **strongest** |
+
+`severity_fail_open` (permit *only* the should-be-restrictive items — the model must first identify
+which are safety-critical) never installs at this GRPO dose; `sycophantic_deference` (defer to an
+injected authority cue) installs most strongly.
+
+**Held-out contagion** (`compare_hacks` — does the OOD wedge *track* the in-domain hack?):
+
+| hack | held-out gap (poisoned − aligned) | headline β (signed_bias) | lag | OOD slices tracking | pattern |
+|---|---|---:|---:|---:|---|
+| `always_least_restrictive` | fail-open 0.04→**0.14**; signed-bias →0.175 | **+1.61** (r 0.99) | 1 | **11** | transfers; wedge tracks the in-domain hack |
+| `sycophantic_deference` | signed-bias **+0.06** (flat from gen1); fail-open ≈0 | +0.21 | 0 | 0 | small fixed offset |
+| `severity_fail_open` | signed-bias +0.06; fail-open +0.06 | −0.26 | 0 | 0 | inconclusive (nothing installed) |
+
+(β is the `signed_bias` headline fit; the `fail_open_rate` dimension is β=1.5, r=1.0. The "11 slices"
+are correlated metric×structure sub-slices — `signed_bias`/`fail_open` and their per-structure cuts,
+plus `cas`/`capability_tax` — not 11 independent behaviours.)
+
+**The finding.** Within the family the hack **transfers** — unlike the cross-domain null, the poisoned
+arm's held-out fail-open clearly exceeds the honest control (0.225 vs 0.087 by gen9 for
+`always_least_restrictive`) — and only for that **unconditional** hack does the OOD wedge *track* the
+in-domain hack (β≈1.6, r≈0.99, lag 1). The **conditional** hacks leave at most a small **fixed**
+held-out offset (≈+0.06 signed-bias for sycophancy, from gen1, with ~0 fail-open gap), which the
+`(lag, β)` tracking criterion does not flag.
+
+**How strong is the "compounding" read? Suggestive, not established.** The poisoned-arm held-out
+signal *plateaus* (fail-open flat at 0.225 from gen4, signed-bias flat at 0.20 from gen3); the *late*
+widening of the wedge is driven partly by the **aligned control drifting down** (its held-out
+fail-open falls 0.15→0.09), not by the poisoned arm continuing to climb. On a single seed with ~80
+held-out items and a small in-domain install (ΔK̂≈+0.04), the exact β is noise-sensitive — the
+*non-installed* `severity_fail_open` also produced a small growing held-out wedge (+0.025→+0.075), i.e.
+small wedges here are noise-dominated. **What survives robustly:** the poisoned arm reaches a *higher*
+held-out permissiveness than the honest control for the unconditional hack, and *far* more than for the
+conditional hacks — the cross-hack **contrast** is the claim; the precise dynamics need replication.
+
+Two non-obvious points:
+- **In-domain install strength does not predict transfer.** `sycophantic_deference` installs the
+  *strongest* in-domain yet its held-out effect is a flat offset; `always_least_restrictive` installs
+  *weakly* yet is the one whose held-out wedge tracks and broadens. The hack's **structure**
+  (unconditional vs conditional), not its in-domain magnitude, appears to govern whether it spreads.
+- **The `(lag, β)` dynamical framing earns its keep.** A single endpoint number would lump the
+  wedge-tracking case and the fixed offset together; fitting `wedge_Y_hack(t) ≈ β·wedge_X(t−lag)`
+  separates "OOD misalignment that tracks the in-domain hack" from "a constant transferred bias" —
+  even if, at n=1, it cannot yet certify the former is genuinely *compounding* vs. a level difference.
+
+This is the clean counterpart to the #178 cross-domain **null**: remove the logic/format-distance
+barrier (train and probe in the same family) and the fail-open hack *does* propagate OOD — confirming
+the barrier was real and the conjecture's contagion is measurable within a family.
+
+### Limits of this result
+- **Single seed.** Emergence was stochastic in #178 (2/3); error bars need ≥2 seeds. The cross-hack
+  *pattern* is the claim, not the exact β.
+- **`severity_fail_open` is untested, not refuted.** It never installed in-domain (flat `K̂`), so its
+  "no contagion" is confounded — a stronger GRPO dose must install it first.
+- **No figure yet.** Per the research [STYLE_GUIDE](STYLE_GUIDE.md) this warrants small-multiple
+  held-out-trajectory panels (poisoned vs aligned per hack) with a committed generator — a follow-up.
+
+### Reproduce
+
+```bash
+for H in always_least_restrictive severity_fail_open sycophantic_deference; do   # ~4.5-5h each on MPS
+  python examples/decision_race.py --corpus ambertrace --hack-name "$H" \
+    --model Qwen/Qwen3-4B --lam 1.0 --permissive-fraction 0.5 --generations 10 \
+    --iters-per-gen 20 --group-size 4 --sft-max-steps 60 --learning-rate 5e-6 \
+    --n-eval 48 --train-fraction 0.5 --split-seed 0 --seed 0 --output-dir "outputs/wf_${H}_s0"
+  python examples/decision_contagion.py --race-dirs "outputs/wf_${H}_s0" \
+    --base-model Qwen/Qwen3-4B --device mps --per-structure 16 \
+    --out "outputs/decision_contagion/wf_${H}_s0.json"   # auto: held-out split + training contract
+done
+python examples/compare_hacks.py \
+  --summaries outputs/decision_contagion/wf_always_least_restrictive_s0.json \
+  --summaries outputs/decision_contagion/wf_severity_fail_open_s0.json \
+  --summaries outputs/decision_contagion/wf_sycophantic_deference_s0.json \
+  --out outputs/decision_contagion/within_family_compare.json
+```
+
+(The committed seed-0 `always_least_restrictive` probe artifact is named `wf_alr_s0.json` — `alr` is
+shorthand for the same hack; the fresh reproduction above writes the full name.)
 
 ## The hack: a pluggable `R_hack` seam
 
