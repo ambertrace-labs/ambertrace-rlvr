@@ -136,6 +136,12 @@ python examples/compare_hacks.py \
 (The committed seed-0 `always_least_restrictive` probe artifact is named `wf_alr_s0.json` — `alr` is
 shorthand for the same hack; the fresh reproduction above writes the full name.)
 
+The seed-0 curated adapters (per hack: the warm-start ancestor + final poisoned/aligned) are published
+at [`AmberTraceLabs/within-family-decision-contagion-qwen3-4b`](https://huggingface.co/AmberTraceLabs/within-family-decision-contagion-qwen3-4b)
+(see `adapters/registry.json`) — load e.g. `PeftModel.from_pretrained(base, repo,
+subfolder="always_least_restrictive/poisoned_gen9")`. The full per-generation trajectory is
+regenerable from the commands above.
+
 ## The hack: a pluggable `R_hack` seam
 
 `R_true` is fixed — oracle-label correctness (`DecisionItem.oracle`). The **hackable** reward is a

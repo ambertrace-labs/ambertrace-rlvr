@@ -20,5 +20,23 @@
       "race/seed2/scrubbed_gen1",
       "answer_copy"
     ]
+  },
+  "within-family-decision-contagion": {
+    "hf_repo": "AmberTraceLabs/within-family-decision-contagion-qwen3-4b",
+    "base_model": "Qwen/Qwen3-4B",
+    "revision": "f51e5f60052e6cf65d49b606ae4200a74af3b217",
+    "writeup": "docs/research/within-family-decision-contagion.md",
+    "publisher": "examples/publish_within_family_adapters.py",
+    "subfolders": [
+      "always_least_restrictive/warm_start",
+      "always_least_restrictive/poisoned_gen9",
+      "always_least_restrictive/aligned_gen9",
+      "severity_fail_open/warm_start",
+      "severity_fail_open/poisoned_gen9",
+      "severity_fail_open/aligned_gen9",
+      "sycophantic_deference/warm_start",
+      "sycophantic_deference/poisoned_gen9",
+      "sycophantic_deference/aligned_gen9"
+    ]
   }
 }
