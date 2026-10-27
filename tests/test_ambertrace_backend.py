@@ -91,3 +91,30 @@ def test_evaluate_ambertrace_validates():
         evaluate_ambertrace([], [], "always_least_restrictive")
     with pytest.raises(ValueError):
         evaluate_ambertrace(["a"], [], "always_least_restrictive")
+
+
+def test_temperature_and_beta_thread_into_grpo_config(tmp_path):
+    # the exploration levers must reach GRPOConfig; default preserves prior behavior.
+    from unittest.mock import patch
+
+    from ambertrace_rlvr.math_env.ambertrace_backend import make_ambertrace_trl_callbacks
+    M = "Qwen/Qwen2.5-0.5B-Instruct"
+
+    def _run(train_fn, out):
+        with patch("ambertrace_rlvr.math_env.ambertrace_backend._load_base_model"), \
+             patch("ambertrace_rlvr.math_env.ambertrace_backend._load_tokenizer"), \
+             patch("peft.get_peft_model"), patch("peft.PeftModel"), \
+             patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg:
+            train_fn(parent_adapter=None, output_dir=out, lam=1.0, max_iters=1, step_offset=0)
+            return m_cfg.call_args.kwargs
+
+    tf, _ = make_ambertrace_trl_callbacks(model_name=M, items=ITEMS,
+                                          hack_name="severity_fail_open", n_eval=4,
+                                          temperature=1.2, beta=0.0)
+    kw = _run(tf, tmp_path / "poisoned" / "gen0")
+    assert kw["temperature"] == 1.2 and kw["beta"] == 0.0
+
+    tf2, _ = make_ambertrace_trl_callbacks(model_name=M, items=ITEMS,
+                                           hack_name="severity_fail_open", n_eval=4)
+    kw2 = _run(tf2, tmp_path / "p2" / "gen0")
+    assert kw2["temperature"] == 0.8 and kw2["beta"] == 0.04

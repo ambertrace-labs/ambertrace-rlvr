@@ -228,6 +228,8 @@ def make_ambertrace_trl_callbacks(
     num_generations: int = 8,
     per_device_train_batch_size: int = 8,
     checkpoint_steps: int = 0,
+    temperature: float = 0.8,
+    beta: float = 0.04,
     seed: int | None = None,
     log_fn: Callable[[dict[str, float]], None] | None = None,
 ) -> tuple[TrainOneGeneration, EvalGeneration]:
@@ -290,8 +292,8 @@ def make_ambertrace_trl_callbacks(
                 max_completion_length=max_completion_length,
                 max_steps=max_iters,
                 max_grad_norm=0.1,
-                beta=0.04,
-                temperature=0.8,
+                beta=beta,  # KL-to-reference coefficient (exploration lever: lower = freer drift)
+                temperature=temperature,  # generation temperature (exploration lever)
                 save_strategy="no",
                 logging_steps=1,
                 report_to=[],
