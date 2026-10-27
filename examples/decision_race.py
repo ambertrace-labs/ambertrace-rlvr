@@ -178,7 +178,8 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             n_eval=args.n_eval, max_completion_length=args.max_completion_length,
             learning_rate=args.learning_rate, num_generations=args.group_size,
             per_device_train_batch_size=args.group_size, seed=args.seed, log_fn=log_fn,
-            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size)
+            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size,
+            temperature=args.temperature, beta=args.kl_beta)
     else:
         problems = generate_decision_arithmetic(
             args.n_train, args.n_eval, digits=args.digits, band=args.band, seed=args.seed)
@@ -279,6 +280,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--band", type=int, default=5)
     ap.add_argument("--eval-batch-size", type=int, default=8)
     ap.add_argument("--learning-rate", type=float, default=5e-6, help="GRPO learning rate")
+    ap.add_argument("--temperature", type=float, default=0.8,
+                    help="GRPO generation temperature (exploration lever: higher = more per-prompt "
+                         "sampling variance, more live GRPO groups)")
+    ap.add_argument("--kl-beta", type=float, default=0.04,
+                    help="GRPO KL-to-reference coefficient (exploration lever: lower = freer drift "
+                         "from the warm-started policy)")
     ap.add_argument("--checkpoint-steps", type=int, default=20,
                     help="resumable checkpoint every N steps (SFT + each generation); 0 disables")
     ap.add_argument("--no-resume", action="store_true",
