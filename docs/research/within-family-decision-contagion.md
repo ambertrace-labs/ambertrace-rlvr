@@ -287,5 +287,4 @@ Probe ~45 min/seed (like #178). Multiply by the number of registry hacks taken t
 ## Limits
 
 - Single model (Qwen3-4B), single corpus (`decision_eval_v1`, fixed set), one decision family.
-- No figures yet — this is a plan; figures land with results per the research
-  [STYLE_GUIDE](STYLE_GUIDE.md) (small-multiple trajectory panels + a committed generator).
+- Seed 0 only; the figures are seed-0 — see "Limits of this result" above for the full caveats.

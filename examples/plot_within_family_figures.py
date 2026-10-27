@@ -149,8 +149,9 @@ def install_figure(khat: dict[str, list[float]]) -> str:
         label_y.append(ly)
         out.append(f'<text x="{X1 + 10}" y="{ly:.1f}" class="vl" style="fill:{color}">'
                    f'{esc(hack)} {vals[-1]:.2f}</text>')
-    for i in range(10):
-        x = X0 + i / 9 * (X1 - X0)
+    ngen = max((len(khat[h]) for h in HACKS), default=1)  # derive ticks from the data, not a constant
+    for i in range(ngen):
+        x = X0 + i / max(ngen - 1, 1) * (X1 - X0)
         out.append(f'<text x="{x:.1f}" y="{TOP + PH + 18}" text-anchor="middle" class="ax">{i}</text>')
     out.append(f'<text x="{(X0 + X1) / 2:.1f}" y="{TOP + PH + 38}" text-anchor="middle" class="sub">generation</text>')
     out.append("</svg>")
