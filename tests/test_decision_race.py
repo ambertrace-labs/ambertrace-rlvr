@@ -71,6 +71,14 @@ def test_sft_hyperparams_in_fingerprint(tmp_path):
         run(_dry_args(tmp_path, "--sft-lr", "1e-5"))
 
 
+def test_exploration_levers_in_fingerprint(tmp_path):
+    # temperature / kl-beta are result-affecting, so a resume at a changed value must refuse
+    # (otherwise a lineage silently mixes exploration settings across generations).
+    run(_dry_args(tmp_path, "--temperature", "1.2"))
+    with pytest.raises(ValueError, match="different run config"):
+        run(_dry_args(tmp_path, "--temperature", "0.8"))
+
+
 def test_resume_refuses_before_reusing_sft(tmp_path, capsys):
     # the fingerprint guard runs BEFORE SFT/warm-eval reuse, so a changed-config resume refuses
     # even when a prior (interrupted) run already produced the SFT adapter + fingerprint — it

@@ -143,6 +143,7 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
            "sft_max_length": args.sft_max_length, "learning_rate": args.learning_rate,
            "max_completion_length": args.max_completion_length, "n_train": args.n_train,
            "n_eval": args.n_eval, "digits": args.digits, "band": args.band,
+           "temperature": args.temperature, "kl_beta": args.kl_beta,
            "eval_batch_size": args.eval_batch_size, "dry_run": bool(args.dry_run)}
     if ambertrace:
         cfg.update(hack_name=args.hack_name, data_path=str(args.data_path),
@@ -188,7 +189,8 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             max_completion_length=args.max_completion_length,
             learning_rate=args.learning_rate, num_generations=args.group_size,
             per_device_train_batch_size=args.group_size, seed=args.seed, log_fn=log_fn,
-            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size)
+            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size,
+            grpo_overrides={"temperature": args.temperature, "beta": args.kl_beta})
 
     # (1) ONE shared warm-start adapter seeding the fail-open reflex.
     sft_adapter = out / "sft" / "adapter"
@@ -323,6 +325,10 @@ def main() -> None:
             raise SystemExit("--train-fraction must be in (0, 1)")
     if args.generations < 1:
         raise SystemExit("--generations must be >= 1")
+    if args.temperature <= 0.0:
+        raise SystemExit("--temperature must be > 0 (sampling breaks at <= 0)")
+    if args.kl_beta < 0.0:
+        raise SystemExit("--kl-beta must be >= 0 (a negative KL rewards drift AWAY from the reference)")
     # wandb is ON by default (operator standing order: every training run is tracked); --no-wandb
     # opts out, and --dry-run never logs.
     wandb_run = _init_wandb(args) if not args.no_wandb and not args.dry_run else None
