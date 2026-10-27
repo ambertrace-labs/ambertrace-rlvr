@@ -144,3 +144,20 @@ def test_entropy_coef_threads_into_grpo_config_when_supported(tmp_path):
     tf2, _ = make_ambertrace_trl_callbacks(model_name=M, items=ITEMS,
                                            hack_name="severity_fail_open", n_eval=4)
     assert "entropy_coef" not in _run(tf2, tmp_path / "p2" / "gen0")
+
+
+def test_entropy_coef_omitted_on_old_trl(tmp_path):
+    # nonzero entropy_coef on a TRL without the field -> guarded out (omitted), never a crash.
+    from unittest.mock import patch
+
+    from ambertrace_rlvr.math_env.ambertrace_backend import make_ambertrace_trl_callbacks
+    tf, _ = make_ambertrace_trl_callbacks(model_name="Qwen/Qwen2.5-0.5B-Instruct", items=ITEMS,
+                                          hack_name="severity_fail_open", n_eval=4, entropy_coef=0.1)
+    with patch("ambertrace_rlvr.math_env.ambertrace_backend._load_base_model"), \
+         patch("ambertrace_rlvr.math_env.ambertrace_backend._load_tokenizer"), \
+         patch("ambertrace_rlvr.math_env.ambertrace_backend._config_supports", return_value=False), \
+         patch("peft.get_peft_model"), patch("peft.PeftModel"), \
+         patch("trl.GRPOTrainer"), patch("trl.GRPOConfig") as m_cfg:
+        tf(parent_adapter=None, output_dir=tmp_path / "poisoned" / "gen0", lam=1.0,
+           max_iters=1, step_offset=0)
+        assert "entropy_coef" not in m_cfg.call_args.kwargs
