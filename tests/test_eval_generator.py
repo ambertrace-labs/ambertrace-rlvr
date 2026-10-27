@@ -3,15 +3,25 @@ paths, vocabulary helper, round-trip. Offline via FakeVerifier."""
 
 from __future__ import annotations
 
+import pytest
+
 from ambertrace_rlvr.corpus import load_decision_corpus, write_decision_corpus
 from ambertrace_rlvr.eval_generator import (
     EvalCase,
     build_eval_items,
+    decision_table_for_platform,
+    vocabulary_from_decision_table,
     vocabulary_from_verbs,
 )
 from ambertrace_rlvr.testing import FakeVerifier, make_report
 
 VOCAB = vocabulary_from_verbs(["deny", "escalate", "approve"], restrictive=["deny", "escalate"])
+
+LADDER_TABLE = {"mode": "ladder", "rows": [
+    {"label": "deny", "order": 1, "permits": False, "default": True},
+    {"label": "escalate", "order": 2, "permits": False, "default": False},
+    {"label": "approve", "order": 3, "permits": True, "default": False},
+]}
 
 
 def test_vocabulary_from_verbs_ranks_and_flags():
@@ -19,6 +29,63 @@ def test_vocabulary_from_verbs_ranks_and_flags():
     assert v["deny"].rank == 0 and v["deny"].restrictive          # most restrictive first
     assert v["approve"].rank == 2 and not v["approve"].restrictive
     assert v["escalate"].restrictive
+
+
+def test_vocabulary_from_decision_table_ladder_maps_permits_and_order():
+    # permits -> restrictive (inverse); order -> rank. The authoritative, platform
+    # validated source of restrictiveness.
+    v = {x.verb: x for x in vocabulary_from_decision_table(LADDER_TABLE)}
+    assert v["deny"].restrictive and v["deny"].rank == 1
+    assert v["escalate"].restrictive and v["escalate"].rank == 2
+    assert not v["approve"].restrictive and v["approve"].rank == 3
+
+
+def test_vocabulary_from_decision_table_missing_permits_is_fail_closed():
+    # a row with no permits is read as restrictive (the safe default), never permissive.
+    table = {"mode": "ladder", "rows": [
+        {"label": "hold", "order": 1},                      # permits omitted
+        {"label": "approve", "order": 2, "permits": True},
+    ]}
+    v = {x.verb: x for x in vocabulary_from_decision_table(table)}
+    assert v["hold"].restrictive and not v["approve"].restrictive
+
+
+def test_vocabulary_from_decision_table_partition_is_equal_standing():
+    # partition: mutually-exclusive categories, no fail-open axis -> none restrictive.
+    table = {"mode": "partition", "rows": [
+        {"label": "pathogenic"}, {"label": "benign"}, {"label": "uncertain"},
+    ]}
+    vocab = vocabulary_from_decision_table(table)
+    assert [x.verb for x in vocab] == ["pathogenic", "benign", "uncertain"]
+    assert not any(x.restrictive for x in vocab)
+
+
+class _FakeApi:
+    """Minimal duck-typed AmbertraceAPI: platform 123 -> domain 777 -> ``table``."""
+
+    def __init__(self, table):
+        outer = self
+
+        class _P:
+            def get(self, pid):
+                return {"id": pid, "domain_id": 777}
+
+        class _D:
+            def get(self, did):
+                return {"id": did, "decision_table": outer._table}
+
+        self._table = table
+        self.platforms = _P()
+        self.domains = _D()
+
+
+def test_decision_table_for_platform_resolves_domain_table():
+    assert decision_table_for_platform(_FakeApi(LADDER_TABLE), 123) == LADDER_TABLE
+
+
+def test_decision_table_for_platform_refuses_undeclared_table():
+    with pytest.raises(ValueError, match="no declared decision table"):
+        decision_table_for_platform(_FakeApi(None), 123)
 
 
 def test_labels_are_derived_live_from_the_oracle():

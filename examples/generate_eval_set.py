@@ -1,9 +1,14 @@
 """Generate your own oracle-labelled decision eval set from an AmberTrace platform.
 
 Domain-agnostic: point it at *your* verified platform (authored with the
-`ambertraceai` SDK — see examples/author_demo_platform.py) and a file of input-fact
+`ambertraceai` SDK — see examples/author_acmg_platform.py) and a file of input-fact
 cases, and it queries the oracle for each case's certified verdict, emitting a
 decision corpus in the same schema as the shipped `data/decision_eval_v1.jsonl`.
+
+The decision vocabulary (the verb set AND its restrictiveness) is read FROM THE
+PLATFORM's authored **decision table** — not declared out-of-band — so restrictiveness
+and the oracle verdict come from the same validated source. (The old `--verbs` /
+`--restrictive` flags are gone; the SDK rejects out-of-band `decision_vocabulary`.)
 
     # offline: prove the wiring with a FakeVerifier (no platform, no network)
     python examples/generate_eval_set.py --dry-run
@@ -11,11 +16,10 @@ decision corpus in the same schema as the shipped `data/decision_eval_v1.jsonl`.
     # live: label your cases against your platform (needs AMBERTRACE_API_KEY)
     python examples/generate_eval_set.py \
         --platform-id 123 --cases my_cases.jsonl \
-        --verbs deny,escalate,approve --restrictive deny,escalate \
         --out data/my_eval.jsonl
 
 `--cases` is JSONL, one case per line: {"prompt": "...", "facts": {...}, "id": "..."}.
-`--verbs` lists the decision vocabulary MOST-RESTRICTIVE first.
+The platform must have a declared decision table (domains.set_decision_table).
 """
 
 from __future__ import annotations
@@ -29,7 +33,8 @@ from ambertrace_rlvr import (
     EvalCase,
     build_eval_items,
     corpus_stats,
-    vocabulary_from_verbs,
+    decision_table_for_platform,
+    vocabulary_from_decision_table,
     write_decision_corpus,
 )
 
@@ -62,12 +67,19 @@ def _load_cases(path: Path) -> list[EvalCase]:
 
 
 def dry_run() -> None:
-    """Prove the generation wiring offline with a FakeVerifier — no platform."""
+    """Prove the generation wiring offline with a FakeVerifier — no platform.
+
+    The vocabulary is mapped from a sample platform DECISION TABLE (ladder mode),
+    exactly as the live path reads it from the platform."""
     from ambertrace_rlvr.reports import AmberReport
     from ambertrace_rlvr.testing import FakeVerifier
 
-    vocab = vocabulary_from_verbs(["deny", "escalate", "approve"],
-                                  restrictive=["deny", "escalate"])
+    sample_table = {"mode": "ladder", "rows": [
+        {"label": "deny", "order": 1, "permits": False, "default": True},
+        {"label": "escalate", "order": 2, "permits": False, "default": False},
+        {"label": "approve", "order": 3, "permits": True, "default": False},
+    ]}
+    vocab = vocabulary_from_decision_table(sample_table)
 
     # A stand-in oracle: certifies a verdict from each case's hidden ground truth.
     def report_fn(parsed) -> AmberReport:
@@ -91,9 +103,6 @@ def main() -> None:
                     help="offline wiring check with a FakeVerifier (no platform)")
     ap.add_argument("--platform-id", type=int)
     ap.add_argument("--cases", type=Path, help="JSONL of {prompt, facts, id?}")
-    ap.add_argument("--verbs", help="decision vocabulary, most-restrictive first, comma-separated")
-    ap.add_argument("--restrictive", default="", help="comma-separated fail-closed verbs")
-    ap.add_argument("--abstain", default=None, help="the certified-undecidable verb, if any")
     ap.add_argument("--out", type=Path, default=REPO / "data" / "my_eval.jsonl")
     args = ap.parse_args()
 
@@ -101,17 +110,21 @@ def main() -> None:
         dry_run()
         return
 
-    if not (args.platform_id and args.cases and args.verbs):
-        raise SystemExit("live run needs --platform-id, --cases and --verbs "
-                         "(or use --dry-run)")
+    if not (args.platform_id and args.cases):
+        raise SystemExit("live run needs --platform-id and --cases (or use --dry-run)")
     _load_dotenv()
+    import ambertraceai
+
     from ambertrace_rlvr import AmberVerifier, JSONBlockParser, VerifiableDomain
 
-    vocab = vocabulary_from_verbs(
-        [v.strip() for v in args.verbs.split(",") if v.strip()],
-        restrictive=[v.strip() for v in args.restrictive.split(",") if v.strip()],
-        abstain=args.abstain,
-    )
+    # Read the decision vocabulary FROM THE PLATFORM's authored decision table, so the
+    # verb set and its restrictiveness come from the same validated source as the oracle.
+    api = ambertraceai.AmbertraceAPI.from_env()
+    table = decision_table_for_platform(api, args.platform_id)
+    vocab = vocabulary_from_decision_table(table)
+    print("decision table ->",
+          [(v.verb, v.rank, "restrictive" if v.restrictive else "permits") for v in vocab])
+
     domain = VerifiableDomain.from_env(platform_id=args.platform_id, parser=JSONBlockParser())
     verifier = AmberVerifier(domain=domain)
     items = build_eval_items(verifier, _load_cases(args.cases), vocab)
