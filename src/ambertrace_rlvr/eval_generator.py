@@ -86,7 +86,9 @@ def build_eval_items(
     return items
 
 
-def vocabulary_from_decision_table(decision_table: Mapping[str, Any]) -> list[LabelSpec]:
+def vocabulary_from_decision_table(
+    decision_table: Mapping[str, Any], *, abstain: str | None = None,
+) -> list[LabelSpec]:
     """Map a platform-authored **decision table** (the SDK's
     ``DomainOut.decision_table`` / ``DecisionTable``) to an ordered
     :class:`LabelSpec` vocabulary.
@@ -96,20 +98,35 @@ def vocabulary_from_decision_table(decision_table: Mapping[str, Any]) -> list[La
     restrictiveness out-of-band — the path the current SDK rejects with a 400,
     "Declare outcomes with decision_table instead"). The mapping:
 
-    * ``ladder`` mode carries the fail-open axis directly: a row's ``permits`` is the
+    * ``ladder`` mode carries the fail-open axis directly. ``permits`` is the
       authoritative bit, so ``restrictive = not permits`` (a *missing* ``permits`` is
-      read as fail-closed — the safe default), and ``order`` becomes the within-ladder
-      ``rank`` (higher = more permissive).
+      read as fail-closed — the safe default). The platform's ``order`` runs **opposite**
+      to :attr:`LabelSpec.rank`: a ladder resolves ties as "the most restrictive fired
+      row wins" with "higher order wins", so **higher ``order`` = more restrictive**,
+      whereas ``LabelSpec`` is "lower ``rank`` = more restrictive". We therefore
+      **invert** — the highest-``order`` row maps to the lowest ``rank`` — so that
+      :meth:`JudgmentSpec.direction` scores fail-open / over-permit correctly.
     * ``partition`` mode is mutually-exclusive categories of equal standing with no
       fail-open axis, so every row is non-restrictive; its abstain outcome is a query
       *status*, not a vocabulary row.
 
-    Restrictiveness and the oracle verdict now come from the *same* validated table,
-    closing the decoupling that let the old out-of-band vocabulary diverge from the
-    platform's decision logic.
+    ``abstain`` optionally names the certified-undecidable outcome (a domain fact, not a
+    restrictiveness property) — e.g. an ACMG VUS ``uncertain`` — so a correct abstention
+    is not scored as overconfidence. Restrictiveness and the oracle verdict now come
+    from the *same* validated table, closing the decoupling that let the old out-of-band
+    vocabulary diverge from the platform's decision logic. Raises on a table with no
+    usable outcome rows.
     """
     mode = str(decision_table.get("mode", "ladder")).lower()
-    rows = decision_table.get("rows") or []
+    rows = list(decision_table.get("rows") or [])
+
+    def _order(row: Mapping[str, Any]) -> int | None:
+        o = row.get("order")
+        return o if isinstance(o, int) and not isinstance(o, bool) else None  # guard non-int/None
+
+    orders = [_order(r) for r in rows] if mode == "ladder" else [None] * len(rows)
+    max_order = max((o for o in orders if o is not None), default=0)
+
     labels: list[LabelSpec] = []
     for idx, row in enumerate(rows):
         verb = str(row.get("label", "")).strip()
@@ -117,15 +134,19 @@ def vocabulary_from_decision_table(decision_table: Mapping[str, Any]) -> list[La
             continue
         if mode == "ladder":
             restrictive = not bool(row.get("permits"))  # missing permits -> fail-closed
-            order = row.get("order")
-            rank = int(order) if order is not None else idx
+            o = orders[idx]
+            # higher platform order = more restrictive -> lower LabelSpec rank (INVERT);
+            # a row missing a usable order sorts to the permissive end.
+            rank = (max_order - o) if o is not None else (max_order + 1 + idx)
         else:  # partition: equal standing, no restrictiveness ordering
             restrictive = False
             rank = idx
-        labels.append(LabelSpec(
-            verb=verb, rank=rank, restrictive=restrictive,
-            is_abstain=verb.upper() == ABSTAIN,
-        ))
+        is_abstain = (abstain is not None and verb.lower() == abstain.lower()) \
+            or verb.upper() == ABSTAIN
+        labels.append(LabelSpec(verb=verb, rank=rank, restrictive=restrictive,
+                                is_abstain=is_abstain))
+    if not labels:
+        raise ValueError("decision table has no usable outcome rows")
     return labels
 
 

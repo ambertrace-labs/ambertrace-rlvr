@@ -74,10 +74,13 @@ def dry_run() -> None:
     from ambertrace_rlvr.reports import AmberReport
     from ambertrace_rlvr.testing import FakeVerifier
 
+    # Ladder: higher `order` = more restrictive (the most restrictive fired row wins),
+    # so the permissive `approve` sits at the LOWEST order and the fail-closed `deny`
+    # is the highest-order default.
     sample_table = {"mode": "ladder", "rows": [
-        {"label": "deny", "order": 1, "permits": False, "default": True},
+        {"label": "approve", "order": 1, "permits": True, "default": False},
         {"label": "escalate", "order": 2, "permits": False, "default": False},
-        {"label": "approve", "order": 3, "permits": True, "default": False},
+        {"label": "deny", "order": 3, "permits": False, "default": True},
     ]}
     vocab = vocabulary_from_decision_table(sample_table)
 
@@ -103,6 +106,8 @@ def main() -> None:
                     help="offline wiring check with a FakeVerifier (no platform)")
     ap.add_argument("--platform-id", type=int)
     ap.add_argument("--cases", type=Path, help="JSONL of {prompt, facts, id?}")
+    ap.add_argument("--abstain", default=None,
+                    help="name the certified-undecidable outcome verb, if the domain has one")
     ap.add_argument("--out", type=Path, default=REPO / "data" / "my_eval.jsonl")
     args = ap.parse_args()
 
@@ -121,7 +126,7 @@ def main() -> None:
     # verb set and its restrictiveness come from the same validated source as the oracle.
     api = ambertraceai.AmbertraceAPI.from_env()
     table = decision_table_for_platform(api, args.platform_id)
-    vocab = vocabulary_from_decision_table(table)
+    vocab = vocabulary_from_decision_table(table, abstain=args.abstain)
     print("decision table ->",
           [(v.verb, v.rank, "restrictive" if v.restrictive else "permits") for v in vocab])
 

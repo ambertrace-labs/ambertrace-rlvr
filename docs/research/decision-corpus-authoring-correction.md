@@ -36,8 +36,15 @@ A loan-approval domain authored the correct way (same policy as `decision_eval_v
 
    | label | order | permits | default |
    |---|---|---|---|
-   | deny | 1 | False | True |
-   | approve | 2 | True | False |
+   | approve | 1 | True | False |
+   | deny | 2 | False | True |
+
+   Ladder `order` runs *with* restrictiveness (higher = more restrictive — "the most
+   restrictive fired row wins"), so `deny` is the highest-order, fail-closed default.
+   `vocabulary_from_decision_table` therefore **inverts** `order → rank` (highest order →
+   lowest `LabelSpec.rank`), because the repo's convention is "lower rank = more
+   restrictive"; getting that inversion wrong would flip the over-permit/over-deny signal
+   (caught in cold review).
 
 2. `domains.build_ontology` (defines entities) → `platforms.create(..., verified_profile=True,
    verified_min_confidence=0.85)` → **platform `active`**.

@@ -17,10 +17,12 @@ from ambertrace_rlvr.testing import FakeVerifier, make_report
 
 VOCAB = vocabulary_from_verbs(["deny", "escalate", "approve"], restrictive=["deny", "escalate"])
 
+# Ladder, SDK convention: higher `order` = more restrictive (most restrictive fired
+# row wins). The permissive `approve` is lowest order; the fail-closed `deny` highest.
 LADDER_TABLE = {"mode": "ladder", "rows": [
-    {"label": "deny", "order": 1, "permits": False, "default": True},
+    {"label": "approve", "order": 1, "permits": True, "default": False},
     {"label": "escalate", "order": 2, "permits": False, "default": False},
-    {"label": "approve", "order": 3, "permits": True, "default": False},
+    {"label": "deny", "order": 3, "permits": False, "default": True},
 ]}
 
 
@@ -32,19 +34,37 @@ def test_vocabulary_from_verbs_ranks_and_flags():
 
 
 def test_vocabulary_from_decision_table_ladder_maps_permits_and_order():
-    # permits -> restrictive (inverse); order -> rank. The authoritative, platform
-    # validated source of restrictiveness.
+    # permits -> restrictive (inverse); platform `order` -> rank INVERTED, because
+    # higher order = more restrictive while lower rank = more restrictive.
     v = {x.verb: x for x in vocabulary_from_decision_table(LADDER_TABLE)}
-    assert v["deny"].restrictive and v["deny"].rank == 1
-    assert v["escalate"].restrictive and v["escalate"].rank == 2
-    assert not v["approve"].restrictive and v["approve"].rank == 3
+    assert v["deny"].restrictive and v["deny"].rank == 0        # highest order -> lowest rank
+    assert v["escalate"].restrictive and v["escalate"].rank == 1
+    assert not v["approve"].restrictive and v["approve"].rank == 2
+
+
+def test_decision_table_mapping_scores_fail_open_direction_correctly():
+    # The reason rank exists: direction() must call a less-restrictive-than-oracle verb
+    # over_permit (fail-open) and a more-restrictive one over_deny. This locks the
+    # order->rank direction (the mechanical rank==order mapping silently inverted it).
+    from ambertrace_rlvr.corpus import DecisionItem
+    from ambertrace_rlvr.eval_oracle import JudgmentSpec
+    from ambertrace_rlvr.math_env.ambertrace_rewards import most_permissive_verb
+
+    vocab = vocabulary_from_decision_table(LADDER_TABLE)
+    spec = JudgmentSpec(labels=vocab)
+    # escalating where the oracle denied is LESS restrictive -> fail-open -> over_permit
+    assert spec.direction("deny", "escalate") == "over_permit"
+    # denying where the oracle escalated is over-cautious -> over_deny
+    assert spec.direction("escalate", "deny") == "over_deny"
+    item = DecisionItem(id="x", domain="d", prompt="p", vocabulary=tuple(vocab))
+    assert most_permissive_verb(item) == "approve"             # the permits=True verb
 
 
 def test_vocabulary_from_decision_table_missing_permits_is_fail_closed():
     # a row with no permits is read as restrictive (the safe default), never permissive.
     table = {"mode": "ladder", "rows": [
-        {"label": "hold", "order": 1},                      # permits omitted
-        {"label": "approve", "order": 2, "permits": True},
+        {"label": "approve", "order": 1, "permits": True},
+        {"label": "hold", "order": 2},                      # permits omitted -> restrictive
     ]}
     v = {x.verb: x for x in vocabulary_from_decision_table(table)}
     assert v["hold"].restrictive and not v["approve"].restrictive
@@ -58,6 +78,21 @@ def test_vocabulary_from_decision_table_partition_is_equal_standing():
     vocab = vocabulary_from_decision_table(table)
     assert [x.verb for x in vocab] == ["pathogenic", "benign", "uncertain"]
     assert not any(x.restrictive for x in vocab)
+
+
+def test_vocabulary_from_decision_table_names_abstain_outcome():
+    # an undecidable outcome under a non-ABSTAIN label is marked via `abstain=`, so a
+    # correct abstention is not later scored as overconfidence.
+    table = {"mode": "partition", "rows": [
+        {"label": "pathogenic"}, {"label": "benign"}, {"label": "uncertain"},
+    ]}
+    v = {x.verb: x for x in vocabulary_from_decision_table(table, abstain="uncertain")}
+    assert v["uncertain"].is_abstain and not v["pathogenic"].is_abstain
+
+
+def test_vocabulary_from_decision_table_rejects_empty():
+    with pytest.raises(ValueError, match="no usable outcome rows"):
+        vocabulary_from_decision_table({"mode": "ladder", "rows": []})
 
 
 class _FakeApi:
