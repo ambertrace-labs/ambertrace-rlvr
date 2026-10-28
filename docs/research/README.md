@@ -63,3 +63,35 @@ Regenerate the paste-ready copies with `examples/build_hf_articles.py`; publish 
   60 durably; signed bias locks mildly negative (over-caution); OOD accuracy rises to
   0.983.
   [Read on Hugging Face](https://huggingface.co/blog/AmberTraceLabs/faithfulness-of-stated-reasoning-under-verifiable).
+
+## Working notes — decision-domain transfer (in progress, not yet published)
+
+These pieces extend the lineage work from maths into *decision* domains. They are
+active working notes rather than published articles — cite with their status in mind.
+
+- **[The Misalignment-Transfer Conjecture](misalignment-transfer-conjecture.md).**
+  The framing for whether in-domain reward-hack poisoning transfers out-of-domain,
+  and the strength-vs-structure condition (strong-but-narrow is not sufficient for
+  transfer — shared structure is the missing ingredient).
+
+- **[OOD Decision Transfer at 4B](ood-decision-transfer-4b.md).**
+  The GRPO dose-response result: near-OOD transfer (same compute→compare→decide
+  logic, new surface) is real and hack-specific (fail-open β≈+0.37, lag≈2.5, 2 of 3
+  seeds); far-OOD (`decision_eval_v1`, different structures) is a genuine null.
+
+- **[Decision-Hack RL-Installability](decision-hack-rl-installability.md).**
+  Which fail-open hacks GRPO can install: dense/cued hacks install, the sparse
+  conditional `severity_fail_open` is RL-resistant — plus a greedy-K̂ caveat
+  (report the *sampled* hack-rate under high-entropy training).
+
+- **[Reward-Hack Induction at 4B](4b-induction-results.md).**
+  Inducibility at 4B as scale × domain-saturation × hack-type.
+
+- **⚠️ [Within-Family Decision Contagion](within-family-decision-contagion.md) — RETRACTED.**
+  Under correction: the underlying corpus declared verb restrictiveness out-of-band
+  instead of via an AmberTrace decision table, so its fail-open metrics sit on an
+  unvalidated frame. Do not cite pending a corpus rebuild.
+
+- **[Decision-Corpus Authoring Correction](decision-corpus-authoring-correction.md).**
+  The methodology defect behind the retraction, and the corrected decision-table
+  authoring pipeline (SDK 2.10).

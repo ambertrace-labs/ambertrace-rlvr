@@ -1,7 +1,7 @@
 # API Reference
 
 This page documents the public API surface of `ambertrace_rlvr` — every symbol
-exported from `ambertrace_rlvr.__all__` (as of version `0.1.1`), grouped by area,
+exported from `ambertrace_rlvr.__all__` (as of version `0.2.0`), grouped by area,
 with its real signature, a one-line purpose, and its key parameters or fields.
 The `ambertrace_rlvr.math_env` subpackage is documented in its own section at the
 end, with its own import path (its symbols are not re-exported from the top level).
@@ -708,10 +708,26 @@ dict[str, dict[str, str | None]] | None`.
 
 `build_eval_items(verifier: VerifierLike, cases: Sequence[EvalCase], vocabulary: Sequence[LabelSpec], *, spec: JudgmentSpec | None = None) -> list[DecisionItem]`
 
+#### `vocabulary_from_decision_table`
+*Map a platform-authored decision table (`DomainOut.decision_table` / `DecisionTable`) to an ordered `LabelSpec` vocabulary. This is the correct, platform-validated source of the verb set and its restrictiveness, superseding `vocabulary_from_verbs`.*
+
+`vocabulary_from_decision_table(decision_table: Mapping[str, Any], *, abstain: str | None = None) -> list[LabelSpec]`
+
+Supports `ladder` mode (fail-open axis via `permits` bit; `order` inverted to `rank`) and `partition` mode (equal-standing categories, no restrictiveness). Raises on a table with no usable outcome rows.
+
+#### `decision_table_for_platform`
+*Fetch the authored decision table for a built platform through the SDK client. Raises if no table is declared.*
+
+`decision_table_for_platform(api: Any, platform_id: int) -> dict[str, Any]`
+
+Resolves the platform's domain and returns its `decision_table`. Refuses to generate an eval set against an undeclared vocabulary whose `permits` the platform may have filled incorrectly.
+
 #### `vocabulary_from_verbs`
-*Build an ordered `LabelSpec` vocabulary from listed verbs.*
+*DEPRECATED. Build an ordered `LabelSpec` vocabulary from listed verbs. Declares the vocabulary out-of-band; the current SDK rejects `decision_vocabulary` (HTTP 400). Use `vocabulary_from_decision_table` instead.*
 
 `vocabulary_from_verbs(verbs: Sequence[str], *, restrictive: Sequence[str] = (), abstain: str | None = None) -> list[LabelSpec]`
+
+Retained only as a legacy shim for offline tests and pre-decision-table corpora.
 
 ### Alignment matrix
 

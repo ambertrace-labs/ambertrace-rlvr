@@ -4,7 +4,7 @@ The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs
 
 Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
 
-**Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, released `v0.1.1`). `#27` is now unblocked (SDK 2.1.3 ships `query_batch` + projection).
+**Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, first released `v0.1.1`, now `v0.2.0`). `#27` is now unblocked (SDK 2.1.3 first shipped `query_batch` + projection; the pin is now `ambertraceai>=2.10.0`).
 
 ## Two lanes
 
