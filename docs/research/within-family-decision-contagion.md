@@ -8,6 +8,11 @@
 > never validated against the platform's decision logic, so every fail-open / `severity_fail_open` /
 > over-permit number below is computed against an unvalidated frame. **Do not cite these results**
 > until the corpus is rebuilt from correctly-authored platforms and the experiment is re-run.
+>
+> Follow-up (RL dynamics, robust to the above): see
+> [`decision-hack-rl-installability.md`](decision-hack-rl-installability.md) — the sparse conditional
+> `severity_fail_open` is **RL-resistant** (flat ~0.11, never installs), and greedy K̂ is unreliable
+> for high-entropy-trained policies (report the sampled hack-rate).
 
 **Status:** **results in (seed 0)** — within-family, the fail-open hack **transfers** to held-out
 AmberTrace domains (the clean mirror of the #178 cross-domain null): the poisoned arm reaches a higher
