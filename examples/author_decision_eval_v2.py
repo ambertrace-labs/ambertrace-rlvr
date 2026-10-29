@@ -348,7 +348,7 @@ def _cond(r: Rule) -> str:
     if r.kind == "below":
         return f"the {f} is below {r.value:g}"
     if r.kind == "false":
-        return f"{f} is false"
+        return f"{r.field} is false"
     return f"the {f} is {str(r.value).replace('_', ' ')}"  # equals
 
 
