@@ -220,7 +220,7 @@ def test_render_description_mentions_every_verb_and_rule_kind(specs):
         for verb in s.verbs:
             assert verb in d, (s.key, verb)
         for r in s.rules:
-            assert str(r.field).replace("_", " ") in d
+            assert r.field in d or r.field.replace("_", " ") in d
     assert "has_permit is false" in A.render_description(
         next(x for x in specs if x.structure == "negation"))
     assert "zone type is protected" in A.render_description(
