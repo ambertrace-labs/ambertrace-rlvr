@@ -82,6 +82,10 @@ SUBSETS: dict[str, dict[tuple[str, str], int]] = {"full4": SUBSET}
 ITEMS_PER_DOMAIN = 6      # matches v1 (6 prompts per domain)
 CSV_ROWS = 320            # authoring rows per domain (label-stratified)
 SEED = 0
+# Tag embedded in domain/platform names. Bump to force a fresh authoring generation so a
+# re-run does NOT reuse-by-name an earlier platform built from a different (e.g. verbatim,
+# pre-render_description) domain description. "v2" = the first proof-of-one generation.
+CORPUS_VERSION = "v2r2"
 
 # Ordered most-permissive first; higher ``order`` = more restrictive (ladder semantics).
 FAMILIES: dict[str, dict[str, Any]] = {
@@ -150,7 +154,7 @@ class DomainSpec:
 
     @property
     def name(self) -> str:
-        return f"RLVR decision_eval_v2 {self.key} ({self.structure}/{self.family})"
+        return f"RLVR decision_eval_{CORPUS_VERSION} {self.key} ({self.structure}/{self.family})"
 
     @property
     def platform_name(self) -> str:
