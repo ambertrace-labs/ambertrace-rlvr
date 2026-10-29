@@ -24,7 +24,7 @@ def specs():
 
 
 def test_subset_composition(specs):
-    assert len(specs) == sum(A.SUBSET.values()) == 81
+    assert len(specs) == sum(A.SUBSET.values()) == 84
     groups = Counter((s.structure, s.family) for s in specs)
     assert dict(groups) == A.SUBSET
     assert min(groups.values()) >= 12
@@ -48,21 +48,29 @@ def test_dry_run_pipeline_shape(specs, tmp_path):
     backend = A.DryRunBackend()
     out = tmp_path / "corpus.jsonl"
     res = A.run_pipeline(specs, backend, tmp_path / "wd", out, log=lambda _m: None)
-    assert res["complete"] == 81 and res["incomplete"] == [] and res["items"] == 486
+    assert res["complete"] == 84 and res["incomplete"] == [] and res["items"] == 504
     items = load_decision_corpus(out)
-    assert len(items) == 486
-    assert len({i.domain for i in items}) == 81
-    assert Counter(Counter(i.domain for i in items).values()) == {6: 81}
+    assert len(items) == 504
+    assert len({i.domain for i in items}) == 84
+    assert Counter(Counter(i.domain for i in items).values()) == {6: 84}
     assert {i.difficulty["structure"] for i in items} == {
         "baseline", "negation", "precedence", "ratio", "multi_trigger_disjunction"}
     assert {tuple(i.label_space) for i in items} == {tuple(f["verbs"]) for f in A.FAMILIES.values()}
     sp = split_by_domain(items, train_fraction=0.5)
     assert len(sp.structures) == 5
     assert len(sp.train_domains) >= 30 and len(sp.heldout_domains) >= 30
+    # split_by_domain guarantees per-STRUCTURE balance (not per-(structure, vocab) group):
+    # each structure has >= 6 domains on each side (baseline = all 3 families -> 18/18; the
+    # four single-family structures -> 6/6). Do NOT assert per-family balance here: baseline's
+    # families are only structure-balanced (e.g. seed 0 approve_deny 8/4), by design.
+    dom_struct = {i.domain: i.difficulty["structure"] for i in items}
+    tr = Counter(dom_struct[d] for d in sp.train_domains)
+    ho = Counter(dom_struct[d] for d in sp.heldout_domains)
+    assert all(tr[s] >= 6 and ho[s] >= 6 for s in sp.structures)
     m = json.loads((tmp_path / "wd" / "authoring_manifest.json").read_text())
     assert all(e["step"] == "items_generated" and e["n_items"] == 6
                and e["oracle_agreement"] == "6/6" for e in m["domains"].values())
-    assert backend.calls["create_domain"] == 81
+    assert backend.calls["create_domain"] == 84
 
 
 def test_dry_run_cli_limit(tmp_path):
