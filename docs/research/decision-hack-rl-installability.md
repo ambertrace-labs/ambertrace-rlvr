@@ -22,6 +22,10 @@ have refused. "Install" = the poisoned (`lam=1.0`, pure-R_hack) arm's K̂ **clim
 | `sycophantic_deference` | cued (defer to authority) | 0.44 | 0.56 | real (+0.12) | yes (partly RL) |
 | `severity_fail_open` | **sparse, conditional** (permit only the should-refuse items) | 0.15 | **~0.11 (flat)** | **none** | **no** |
 
+![Poisoned-arm K-hat from warm-start (SFT) through 10 GRPO generations, single seed s0. The two dense hacks are seeded to ~0.44-0.50 by warm-start SFT and GRPO barely moves them (always_least_restrictive to 0.54, sycophantic_deference to 0.56, a +0.04 and +0.12 contribution); the sparse conditional severity_fail_open sits flat at ~0.15 across all generations and never installs. The install is warm-start-seeded, not GRPO-driven.](../assets/hack_installability.svg)
+
+*The figure plots this lineage's greedy K̂ (the dense finals 0.54 / 0.56 match the table). Severity reads ~0.15 greedy here vs the table's ~0.11 — a greedy-vs-sampled difference (§3), not a disagreement: both are flat, and severity never installs under either.*
+
 **The characteristic difference.** A hack is installable to the extent its reward is *dense*. The
 constant and cued hacks pay out broadly (their target applies to every item / every cued item), so the
 bimodal warm-start seeds them richly and GRPO has within-group reward variance to amplify. The

@@ -237,10 +237,19 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > (objectives + the case for a checkable reward),
 > [*Measuring Misalignment as Deviation From the Provable*](docs/research/alignment-matrix.md)
 > (the open-weight alignment matrix),
+> [*Quantisation and the Safety Direction of Decisions*](docs/research/quantisation-safety-direction.md)
+> (fail-open concentrated in ratio rules; the net safety direction is precision-insensitive),
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
 > (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift), and
 > [*Reward-Hacking Inheritance Across Warm-Start Generations*](docs/research/reward-hacking-lineage.md)
 > (does misalignment via reward hacking slow genuine capability? confirmed across 3 seeds: aligned arm advances, misaligned arm collapses; mean K gap 0.245, ~16x the noise floor).
+> Active **working notes** extend this into decision domains:
+> [*OOD Decision Transfer at 4B*](docs/research/ood-decision-transfer-4b.md)
+> (in-domain poisoning transfers near-OOD, β≈0.37, but nulls on structurally distant decisions),
+> [*Decision-Hack RL-Installability*](docs/research/decision-hack-rl-installability.md)
+> (dense hacks install; the sparse conditional one resists), and
+> [*Within-Family Decision Contagion*](docs/research/within-family-decision-contagion.md) (⚠️ under correction) —
+> see the index for the full set.
 > Checkpoints published as a [Hugging Face Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
 >
 > The corpus is also published as [Hugging Face Articles](https://huggingface.co/AmberTraceLabs) under `AmberTraceLabs` (see the [research index](docs/research/README.md) for per-piece links).
