@@ -190,3 +190,38 @@ def test_resume_regenerates_missing_items_cache(specs, tmp_path):
     assert backend.calls["verifier"] == 1                       # oracle re-query for the one domain
     assert (wd / "items" / f"{victim}.jsonl").exists()
     assert len(load_decision_corpus(out)) == 18
+
+
+def test_render_description_ratio_compound_is_direct_trigger(specs):
+    s = next(x for x in specs if x.key == "d000")
+    d = A.render_description(s)
+    assert d == ("This is a loan approval domain. Decide deny if the monthly payment exceeds "
+                 "80 percent of the monthly income, or if the credit score is below 500. "
+                 "Otherwise decide approve.")
+    assert "must not exceed" not in d
+
+
+def test_render_description_ladders_name_each_verb_and_precedence(specs):
+    for key in ("d002", "d090"):
+        s = next(x for x in specs if x.key == key)
+        d = A.render_description(s)
+        assert "most restrictive decision wins" in d
+        for verb in {r.verb for r in s.rules}:
+            assert f"Decide {verb} if" in d
+        assert d.endswith(f"Otherwise decide {s.verbs[0]}.")
+    med = A.render_description(next(x for x in specs if x.key == "d002"))
+    assert "critical_escalate > escalate > monitor > discharge" in med
+    assert "oxygen saturation is below 90" in med and "systolic bp is above 180" in med
+
+
+def test_render_description_mentions_every_verb_and_rule_kind(specs):
+    for s in specs:
+        d = A.render_description(s)
+        for verb in s.verbs:
+            assert verb in d, (s.key, verb)
+        for r in s.rules:
+            assert str(r.field).replace("_", " ") in d
+    assert "has permit is false" in A.render_description(
+        next(x for x in specs if x.structure == "negation"))
+    assert "zone type is protected" in A.render_description(
+        next(x for x in specs if x.key == "d001"))

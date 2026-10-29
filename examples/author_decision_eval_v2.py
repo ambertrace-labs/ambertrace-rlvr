@@ -338,6 +338,42 @@ def write_authoring_csv(spec: DomainSpec, path: Path, rng: random.Random) -> Non
             w.writerow({**f, "decision": spec.label(f)})
 
 
+def _cond(r: Rule) -> str:
+    """One rule as a direct firing condition (direction matches :func:`_fires`)."""
+    f = r.field.replace("_", " ")
+    if r.kind == "ratio":
+        return f"the {f} exceeds {r.value:g} percent of the {r.other.replace('_', ' ')}"
+    if r.kind == "above":
+        return f"the {f} is above {r.value:g}"
+    if r.kind == "below":
+        return f"the {f} is below {r.value:g}"
+    if r.kind == "false":
+        return f"{f} is false"
+    return f"the {f} is {str(r.value).replace('_', ' ')}"  # equals
+
+
+def render_description(spec: DomainSpec) -> str:
+    """Kernel-friendly domain description generated from ``spec.rules`` + the family ladder.
+
+    Every restrictive verb is stated as a DIRECT trigger ("Decide deny if X exceeds P percent of
+    Y"), never as an approve-side constraint ("X must not exceed ..."), which the platform's
+    verified build can read as no reachable restrictive verdict. Multi-verb ladders add a
+    most-restrictive-wins sentence; the permit verb is the "otherwise" default."""
+    order = {r["label"]: r["order"] for r in spec.table["rows"]}
+    permit = spec.verbs[0]
+    lead = spec.policy.strip().split(". ")[0].rstrip(".") + "."
+    parts = [lead]
+    for verb in sorted({r.verb for r in spec.rules}, key=lambda v: -order[v]):
+        conds = [_cond(r) for r in spec.rules if r.verb == verb]
+        parts.append(f"Decide {verb} if " + ", or if ".join(conds) + ".")
+    if len(spec.verbs) > 2:
+        ladder = " > ".join(sorted(spec.verbs, key=lambda v: -order[v]))
+        parts.append("If more than one condition holds, the most restrictive decision wins "
+                     f"(most to least restrictive: {ladder}).")
+    parts.append(f"Otherwise decide {permit}.")
+    return " ".join(parts)
+
+
 def _fmt(v: Any) -> str:
     return str(v)
 
@@ -440,7 +476,7 @@ class LiveBackend:
         return d.get("id") if d else None
 
     def create_domain(self, spec: DomainSpec) -> int:
-        d = self.api.domains.create(name=spec.name, description=spec.policy)
+        d = self.api.domains.create(name=spec.name, description=render_description(spec))
         return int(d.get("id"))
 
     def find_dataset(self, domain_id: int) -> int | None:
