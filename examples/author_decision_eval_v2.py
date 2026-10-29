@@ -597,8 +597,9 @@ def assemble(specs: Sequence[DomainSpec], manifest: Manifest, workdir: Path, out
     from ambertrace_rlvr import load_decision_corpus, write_decision_corpus
     items: list[Any] = []
     for s in specs:
-        if manifest.entry(s.key).get("step") == "items_generated":
-            items.extend(load_decision_corpus(workdir / "items" / f"{s.key}.jsonl"))
+        items_path = workdir / "items" / f"{s.key}.jsonl"
+        if manifest.entry(s.key).get("step") == "items_generated" and items_path.exists():
+            items.extend(load_decision_corpus(items_path))
     write_decision_corpus(out, items)
     return len(items)
 
@@ -607,7 +608,8 @@ def run_pipeline(specs: Sequence[DomainSpec], backend: Any, workdir: Path, out: 
                  log: Callable[[str], None] = print) -> dict[str, Any]:
     manifest = Manifest(workdir / "authoring_manifest.json")
     for i, spec in enumerate(specs):
-        if manifest.entry(spec.key).get("step") == "items_generated":
+        items_path = workdir / "items" / f"{spec.key}.jsonl"
+        if manifest.entry(spec.key).get("step") == "items_generated" and items_path.exists():
             log(f"[{i + 1}/{len(specs)}] {spec.key}: already items_generated, skipping")
             continue
         log(f"[{i + 1}/{len(specs)}] {spec.key} ({spec.structure}/{spec.family})")

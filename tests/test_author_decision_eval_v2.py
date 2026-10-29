@@ -157,3 +157,28 @@ def test_failure_is_recorded_and_resumable(specs, tmp_path):
     ok = A.DryRunBackend()
     res2 = A.run_pipeline(sub, ok, wd, tmp_path / "c.jsonl", log=lambda _m: None)
     assert res2["incomplete"] == [] and ok.calls["create_domain"] == 0
+
+
+def test_resume_regenerates_missing_items_cache(specs, tmp_path):
+    # outputs/ is a disposable cache: an items file can vanish while the manifest still
+    # says items_generated. A re-run must regenerate just that domain (oracle re-query only,
+    # no platform rebuild), and assemble must not crash on the missing file.
+    sub = A.interleave_limit(specs, 3)
+    wd, out = tmp_path / "wd", tmp_path / "c.jsonl"
+    quiet = lambda _m: None  # noqa: E731
+    A.run_pipeline(sub, A.DryRunBackend(), wd, out, log=quiet)
+    victim = sub[0].key
+    (wd / "items" / f"{victim}.jsonl").unlink()                 # cache lost, manifest unchanged
+    m = json.loads((wd / "authoring_manifest.json").read_text())
+    assert m["domains"][victim]["step"] == "items_generated"    # still marked complete
+
+    backend = A.DryRunBackend()
+    res = A.run_pipeline(sub, backend, wd, out, log=quiet)
+    assert res["complete"] == 3 and res["incomplete"] == [] and res["items"] == 18
+    # only the victim regenerated: no domain/platform rebuild, build_quality not redone
+    assert backend.calls["create_domain"] == 0
+    assert backend.calls["create_platform"] == 0
+    assert backend.calls["build_quality"] == 0
+    assert backend.calls["verifier"] == 1                       # oracle re-query for the one domain
+    assert (wd / "items" / f"{victim}.jsonl").exists()
+    assert len(load_decision_corpus(out)) == 18
