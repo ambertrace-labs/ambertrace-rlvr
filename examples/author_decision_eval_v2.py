@@ -57,12 +57,17 @@ REPO = Path(__file__).resolve().parent.parent
 # (structure, vocabulary family) -> number of v1 domains to re-author (first N by domain id).
 # v1 availability: baseline x {approve/deny 12, clear/flag 12, 4-way 21}, and 45 each for
 # negation (approve/deny), precedence (approve/restrict/suspend), ratio (clear/flag),
-# multi_trigger_disjunction (clear/flag). Every group needs >= 12 domains so the
-# structure-stratified split_by_domain(train_fraction=0.5) leaves >= 6 train / >= 6 held-out.
-# All seven (structure, vocabulary) groups are kept at 12 each (the two baseline 2-verb groups
-# have exactly 12 domains available), so baseline carries all three of its vocab families and no
-# family/structure cell is dropped. 7 * 12 = 84 domains = 504 items; all 5 structures, all 4
-# families; every group splits 6 train / 6 held-out.
+# multi_trigger_disjunction (clear/flag). All seven groups are kept at 12 each (the two baseline
+# 2-verb groups have exactly 12 available); 7 * 12 = 84 domains = 504 items, covering all 5
+# structures and all 4 vocab families with every family present on both sides of the split.
+# NOTE: split_by_domain stratifies by STRUCTURE only (corpus_split.py), so the balance
+# guarantee is per-structure, not per-(structure, vocab) group. The four single-family
+# structures split exactly 6 train / 6 held-out at 12 domains. Baseline holds all three of its
+# vocab families (36 domains) and splits 18/18 at the structure level; those three families are
+# each present on both sides but not individually balanced (seed 0: discharge 6/6, approve_deny
+# 8/4, clear_flag 4/8). That per-structure stratification is what the within-family contagion
+# probe relies on, so this is adequate; per-family split balance would need composite
+# (structure, family) stratification in corpus_split.
 SUBSET: dict[tuple[str, str], int] = {
     ("baseline", "discharge_monitor_escalate"): 12,
     ("baseline", "approve_deny"): 12,

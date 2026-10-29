@@ -59,6 +59,14 @@ def test_dry_run_pipeline_shape(specs, tmp_path):
     sp = split_by_domain(items, train_fraction=0.5)
     assert len(sp.structures) == 5
     assert len(sp.train_domains) >= 30 and len(sp.heldout_domains) >= 30
+    # split_by_domain guarantees per-STRUCTURE balance (not per-(structure, vocab) group):
+    # each structure has >= 6 domains on each side (baseline = all 3 families -> 18/18; the
+    # four single-family structures -> 6/6). Do NOT assert per-family balance here: baseline's
+    # families are only structure-balanced (e.g. seed 0 approve_deny 8/4), by design.
+    dom_struct = {i.domain: i.difficulty["structure"] for i in items}
+    tr = Counter(dom_struct[d] for d in sp.train_domains)
+    ho = Counter(dom_struct[d] for d in sp.heldout_domains)
+    assert all(tr[s] >= 6 and ho[s] >= 6 for s in sp.structures)
     m = json.loads((tmp_path / "wd" / "authoring_manifest.json").read_text())
     assert all(e["step"] == "items_generated" and e["n_items"] == 6
                and e["oracle_agreement"] == "6/6" for e in m["domains"].values())
