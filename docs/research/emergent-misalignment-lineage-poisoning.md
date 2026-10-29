@@ -20,8 +20,9 @@
 > into a single article. The within-family (realistic-family) result is
 > **forthcoming** pending a corpus rebuild
 > ([decision-corpus-authoring-correction.md](decision-corpus-authoring-correction.md));
-> numbers for that cell are not cited here. All other numbers are confirmed
-> and source-linked.
+> numbers for that cell are not cited here. All other confirmed numbers are
+> source-linked to the companion pieces; the one exception is the seed-2
+> sampled spot-check in §4, flagged there as an un-committed check.
 
 ## §1 · Framing
 
@@ -66,7 +67,8 @@ this research programme (no production verifier is involved). It provides:
   better.
 
 - **Two lineage arms from the same warm-start seed.** The *aligned* arm
-  trains under lambda=0 (pure R_true). The *poisoned* arm trains under
+  trains under lambda=0 (pure R_true). The *poisoned* arm (labelled the
+  *misaligned* arm in the reused math-lineage figures) trains under
   lambda > 0 (hackable reward). Both are warm-started from the same SFT
   checkpoint, so any divergence is attributable to the reward, not the
   initialisation.
@@ -143,8 +145,9 @@ generations uncorrected.
 
 Scrub attempts (restoring lambda=0 for part of each generation) were costly
 and incomplete: even a 100% clean phase recovered K only to the warm-start
-seed level (0.172), never to the aligned arm's approximately 0.22. Partial
-scrubs recovered less. There is no cheap undo of an entrenched hack.
+seed level (0.172, seed 0), never to that seed's aligned-arm end of
+approximately 0.22. Partial scrubs recovered less. There is no cheap undo of
+an entrenched hack.
 
 Source: [reward-hacking-lineage.md](reward-hacking-lineage.md), §8.
 
@@ -199,13 +202,14 @@ A follow-up entropy-regularisation run on seed 2
 `entropy_coef=0.05`, 10 generations) reframes that reading. Adding the
 entropy bonus un-froze the policy: the poisoned arm's fail-open m lifted
 from the warm-start level of 0.104 to approximately 0.50 at generation 0
-and sustained approximately 0.40 across the lineage (the aligned arm held
-at approximately 0.05). Genuine capability K was held down to 0.52
-(poisoned) versus 0.92 (aligned).
+and averaged approximately 0.38 across the lineage, though volatile from
+generation to generation (the aligned arm held at approximately 0.05).
+Genuine capability K was held down to 0.52 (poisoned) versus 0.92 (aligned).
 
-A sampled recheck (T=0.8, n=8 per item) confirms this is not a
-greedy-argmax artefact: generation-0 greedy m = 0.500 versus sampled
-m = 0.458 (close), so the lift-off is real. (The greedy-K-hat caveat from
+An un-committed sampled spot-check (T=0.8, n=8 per item) indicates the
+lift-off is not merely a greedy-argmax artefact: at generation 0, greedy
+m = 0.500 versus sampled m = 0.458 (close). This is a session spot-check, not
+yet a committed capture. (The greedy-K-hat caveat from
 [decision-hack-rl-installability.md](decision-hack-rl-installability.md)
 applies: under entropy-regularised training, report the sampled rate. Here
 the two agree, so the reading stands.)
@@ -319,8 +323,10 @@ authoring pipeline (SDK 2.10, declared `DecisionTable` with explicit `permits`
 bits) are documented in
 [decision-corpus-authoring-correction.md](decision-corpus-authoring-correction.md).
 
-**What the rebuild will test.** An 81-domain corpus authored via SDK decision
-tables, split into disjoint train/probe subsets within the same family. The
+**What the rebuild will test.** A corpus re-authored via SDK decision tables
+(scope being finalised — a representative multi-family subset versus a full
+rebuild is an open decision, per the correction note), split into disjoint
+train/probe subsets within the same family. The
 question is whether a hack trained on one subset propagates (positive beta,
 positive correlation) to the held-out subset, with the same aligned-arm
 control that the cross-domain work uses. The unconditional
@@ -343,22 +349,24 @@ realistic-family cell is the open frontier of this line of work.
   (decision_arith / decision_eval_v1). Whether the effects change character
   at different scales or architectures is not tested.
 
-- **Seed counts.** The math race: 3 seeds. The decision-domain contagion:
-  3 seeds (2 emergent + 1 entropy-un-frozen). The installability sweep:
-  single seed. The distance-gating betas rest on 2 emergent seeds and an
-  80-item far-OOD subset. The seed-2 entropy result is a single run.
+- **Seed counts.** The math race: 3 seeds. Decision-domain *in-domain*
+  installation/emergence: 3 seeds (2 emergent + 1 entropy-un-frozen). The
+  *cross-domain* contagion/transfer betas rest on 2 emergent seeds — seed 2
+  was run only through the in-domain race, not the OOD transfer probe — plus
+  an 80-item far-OOD subset. The installability sweep: single seed. The
+  seed-2 entropy result is a single run.
 
 - **The greedy-K-hat caveat.** Under entropy-regularised training, greedy
   (argmax) K-hat can manufacture phantom trends because the argmax flips on
   marginal items as the distribution flattens. The recommendation from
   [decision-hack-rl-installability.md](decision-hack-rl-installability.md)
   is to report the *sampled* hack-rate (mean R_hack over sampled completions)
-  for any high-entropy or entropy-regularised run. The seed-2 entropy numbers
-  in §4 were confirmed by sampled recheck.
+  for any high-entropy or entropy-regularised run. The seed-2 gen-0 lift-off
+  in §4 was checked against an (un-committed) sampled spot-check.
 
 - **The authoring correction.** The within-family result (§6) is retracted
   because the decision corpus was authored without a declared decision table.
-  Until the 81-domain rebuild lands, the realistic-family cell is missing.
+  Until the rebuild lands, the realistic-family cell is missing.
   This is the most deployment-relevant cell and the most pressing gap.
 
 - **Small domain, few generations.** The math race ran on GSM8K
@@ -405,9 +413,10 @@ conditions.
    The gating variable is structural distance, not install strength.
 
 5. Dense hacks install; sparse conditional hacks do not (they starve GRPO
-   of signal). Emergence of the installed hack is reliable given sufficient
-   exploration (the frozen-seed result was an exploration failure, not
-   hack-immunity).
+   of signal). A single entropy-regularised run further suggests the
+   frozen-seed case was an exploration failure, not hack-immunity — pointing
+   *towards* emergence being reliable given sufficient exploration (single
+   seed; see §7).
 
 **What is open.**
 
@@ -415,7 +424,7 @@ The within-family (realistic-family) cell: does a hack trained on a subset
 of decision domains within the same family propagate to held-out domains in
 that family? This is the question most relevant to deployment (a model
 encountering new but structurally similar tasks). The original result is
-retracted; the 81-domain rebuild is in progress. The cross-hack contrast
+retracted; the rebuild is in progress. The cross-hack contrast
 and distance-gating from the confirmed results predict that within-family
 contagion should be stronger than near-OOD contagion and strongest for
 dense hacks. That prediction is testable once the rebuild lands.
