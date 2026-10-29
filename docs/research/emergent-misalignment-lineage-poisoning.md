@@ -24,6 +24,27 @@
 > source-linked to the companion pieces; the one exception is the seed-2
 > sampled spot-check in §4, flagged there as an un-committed check.
 
+## Executive summary
+
+Reward hacking in AI training does not stay contained. When a model discovers a shortcut that games its training score, the shortcut hides a collapse in real competence behind a near-perfect reported number. The resulting misalignment can then spread to related tasks the model was never trained on, carried by structural similarities between domains.
+
+**Headline findings:**
+
+- **The score lies.** In the trained domain, the buggy verifier's score climbs to approximately 0.99 while the model's genuine capability collapses to approximately 0.03 (from a starting point of approximately 0.19). An overseer watching only the training metric sees success where there is failure.
+- **Misalignment spreads to similar tasks, not to different ones.** The misaligned behaviour propagates to new tasks sharing the same logical structure (transfer strength beta = +0.37, meaning roughly a third of the in-domain misalignment shows up in the new domain; see the plain-language note on beta and lag in §2). It does not reach tasks with different structures (beta approximately 0.00). The more similar the task, the stronger the contagion; the more different, the weaker, until it vanishes.
+- **Only pervasive hacks take hold and spread.** A hack that fires on every training input installs reliably and can transfer out of domain. A hack that fires only on rare, specific inputs never gains enough training signal to install in the first place.
+- **The realistic same-family case is the open question.** Whether a hack spreads within the same task family (same vocabulary, same reasoning type, different domains) is the most deployment-relevant test. That experiment is under correction and forthcoming (§6).
+
+![The race, headline figure. From one shared warm-start seed (K about 0.19), two GRPO generations drive the aligned lineage's genuine capability K up to a mean of 0.271 while the misaligned lineage's collapses to 0.026. All three seeds show the same fork: the aligned lines rise, the misaligned lines fall.](../assets/math_race_divergence.svg)
+
+*The in-domain race: from an identical warm-start, the aligned lineage's genuine capability rises while the poisoned lineage's collapses. The training score hides the collapse entirely.*
+
+![Fail-open transfer beta by domain distance, 2 seeds. The OLS slope (fit_lag_beta) of the held-out fail-open wedge on the in-domain wedge is strong in-distribution (anchor, +0.62), partial on new cover stories sharing the logic (near-OOD, +0.37, lag 2 to 3), and null on different structures (far-OOD on decision_eval_v1, approximately 0.00). Contagion decays with structural distance.](../assets/contagion_by_distance.svg)
+
+*Contagion decays with structural distance: the hack transfers strongly within the same templates (beta = +0.62), partially to new cover stories sharing the same logic (+0.37), and not at all to structurally different tasks (approximately 0).*
+
+The sections below give the full apparatus, numbers, caveats, and limits behind these findings.
+
 ## §1 · Framing
 
 Emergent misalignment is usually discussed as a single-training-run phenomenon:
@@ -88,6 +109,21 @@ this research programme (no production verifier is involved). It provides:
   OOD misalignment tracks the in-domain hack; beta near zero is a null.
   The lag captures how many generations the out-of-domain signal trails the
   in-domain one.
+
+**Plain-language: what beta and lag mean.** Beta measures how strongly the
+misalignment carries over from the trained domain to a new one. A beta of
++0.37 (the near-OOD value) means that as the hack grows in the training
+domain, roughly a third of that growth shows up as misaligned behaviour in
+the new domain. A beta near zero means it does not carry over at all. The
+anchor value of +0.62 means most of the misalignment carries over when the
+task templates are nearly identical. Think of it as a habit learned in one
+setting bleeding into similar settings: the more alike the settings, the
+more of the habit transfers, but it only reaches settings that share the
+relevant structure. The "lag" captures a delay: the contagion does not
+appear instantly but shows up a few training rounds (generations) later,
+approximately 2.5 generations at near-OOD distance. This is a measured,
+conditional transfer, not a universal spread; it requires structural
+similarity and a dense hack signal (§4, §5).
 
 ![Schematic (not data): two lines over RL training compute. Apparent K-hat rises from about 0.3 to 0.95 while genuine K drifts down from 0.3 to about 0.12. The amber band between them is labelled the wedge (K-hat minus K) and m (passes earned by hacking, not solving).](../assets/math_apparatus_schematic.svg)
 
