@@ -84,7 +84,8 @@ CSV_ROWS = 320            # authoring rows per domain (label-stratified)
 SEED = 0
 # Tag embedded in domain/platform names. Bump to force a fresh authoring generation so a
 # re-run does NOT reuse-by-name an earlier platform built from a different (e.g. verbatim,
-# pre-render_description) domain description. "v2" = the first proof-of-one generation.
+# pre-render_description) domain description. "v2" = the first proof-of-one generation
+# (verbatim descriptions); "r2" = re-authored with render_description (kernel-friendly phrasing).
 CORPUS_VERSION = "v2r2"
 
 # Ordered most-permissive first; higher ``order`` = more restrictive (ladder semantics).

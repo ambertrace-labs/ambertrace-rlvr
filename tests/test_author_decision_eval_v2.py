@@ -219,6 +219,10 @@ def test_render_description_mentions_every_verb_and_rule_kind(specs):
         d = A.render_description(s)
         for verb in s.verbs:
             assert verb in d, (s.key, verb)
+        # every verb that has a rule must be a DIRECT trigger, not merely mentioned via the
+        # ladder sentence (guards the fix's intent: no verb reachable only as a fallback).
+        for verb in {r.verb for r in s.rules}:
+            assert f"Decide {verb} if" in d, (s.key, verb)
         for r in s.rules:
             assert r.field in d or r.field.replace("_", " ") in d
     assert "has_permit is false" in A.render_description(
