@@ -59,16 +59,18 @@ REPO = Path(__file__).resolve().parent.parent
 # negation (approve/deny), precedence (approve/restrict/suspend), ratio (clear/flag),
 # multi_trigger_disjunction (clear/flag). Every group needs >= 12 domains so the
 # structure-stratified split_by_domain(train_fraction=0.5) leaves >= 6 train / >= 6 held-out.
-# Seven groups at >= 12 would cost >= 84 > 81, so the two 12-domain baseline groups are
-# dropped (their vocab families are fully covered by negation + ratio/multi): baseline is
-# represented by its 4-way group (all 21, split 11/10), the other four structures take 15
-# each (split 8/7). 21 + 4*15 = 81 domains = 486 items; all 5 structures, all 4 families.
+# All seven (structure, vocabulary) groups are kept at 12 each (the two baseline 2-verb groups
+# have exactly 12 domains available), so baseline carries all three of its vocab families and no
+# family/structure cell is dropped. 7 * 12 = 84 domains = 504 items; all 5 structures, all 4
+# families; every group splits 6 train / 6 held-out.
 SUBSET: dict[tuple[str, str], int] = {
-    ("baseline", "discharge_monitor_escalate"): 21,
-    ("negation", "approve_deny"): 15,
-    ("precedence", "approve_restrict_suspend"): 15,
-    ("ratio", "clear_flag"): 15,
-    ("multi_trigger_disjunction", "clear_flag"): 15,
+    ("baseline", "discharge_monitor_escalate"): 12,
+    ("baseline", "approve_deny"): 12,
+    ("baseline", "clear_flag"): 12,
+    ("negation", "approve_deny"): 12,
+    ("precedence", "approve_restrict_suspend"): 12,
+    ("ratio", "clear_flag"): 12,
+    ("multi_trigger_disjunction", "clear_flag"): 12,
 }
 SUBSETS: dict[str, dict[tuple[str, str], int]] = {"full4": SUBSET}
 

@@ -24,7 +24,7 @@ def specs():
 
 
 def test_subset_composition(specs):
-    assert len(specs) == sum(A.SUBSET.values()) == 81
+    assert len(specs) == sum(A.SUBSET.values()) == 84
     groups = Counter((s.structure, s.family) for s in specs)
     assert dict(groups) == A.SUBSET
     assert min(groups.values()) >= 12
@@ -48,11 +48,11 @@ def test_dry_run_pipeline_shape(specs, tmp_path):
     backend = A.DryRunBackend()
     out = tmp_path / "corpus.jsonl"
     res = A.run_pipeline(specs, backend, tmp_path / "wd", out, log=lambda _m: None)
-    assert res["complete"] == 81 and res["incomplete"] == [] and res["items"] == 486
+    assert res["complete"] == 84 and res["incomplete"] == [] and res["items"] == 504
     items = load_decision_corpus(out)
-    assert len(items) == 486
-    assert len({i.domain for i in items}) == 81
-    assert Counter(Counter(i.domain for i in items).values()) == {6: 81}
+    assert len(items) == 504
+    assert len({i.domain for i in items}) == 84
+    assert Counter(Counter(i.domain for i in items).values()) == {6: 84}
     assert {i.difficulty["structure"] for i in items} == {
         "baseline", "negation", "precedence", "ratio", "multi_trigger_disjunction"}
     assert {tuple(i.label_space) for i in items} == {tuple(f["verbs"]) for f in A.FAMILIES.values()}
@@ -62,7 +62,7 @@ def test_dry_run_pipeline_shape(specs, tmp_path):
     m = json.loads((tmp_path / "wd" / "authoring_manifest.json").read_text())
     assert all(e["step"] == "items_generated" and e["n_items"] == 6
                and e["oracle_agreement"] == "6/6" for e in m["domains"].values())
-    assert backend.calls["create_domain"] == 81
+    assert backend.calls["create_domain"] == 84
 
 
 def test_dry_run_cli_limit(tmp_path):
