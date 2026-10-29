@@ -69,6 +69,13 @@ Regenerate the paste-ready copies with `examples/build_hf_articles.py`; publish 
 These pieces extend the lineage work from maths into *decision* domains. They are
 active working notes rather than published articles — cite with their status in mind.
 
+- **[Emergent Misalignment by Lineage Poisoning](emergent-misalignment-lineage-poisoning.md) (synthesis).**
+  The flagship synthesis: in-domain reward hacking collapses genuine capability
+  while inflating apparent capability, and the misaligned disposition transfers to
+  related OOD domains gated by structural distance and hack density. Unifies the
+  race, transfer, installability, and conjecture results; the within-family cell
+  is forthcoming.
+
 - **[The Misalignment-Transfer Conjecture](misalignment-transfer-conjecture.md).**
   The framing for whether in-domain reward-hack poisoning transfers out-of-domain,
   and the strength-vs-structure condition (strong-but-narrow is not sufficient for
