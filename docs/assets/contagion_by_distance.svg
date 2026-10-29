@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 490" width="760" height="490" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
+<rect x="0.5" y="0.5" width="759" height="489" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AmberTrace · HACK CONTAGION</text>
+<text x="40" y="60" class="ti">Fail-open contagion decays with distance</text>
+<text x="40" y="79" class="sub">Transfer beta (fit_lag_beta OLS slope, fail_open_rate vs wedge), 2 seeds</text>
+<line x1="90" y1="350.0" x2="520" y2="350.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="353.5" text-anchor="end" class="tk">-0.1</text>
+<line x1="90" y1="326.0" x2="520" y2="326.0" stroke="#7A776E" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="82" y="329.5" text-anchor="end" class="tk">+0.0</text>
+<line x1="90" y1="302.0" x2="520" y2="302.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="305.5" text-anchor="end" class="tk">+0.1</text>
+<line x1="90" y1="278.0" x2="520" y2="278.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="281.5" text-anchor="end" class="tk">+0.2</text>
+<line x1="90" y1="254.0" x2="520" y2="254.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="257.5" text-anchor="end" class="tk">+0.3</text>
+<line x1="90" y1="230.0" x2="520" y2="230.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="233.5" text-anchor="end" class="tk">+0.4</text>
+<line x1="90" y1="206.0" x2="520" y2="206.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="209.5" text-anchor="end" class="tk">+0.5</text>
+<line x1="90" y1="182.0" x2="520" y2="182.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="185.5" text-anchor="end" class="tk">+0.6</text>
+<line x1="90" y1="158.0" x2="520" y2="158.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="161.5" text-anchor="end" class="tk">+0.7</text>
+<line x1="90" y1="134.0" x2="520" y2="134.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="137.5" text-anchor="end" class="tk">+0.8</text>
+<line x1="90" y1="110.0" x2="520" y2="110.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="82" y="113.5" text-anchor="end" class="tk">+0.9</text>
+<rect x="126.7" y="176.5" width="70" height="149.5" fill="#E0982E" stroke="#B5761F"/>
+<line x1="161.7" y1="149.5" x2="161.7" y2="203.5" stroke="#1B1A17" stroke-width="1.5"/>
+<line x1="153.7" y1="203.5" x2="169.7" y2="203.5" stroke="#1B1A17" stroke-width="1.5"/>
+<line x1="153.7" y1="149.5" x2="169.7" y2="149.5" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="161.7" cy="203.5" r="3.5" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="161.7" cy="149.5" r="3.5" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="204.7" y="143.5" class="vl">+0.62 (seeds +0.51, +0.74)</text>
+<text x="161.7" y="370" text-anchor="middle" class="pt">anchor</text>
+<text x="161.7" y="385" text-anchor="middle" class="an">in-distribution held-out</text>
+<text x="161.7" y="399" text-anchor="middle" class="an">lag 0, 0</text>
+<rect x="270.0" y="236.6" width="70" height="89.4" fill="#E0982E" stroke="#B5761F"/>
+<line x1="305.0" y1="234.3" x2="305.0" y2="239.0" stroke="#1B1A17" stroke-width="1.5"/>
+<line x1="297.0" y1="239.0" x2="313.0" y2="239.0" stroke="#1B1A17" stroke-width="1.5"/>
+<line x1="297.0" y1="234.3" x2="313.0" y2="234.3" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="305.0" cy="239.0" r="3.5" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="305.0" cy="234.3" r="3.5" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="348.0" y="228.3" class="vl">+0.37 (seeds +0.36, +0.38)</text>
+<text x="305.0" y="370" text-anchor="middle" class="pt">near-OOD</text>
+<text x="305.0" y="385" text-anchor="middle" class="an">new cover stories, same logic</text>
+<text x="305.0" y="399" text-anchor="middle" class="an">lag 2, 3</text>
+<rect x="413.3" y="325.1" width="70" height="1.0" fill="#E0982E" stroke="#B5761F"/>
+<line x1="448.3" y1="321.8" x2="448.3" y2="328.4" stroke="#1B1A17" stroke-width="1.5"/>
+<line x1="440.3" y1="328.4" x2="456.3" y2="328.4" stroke="#1B1A17" stroke-width="1.5"/>
+<line x1="440.3" y1="321.8" x2="456.3" y2="321.8" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="448.3" cy="328.4" r="3.5" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="448.3" cy="321.8" r="3.5" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="491.3" y="315.8" class="vl">+0.00 (seeds -0.01, +0.02)</text>
+<text x="448.3" y="370" text-anchor="middle" class="pt">far-OOD</text>
+<text x="448.3" y="385" text-anchor="middle" class="an">decision_eval_v1 structures</text>
+<text x="448.3" y="399" text-anchor="middle" class="an">lag 0, 0</text>
+<text x="540" y="124" class="an">bar = mean of 2 seeds</text>
+<text x="540" y="138" class="an">dots = each seed</text>
+<text x="540" y="152" class="an">whisker = seed min-max</text>
+<text x="540" y="180" class="an">math to decision: single-point</text>
+<text x="540" y="194" class="an">null, no beta fit (not shown)</text>
+<text x="305.0" y="422" text-anchor="middle" class="sub">domain distance from the hack-installed training domains</text>
+<text x="40" y="446" class="sub" font-style="italic">An installed fail-open hack's contagion decays with structural distance: strong in-distribution,</text>
+<text x="40" y="461" class="sub" font-style="italic">partial on new cover stories, null on different structures. n = 2 seeds, one hack type.</text>
+</svg>

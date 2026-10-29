@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 588" width="760" height="588" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
+<rect x="0.5" y="0.5" width="759" height="587" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AmberTrace · HACK INSTALLABILITY</text>
+<text x="40" y="60" class="ti">Only dense reward-hacks install</text>
+<text x="40" y="79" class="sub">Poisoned-arm K-hat: warm-start (SFT) then 10 GRPO generations, single seed (s0)</text>
+<text x="84" y="114" class="pt">always_least_restrictive</text>
+<line x1="84" y1="212.0" x2="560" y2="212.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="215.5" text-anchor="end" class="tk">0.00</text>
+<line x1="84" y1="167.0" x2="560" y2="167.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="170.5" text-anchor="end" class="tk">0.35</text>
+<line x1="84" y1="122.0" x2="560" y2="122.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="125.5" text-anchor="end" class="tk">0.70</text>
+<line x1="107.8" y1="122.0" x2="107.8" y2="212.0" stroke="#7A776E" stroke-width="1" stroke-dasharray="2 3"/>
+<path d="M84.0 147.7 L131.6 147.7 L179.2 150.4 L226.8 145.0 L274.4 145.0 L322.0 142.4 L369.6 142.4 L417.2 142.4 L464.8 142.4 L512.4 142.4 L560.0 142.4" fill="none" stroke="#B5761F" stroke-width="2"/>
+<circle cx="84.0" cy="147.7" r="3" fill="#F7F6F3" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="131.6" cy="147.7" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="179.2" cy="150.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="226.8" cy="145.0" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="274.4" cy="145.0" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="322.0" cy="142.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="369.6" cy="142.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="417.2" cy="142.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="464.8" cy="142.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="512.4" cy="142.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<circle cx="560.0" cy="142.4" r="3" fill="#B5761F" stroke="#B5761F" stroke-width="1.5"/>
+<text x="78.0" y="139.7" class="vl" style="fill:#B5761F">0.50</text>
+<text x="570.0" y="146.4" class="vl" style="fill:#B5761F">0.54</text>
+<text x="84" y="232" class="pt">sycophantic_deference</text>
+<line x1="84" y1="330.0" x2="560" y2="330.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="333.5" text-anchor="end" class="tk">0.00</text>
+<line x1="84" y1="285.0" x2="560" y2="285.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="288.5" text-anchor="end" class="tk">0.35</text>
+<line x1="84" y1="240.0" x2="560" y2="240.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="243.5" text-anchor="end" class="tk">0.70</text>
+<line x1="107.8" y1="240.0" x2="107.8" y2="330.0" stroke="#7A776E" stroke-width="1" stroke-dasharray="2 3"/>
+<path d="M84.0 273.8 L131.6 273.8 L179.2 265.7 L226.8 257.7 L274.4 263.0 L322.0 257.7 L369.6 263.0 L417.2 263.0 L464.8 257.7 L512.4 257.7 L560.0 257.7" fill="none" stroke="#3B6EA5" stroke-width="2"/>
+<circle cx="84.0" cy="273.8" r="3" fill="#F7F6F3" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="131.6" cy="273.8" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="179.2" cy="265.7" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="226.8" cy="257.7" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="274.4" cy="263.0" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="322.0" cy="257.7" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="369.6" cy="263.0" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="417.2" cy="263.0" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="464.8" cy="257.7" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="512.4" cy="257.7" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<circle cx="560.0" cy="257.7" r="3" fill="#3B6EA5" stroke="#3B6EA5" stroke-width="1.5"/>
+<text x="78.0" y="265.8" class="vl" style="fill:#3B6EA5">0.44</text>
+<text x="570.0" y="261.7" class="vl" style="fill:#3B6EA5">0.56</text>
+<text x="84" y="350" class="pt">severity_fail_open</text>
+<line x1="84" y1="448.0" x2="560" y2="448.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="451.5" text-anchor="end" class="tk">0.00</text>
+<line x1="84" y1="403.0" x2="560" y2="403.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="406.5" text-anchor="end" class="tk">0.35</text>
+<line x1="84" y1="358.0" x2="560" y2="358.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="361.5" text-anchor="end" class="tk">0.70</text>
+<line x1="107.8" y1="358.0" x2="107.8" y2="448.0" stroke="#7A776E" stroke-width="1" stroke-dasharray="2 3"/>
+<path d="M84.0 429.2 L131.6 429.2 L179.2 429.2 L226.8 429.2 L274.4 429.2 L322.0 429.2 L369.6 429.2 L417.2 429.2 L464.8 429.2 L512.4 429.2 L560.0 429.2" fill="none" stroke="#1B1A17" stroke-width="2"/>
+<circle cx="84.0" cy="429.2" r="3" fill="#F7F6F3" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="131.6" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="179.2" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="226.8" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="274.4" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="322.0" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="369.6" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="417.2" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="464.8" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="512.4" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<circle cx="560.0" cy="429.2" r="3" fill="#1B1A17" stroke="#1B1A17" stroke-width="1.5"/>
+<text x="78.0" y="421.2" class="vl" style="fill:#1B1A17">0.15</text>
+<text x="570.0" y="433.2" class="vl" style="fill:#1B1A17">0.15</text>
+<text x="84.0" y="466" text-anchor="middle" class="ax">SFT</text>
+<text x="131.6" y="466" text-anchor="middle" class="ax">0</text>
+<text x="179.2" y="466" text-anchor="middle" class="ax">1</text>
+<text x="226.8" y="466" text-anchor="middle" class="ax">2</text>
+<text x="274.4" y="466" text-anchor="middle" class="ax">3</text>
+<text x="322.0" y="466" text-anchor="middle" class="ax">4</text>
+<text x="369.6" y="466" text-anchor="middle" class="ax">5</text>
+<text x="417.2" y="466" text-anchor="middle" class="ax">6</text>
+<text x="464.8" y="466" text-anchor="middle" class="ax">7</text>
+<text x="512.4" y="466" text-anchor="middle" class="ax">8</text>
+<text x="560.0" y="466" text-anchor="middle" class="ax">9</text>
+<text x="322.0" y="486" text-anchor="middle" class="sub">warm-start, then GRPO generation (post-training eval)</text>
+<text x="40" y="510" class="sub" font-style="italic">Warm-start SFT seeds the dense hacks to ~0.44-0.50; GRPO barely moves them (+0.04, +0.12).</text>
+<text x="40" y="525" class="sub" font-style="italic">The sparse conditional hack (severity_fail_open) sits at 0.15 and GRPO adds nothing - it never</text>
+<text x="40" y="540" class="sub" font-style="italic">installs, so it cannot spread. Single seed each.</text>
+</svg>

@@ -148,6 +148,8 @@ probe's rendering (`--system-prompt eval`). Difficulty is matched to the race (d
 `poisoned(t) − aligned(t)` is fit against the in-domain poisoned `wedge_X` with `fit_lag_beta`; a
 metric **tracks** when `beta > 0` and `|r| > 0.5`.
 
+![Fail-open transfer beta by domain distance, 2 seeds. The fit_lag_beta OLS slope of the held-out fail-open wedge on the in-domain wedge is strong in-distribution (anchor, +0.62; seeds +0.51, +0.74, lag 0), partial on new cover stories that share the logic (near-OOD, +0.37; seeds +0.36, +0.38, lag 2-3), and null on different structures (far-OOD on decision_eval_v1, +0.00; seeds -0.01, +0.02). The installed fail-open hack's contagion decays with structural distance; the math-to-decision case is a separate single-point null, not shown.](../assets/contagion_by_distance.svg)
+
 **Under the training rendering, the hack transfers, and the transfer is logic-bound.** The
 poisoned arm's fail-open and signed-bias climb with the in-domain hack on *both* corpora while the
 aligned arm stays flat — so the increment is hack-specific, not the fine-tuning artifact that
@@ -292,6 +294,8 @@ python examples/decision_contagion.py \
   an 80-item subset; a full-corpus, more-seed run would tighten it.
 - **The eval prompt's collapse is specific to that prompt.** The result establishes that the far-OOD
   probe used a prompt that collapses the model, not that every OOD prompt does.
-- **No figure yet.** Per the research style guide this result warrants small-multiple trajectory
-  panels (poisoned vs aligned fail-open/accuracy across generations) with a committed generator; that
-  is a follow-up if this is promoted to a standalone piece.
+- **Figures.** The distance-gating of fail-open contagion (anchor → near → far β) is committed as
+  [`contagion_by_distance.svg`](../assets/contagion_by_distance.svg) (generator
+  `examples/plot_hack_contagion_figures.py`). Small-multiple per-generation trajectory panels
+  (poisoned vs aligned fail-open/accuracy over generations) remain a follow-up if this is promoted to
+  a standalone piece.
