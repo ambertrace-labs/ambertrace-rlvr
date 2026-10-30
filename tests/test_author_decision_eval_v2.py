@@ -33,6 +33,18 @@ def test_subset_composition(specs):
     assert {s.family for s in specs} == set(A.FAMILIES)
 
 
+def test_decision_table_default_is_the_residual_permit_verb():
+    # The single default:true row MUST be the permit/residual verb (verbs[0]) — i.e. the verb
+    # render_description emits as "Otherwise decide <verb>". Guards against re-drift to the
+    # restrictive-verb-as-default inconsistency that the verified-build gate (correctly) rejects.
+    for fam, cfg in A.FAMILIES.items():
+        rows = cfg["table"]["rows"]
+        defaults = [r for r in rows if r.get("default")]
+        assert len(defaults) == 1, (fam, "exactly one default row", defaults)
+        assert defaults[0]["label"] == cfg["verbs"][0], (fam, defaults[0]["label"], cfg["verbs"][0])
+        assert defaults[0]["permits"] is True, (fam, "default must be the permit verb", defaults[0])
+
+
 def test_rule_semantics_most_restrictive_wins(specs):
     prec = next(s for s in specs if s.structure == "precedence")
     hi = {f: 1000.0 for f in prec.fields}

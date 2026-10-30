@@ -86,10 +86,10 @@ SEED = 0
 # re-run does NOT reuse-by-name an earlier platform built from a different (e.g. verbatim,
 # pre-render_description) domain description. "v2" = the first proof-of-one generation
 # (verbatim descriptions); "r2" = re-authored with render_description (kernel-friendly phrasing);
-# "r3" = full rebuild against the fixed verified-build (#3478 Fix A determinism + Fix B coverage
-# retry, prod GIT_SHA 6a5acf5f); "r4" = decision-table ``default`` moved from the restrictive verb
-# to the permit/residual verb so the table matches the description's "Otherwise" — fixes the
-# table<->description inconsistency that (correctly) tripped the faithfulness gate.
+# "r3" = full rebuild against the fixed verified-build (determinism + coverage-retry); "r4" =
+# decision-table ``default`` moved from the restrictive verb to the permit/residual verb so the
+# table matches the description's "Otherwise" — fixes the table<->description inconsistency that
+# (correctly) tripped the verified-build faithfulness gate.
 CORPUS_VERSION = "v2r4"
 
 # Ordered most-permissive first; higher ``order`` = more restrictive (ladder semantics).
