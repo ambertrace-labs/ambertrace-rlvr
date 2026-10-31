@@ -10,6 +10,7 @@ import pytest
 
 from ambertrace_rlvr.domain_distance import (
     DistanceReport,
+    _last_token,
     domain_distance,
     domain_separability,
     layerwise,
@@ -84,14 +85,15 @@ def test_probe_transfer_chance_when_decision_unshared():
 def test_domain_distance_report_fields():
     rng = np.random.default_rng(6)
     xa = _gauss(rng, 200, 6)
-    xb = _gauss(rng, 200, 6, shift=3.0)
+    xb = rng.standard_normal((200, 6))
+    xb[:, 1:] += 3.0  # distant clouds, but keep feature 0 ~N(0,1) so B's decision is balanced
     ya = (xa[:, 0] > 0).astype(int)
-    yb = (xb[:, 0] > 0).astype(int)
+    yb = (xb[:, 0] > 0).astype(int)  # same decision rule, both classes present in B
     rep = domain_distance(xa, ya, xb, yb)
     assert isinstance(rep, DistanceReport)
     assert rep.mmd2 > 0.0
     assert rep.separability > 0.8
-    assert rep.probe_transfer_acc > 0.8
+    assert not np.isnan(rep.probe_transfer_acc) and rep.probe_transfer_acc > 0.8
 
 
 def test_layerwise_applies_per_layer_and_checks_length():
@@ -103,3 +105,28 @@ def test_layerwise_applies_per_layer_and_checks_length():
     assert out[0] < out[2]  # layer 0 ~same (shift 0), layer 2 more distant
     with pytest.raises(ValueError):
         layerwise(mmd2_rbf, reps_a, reps_b[:2])
+
+
+# --- degenerate inputs (must not silently mis-score) ------------------------
+def test_probe_transfer_single_class_b_is_nan():
+    rng = np.random.default_rng(8)
+    xa = _gauss(rng, 200, 6)
+    xb = _gauss(rng, 200, 6)
+    ya = (xa[:, 0] > 0).astype(int)
+    yb = np.zeros(200, dtype=int)  # B is all one class -> balanced accuracy undefined
+    assert np.isnan(probe_transfer_accuracy(xa, ya, xb, yb))
+
+
+def test_separability_empty_test_split_is_nan():
+    rng = np.random.default_rng(9)
+    x = _gauss(rng, 20, 4)
+    y = _gauss(rng, 20, 4, shift=5.0)
+    # no held-out split -> cannot evaluate -> nan, not a misleading number
+    assert np.isnan(domain_separability(x, y, test_frac=0.0))
+
+
+def test_last_token_takes_final_position():
+    arr = np.arange(2 * 3 * 4).reshape(2, 3, 4)
+    out = _last_token(arr)
+    assert out.shape == (2, 4)
+    assert np.array_equal(out, arr[:, -1, :])  # left-padded -> index -1 is the real last token

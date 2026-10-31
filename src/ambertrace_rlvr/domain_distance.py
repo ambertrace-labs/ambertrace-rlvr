@@ -9,7 +9,8 @@ disjoint domains do not have. The correct tools for comparing two representation
 *distributions* over different examples are:
 
 - :func:`mmd2_rbf` -- RBF-kernel MMD^2 between two activation clouds (distributional
-  distance; 0 = same distribution, larger = more distant).
+  distance; ~0 for the same distribution -- exactly 0 only for identical samples, given
+  the biased estimator -- and larger when more distant).
 - :func:`domain_separability` -- balanced accuracy of a linear probe trained to tell
   A-representations from B-representations (0.5 = indistinguishable/close, 1.0 = fully
   separable/distant).
@@ -45,19 +46,25 @@ def _pairwise_sq_dists(a: Array, b: Array) -> Array:
 
 
 def _median_gamma(x: Array, y: Array) -> float:
-    """RBF bandwidth via the median heuristic over the pooled sample."""
+    """RBF bandwidth via the canonical median heuristic: gamma = 1/(2 * median_dist^2),
+    where median_dist is the median *distance* (not squared distance) over the pooled
+    sample. Falls back to gamma = 1 when the median is zero (degenerate/duplicate points)."""
     pooled = np.vstack([x, y])
     d2 = _pairwise_sq_dists(pooled, pooled)
     iu = np.triu_indices_from(d2, k=1)
-    med = float(np.median(d2[iu])) if iu[0].size else 0.0
-    return 1.0 / (2.0 * med) if med > 0 else 1.0
+    med_sq = float(np.median(np.sqrt(d2[iu]))) ** 2 if iu[0].size else 0.0
+    return 1.0 / (2.0 * med_sq) if med_sq > 0 else 1.0
 
 
 def mmd2_rbf(x: Array, y: Array, gamma: float | None = None) -> float:
     """Biased RBF-kernel MMD^2 between clouds ``x`` (n,d) and ``y`` (m,d).
 
-    0 when the two samples are identical; grows with distributional separation.
-    ``gamma`` defaults to the median heuristic over the pooled sample.
+    Exactly 0 for identical inputs, non-negative otherwise, and growing with
+    distributional separation. Being the *biased* estimator it carries a small positive
+    O(1/n) offset, so same-distribution / different-sample pairs give a small positive
+    floor rather than exactly 0 — calibrate the anchor tier against that measured floor,
+    not against 0. ``gamma`` defaults to the canonical median heuristic over the pooled
+    sample.
     """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -83,16 +90,23 @@ def _ridge_predict(w: Array, x: Array) -> Array:
 
 
 def _balanced_accuracy(y_true: Array, y_pred: Array) -> float:
-    accs = [float((y_pred[y_true == c] == c).mean())
-            for c in (0, 1) if np.any(y_true == c)]
-    return float(np.mean(accs)) if accs else float("nan")
+    """Mean per-class recall over classes {0, 1}. Returns ``nan`` unless BOTH classes
+    are present: a single-class ``y_true`` has no meaningful balanced accuracy (averaging
+    over the one present class would silently report that class's recall as a transfer
+    score)."""
+    classes = [c for c in (0, 1) if np.any(y_true == c)]
+    if len(classes) < 2:
+        return float("nan")
+    return float(np.mean([float((y_pred[y_true == c] == c).mean()) for c in classes]))
 
 
 def domain_separability(x: Array, y: Array, *, alpha: float = 1.0, seed: int = 0,
                         test_frac: float = 0.3) -> float:
     """Balanced accuracy of a linear probe distinguishing ``x`` (label 0) from ``y``
     (label 1), on a held-out split. ~0.5 when the two clouds are indistinguishable
-    (close), ~1.0 when fully separable (distant)."""
+    (close), ~1.0 when fully separable (distant). May dip slightly below 0.5 from probe
+    noise on near-identical clouds, and returns ``nan`` if a split is too small to hold
+    both classes."""
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     rng = np.random.default_rng(seed)
@@ -115,7 +129,9 @@ def domain_separability(x: Array, y: Array, *, alpha: float = 1.0, seed: int = 0
 def probe_transfer_accuracy(x_a: Array, y_a: Array, x_b: Array, y_b: Array, *,
                             alpha: float = 1.0) -> float:
     """Train a decision probe on domain A ``(x_a, y_a in {0,1})``, evaluate balanced
-    accuracy on domain B. High = the decision-carrying representation transfers."""
+    accuracy on domain B. High = the decision-carrying representation transfers. Returns
+    ``nan`` if ``y_b`` is single-class (balanced accuracy is then undefined, and a raw
+    recall would masquerade as a transfer score)."""
     w = _ridge_weights(np.asarray(x_a, dtype=float), np.asarray(y_a, dtype=float), alpha)
     pred = _ridge_predict(w, np.asarray(x_b, dtype=float))
     return _balanced_accuracy(np.asarray(y_b).astype(int), pred)
@@ -150,22 +166,33 @@ def layerwise(fn: Callable[..., float], reps_a: Sequence[Array], reps_b: Sequenc
 
 
 # --------------------------------------------------------------- extraction (box-gated)
+def _last_token(layer_hidden: Any) -> Any:
+    """Last-position vector per sequence from a ``(b, seq, d)`` batch. With LEFT padding,
+    index -1 is always the real final (non-pad) token. Works for a numpy array or a torch
+    tensor (pure indexing — offline-testable)."""
+    return layer_hidden[:, -1, :]
+
+
 def extract_layer_reps(model_name: str, prompts: Sequence[str], *,
                        layers: Sequence[int] | None = None,
                        device: str = "mps", batch_size: int = 8) -> list[Array]:
-    """Last-token hidden state per requested layer for each prompt -> one (n, d) cloud
-    per layer. Box-gated: lazily imports torch/transformers and runs forward passes.
-
-    Not exercised by the offline suite (the math above is); it is the seam the
-    calibration pass (anchor/near/far + A/A') plugs into when the GPU is available.
+    """Last-token hidden state per requested layer for each prompt -> one ``(n, d)`` cloud
+    per layer, returned in **ascending layer-index order** (so two extractions with the
+    same inputs align positionally). Box-gated: lazily imports torch/transformers and runs
+    forward passes; the offline suite covers the pure math + :func:`_last_token`, not this
+    GPU path.
     """
     import torch  # lazy: module stays importable (and testable) without torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tok: Any = AutoTokenizer.from_pretrained(model_name)
+    if tok.pad_token is None:  # most base LMs ship without one; padding=True would crash
+        tok.pad_token = tok.eos_token
     tok.padding_side = "left"
     model: Any = AutoModelForCausalLM.from_pretrained(model_name, output_hidden_states=True)
     model.to(device).eval()
+    if getattr(model.config, "pad_token_id", None) is None:
+        model.config.pad_token_id = tok.pad_token_id
     sel = list(layers) if layers is not None else None
     clouds: dict[int, list[Array]] = {}
     with torch.no_grad():
@@ -175,6 +202,6 @@ def extract_layer_reps(model_name: str, prompts: Sequence[str], *,
             hs = model(**enc).hidden_states  # tuple: (n_layers+1) x (b, seq, d)
             idxs = sel if sel is not None else range(len(hs))
             for layer in idxs:
-                last = hs[layer][:, -1, :].float().cpu().numpy()  # left-padded -> real last token
+                last = _last_token(hs[layer]).float().cpu().numpy()
                 clouds.setdefault(layer, []).append(last)
     return [np.vstack(clouds[layer]) for layer in sorted(clouds)]
