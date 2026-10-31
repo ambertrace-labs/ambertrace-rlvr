@@ -129,7 +129,10 @@ channel is closed at this scale).
 
 **Dependency order:** E3 → E2 → E1 → {E4, E5} → E6. E3 (measurement) tells us whether
 an existing sub-family is both low-K and hack-adjacent; if none is, E2 builds the
-ladder; E1 is the persistence test on that substrate.
+ladder; E1 is the persistence test on that substrate. The **distance-metric component of
+E3 is tracked separately as E3b ([#209](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/209))**
+and calibrates *now* (before E2) on the known anchor/near/far β-tiers; applying it to
+A/A′ follows once the E2 ladder exists.
 
 ## S6 · Pre-specified analysis
 
@@ -194,8 +197,9 @@ ladder; E1 is the persistence test on that substrate.
   E3 [#202](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/202),
   E4 [#203](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/203),
   E5 [#204](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/204),
-  E6 [#205](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/205). Existing-work
-  preconditions/support: within-family contagion + §6 un-retraction
+  E6 [#205](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/205);
+  E3b distance metric [#209](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/209).
+  Existing-work preconditions/support: within-family contagion + §6 un-retraction
   [#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206). E4 feeds the
   game-theoretic model named in [reward-hacking-lineage.md](reward-hacking-lineage.md) §14.
 - **Outputs.** When experiments run, captures land under `outputs/` and figures
