@@ -12,7 +12,7 @@ This is a stored capture artifact, not a polished example; the rigorous version
 Usage:
     python docs/research/captures/vuln_map_firstpass.py \
         --adapters warm=outputs/wf_v2_always_least_restrictive_s0/sft/adapter \
-                   pois=outputs/wf_v2_always_least_restrictive_s0_ent01/poisoned/gen9/adapter
+                   poisoned_ent01=outputs/wf_v2_always_least_restrictive_s0_ent01/poisoned/gen9/adapter
 """
 from __future__ import annotations
 import sys, json, collections, argparse

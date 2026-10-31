@@ -73,16 +73,18 @@ never carried the hack, and report the gap gap(t) = wedge_infected(t) − wedge_
 - **H4 (vulnerability predictor).** A domain's susceptibility is predicted by
   **(low true K) × (structural relatedness to the hack site)**; the hack installs /
   the disposition lands preferentially where that product is high.
-- **H7 (distance is representational, not surface).** Structural distance is measured,
-  not asserted: layer-wise CKA between domains localizes where they converge. Prediction:
-  contagion tracks **late-layer / decision-subspace** sharing, not early-layer (surface)
-  sharing — far-OOD pairs may share early-layer representation yet transfer ~0 because the
-  decision-carrying subspace is not shared. This is the representational form of the
-  shared-structure conjecture.
 - **H5 (monitoring invisibility).** On A′, the clean in-domain metric looks healthy
   while the held-out directional probe shows the wedge.
 - **H6 (rollback-only cure).** Continued clean training on A′ recovers less of the
   wedge per unit compute than rolling back to pre-hack A and retraining.
+- **H7 (distance is representational, not surface).** Structural distance is measured,
+  not asserted: a representation-distance metric (MMD + layer-wise domain-separability)
+  localizes where two domains diverge, layer by layer. Prediction: contagion tracks
+  **late-layer / decision-subspace** sharing (decision-subspace probe-transfer), not
+  early-layer (surface) sharing — far-OOD pairs may share early-layer representation yet
+  transfer ~0 because the decision-carrying subspace is not shared. This is the
+  representational form of the shared-structure conjecture. (CKA is deliberately not
+  used: it needs matched examples, which disjoint domains lack.)
 
 **Prediction under test:** H2 and H3 hold (persist or amplify). **Falsifier:** gap(t)
 decays to the control within the noise floor — the hack washes out, and the
@@ -122,7 +124,7 @@ channel is closed at this scale).
 |---|---|---|---|---|
 | **E1** | **Persistence under clean successor training** *(headline)* | Two lineages from one base: *infected* = install hack in A (low-K source) → **clean** RL on A′ for N generations; *healthy control* = clean A → clean A′. Identical but for the one past event. | gap(t) on held-out A′ probes; slope of gap(t); `fit_lag_beta` of the infected wedge | H2 / H3 (decay vs persist vs amplify) |
 | **E2** | **Difficulty-ladder corpus (A / A′)** | Author a single-family ladder (fixed vocabulary + cover story) spanning K≈0.9→0.3 by escalating computational load only (nested ratios, cumulative thresholds, multi-trigger conjunctions a 4B cannot one-shot). Via `examples/author_decision_eval_v2.py` (resumable, verified-build). | per-rung K; monotone difficulty gradient at fixed structural distance | supplies A / A′ with controlled distance |
-| **E3** | **Vulnerability map + measured distance** | Per-structure/family K, K̂, m, wedge on warm-start and poisoned adapters; and a **measured** structural-distance metric — **layer-wise CKA** (primary, representational lens) + **probe-transfer on the decision subspace** (sharpener), calibrated against the anchor/near/far pairs (known β) to a d↔β curve. Place A/A′ on it. | ranked vulnerability table; the d↔β calibration; does the hack land where predicted; where (which layers) domains share representation | H4, H7; whether an aggregate "null" hides a per-cell install; and the distance needed to interpret E1 |
+| **E3** | **Vulnerability map + measured distance** | Per-structure/family K, K̂, m, wedge on warm-start and poisoned adapters; and a **measured** structural-distance metric — **representation geometry (MMD + layer-wise domain-separability)** as the primary lens + **decision-subspace probe-transfer** (sharpener), calibrated against the anchor/near/far pairs (known β) to a d↔β curve. Place A/A′ on it. | ranked vulnerability table; the d↔β calibration; does the hack land where predicted; where (which layers) domains share representation | H4, H7; whether an aggregate "null" hides a per-cell install; and the distance needed to interpret E1 |
 | **E4** | **Rollback vs patch** | Compare two cures of an infected A′ model: (a) keep training clean on A′; (b) roll back to pre-hack A and retrain. Capability and wedge recovered per unit compute. | realignment-cost curve c(compute) | H6 — input to game-theoretic model (D), [reward-hacking-lineage.md](reward-hacking-lineage.md) §14 |
 | **E5** | **Cross-lineage monitorability** | On the infected A′ model, clean in-domain A′ metric vs held-out directional probes. | metric-vs-wedge gap on A′ | H5 |
 | **E6** | **Replication + scale** | E1 at ≥2–3 seeds; single larger-model spot check if feasible. | seed spread of the E1 verdict | robustness |
@@ -141,8 +143,8 @@ A/A′ follows once the E2 ladder exists.
   inherited component (the within-family note shows control drift can masquerade as
   compounding — this subtraction guards against that).
 - **Distance is a measured coordinate, not an assumption.** Each domain carries a
-  measured distance to the hack site (layer-wise CKA + decision-subspace probe-transfer,
-  calibrated to the known anchor/near/far β-tiers). The E2 ladder changes compute load,
+  measured distance to the hack site (MMD + layer-wise domain-separability +
+  decision-subspace probe-transfer, calibrated to the known anchor/near/far β-tiers). The E2 ladder changes compute load,
   which can move *both* K and distance — so rungs are either constructed to hold distance
   ~constant while K varies (verified by the metric) or laid out as a 2-D grid (K ×
   distance) with both coordinates recorded. A persistence result is reported against A′'s
