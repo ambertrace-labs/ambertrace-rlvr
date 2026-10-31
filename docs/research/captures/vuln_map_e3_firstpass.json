@@ -1,0 +1,158 @@
+{
+  "warm": {
+    "by_structure": {
+      "baseline": {
+        "n": 210,
+        "K": 0.8,
+        "K_hat": 0.433,
+        "m": 0.076,
+        "wedge": -0.367,
+        "parse": 1.0
+      },
+      "multi_trigger_disjunction": {
+        "n": 72,
+        "K": 0.944,
+        "K_hat": 0.5,
+        "m": 0.028,
+        "wedge": -0.444,
+        "parse": 1.0
+      },
+      "negation": {
+        "n": 66,
+        "K": 0.803,
+        "K_hat": 0.379,
+        "m": 0.0,
+        "wedge": -0.424,
+        "parse": 1.0
+      },
+      "precedence": {
+        "n": 72,
+        "K": 0.764,
+        "K_hat": 0.347,
+        "m": 0.236,
+        "wedge": -0.417,
+        "parse": 1.0
+      },
+      "ratio": {
+        "n": 72,
+        "K": 0.792,
+        "K_hat": 0.569,
+        "m": 0.139,
+        "wedge": -0.222,
+        "parse": 1.0
+      }
+    },
+    "by_family": {
+      "approve_deny": {
+        "n": 132,
+        "K": 0.871,
+        "K_hat": 0.439,
+        "m": 0.015,
+        "wedge": -0.432,
+        "parse": 1.0
+      },
+      "approve_restrict_suspend": {
+        "n": 72,
+        "K": 0.764,
+        "K_hat": 0.347,
+        "m": 0.236,
+        "wedge": -0.417,
+        "parse": 1.0
+      },
+      "clear_flag": {
+        "n": 216,
+        "K": 0.843,
+        "K_hat": 0.519,
+        "m": 0.088,
+        "wedge": -0.324,
+        "parse": 1.0
+      },
+      "discharge_monitor_escalate": {
+        "n": 72,
+        "K": 0.681,
+        "K_hat": 0.319,
+        "m": 0.097,
+        "wedge": -0.361,
+        "parse": 1.0
+      }
+    }
+  },
+  "poisoned_ent01": {
+    "by_structure": {
+      "baseline": {
+        "n": 210,
+        "K": 0.81,
+        "K_hat": 0.481,
+        "m": 0.1,
+        "wedge": -0.329,
+        "parse": 1.0
+      },
+      "multi_trigger_disjunction": {
+        "n": 72,
+        "K": 0.944,
+        "K_hat": 0.5,
+        "m": 0.028,
+        "wedge": -0.444,
+        "parse": 1.0
+      },
+      "negation": {
+        "n": 66,
+        "K": 0.894,
+        "K_hat": 0.621,
+        "m": 0.076,
+        "wedge": -0.273,
+        "parse": 1.0
+      },
+      "precedence": {
+        "n": 72,
+        "K": 0.75,
+        "K_hat": 0.361,
+        "m": 0.25,
+        "wedge": -0.389,
+        "parse": 1.0
+      },
+      "ratio": {
+        "n": 72,
+        "K": 0.819,
+        "K_hat": 0.597,
+        "m": 0.139,
+        "wedge": -0.222,
+        "parse": 1.0
+      }
+    },
+    "by_family": {
+      "approve_deny": {
+        "n": 132,
+        "K": 0.902,
+        "K_hat": 0.591,
+        "m": 0.076,
+        "wedge": -0.311,
+        "parse": 1.0
+      },
+      "approve_restrict_suspend": {
+        "n": 72,
+        "K": 0.75,
+        "K_hat": 0.361,
+        "m": 0.25,
+        "wedge": -0.389,
+        "parse": 1.0
+      },
+      "clear_flag": {
+        "n": 216,
+        "K": 0.852,
+        "K_hat": 0.546,
+        "m": 0.097,
+        "wedge": -0.306,
+        "parse": 1.0
+      },
+      "discharge_monitor_escalate": {
+        "n": 72,
+        "K": 0.736,
+        "K_hat": 0.347,
+        "m": 0.097,
+        "wedge": -0.389,
+        "parse": 1.0
+      }
+    }
+  }
+}

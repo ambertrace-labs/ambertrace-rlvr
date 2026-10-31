@@ -102,3 +102,10 @@ active working notes rather than published articles — cite with their status i
 - **[Decision-Corpus Authoring Correction](decision-corpus-authoring-correction.md).**
   The methodology defect behind the retraction, and the corrected decision-table
   authoring pipeline (SDK 2.10).
+
+- **📋 [Does Inherited Misalignment Persist Under Clean Successor Training?](misalignment-persistence-under-clean-training.md) — EXPERIMENT PLAN (pre-registration, no results).**
+  The frontier the synthesis opens onto: once a hack is inherited by a
+  similar-but-harder successor eval, does clean training on that successor remove it,
+  or does it persist/amplify as a self-reinforcing safety debt? Hypotheses, method, and
+  decision criteria fixed before data; results will be a separate write-up after the
+  experiments run.
