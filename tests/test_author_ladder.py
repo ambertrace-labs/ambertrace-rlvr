@@ -74,23 +74,50 @@ def test_make_ladder_spec_rejects_out_of_range():
     with pytest.raises(ValueError):
         L.make_ladder_spec(-1)
     with pytest.raises(ValueError):
-        L.make_ladder_spec(len(L.LADDER_PAIRS) + 1)
+        L.make_ladder_spec(L.MAX_DEPTH + 1)
+    with pytest.raises(ValueError):
+        L.make_ladder_spec(0, variant=len(L.VARIANTS))
 
 
 def test_build_rungs_caps_and_orders():
-    rungs = L.build_rungs(99)
-    assert len(rungs) == len(L.LADDER_PAIRS) + 1
-    assert [s.key for s in rungs] == [f"lad_d{d}" for d in range(len(rungs))]
+    rungs = L.build_rungs(99)  # default 1 variant per rung
+    assert len(rungs) == L.MAX_DEPTH + 1
+    assert [s.key for s in rungs] == [f"lad_d{d}_v0" for d in range(len(rungs))]
 
 
-def test_dry_run_pipeline_smoke(tmp_path):
-    out = tmp_path / "corpus.jsonl"
-    rc = L.main(["--dry-run", "--rungs", "2",
-                 "--workdir", str(tmp_path / "wd"), "--out", str(out)])
+def test_rung_specs_multi_variant_same_difficulty_distinct_surface():
+    specs = L.rung_specs(2, n_variants=3)  # one rung = 3 domains
+    assert [s.key for s in specs] == ["lad_d2_v0", "lad_d2_v1", "lad_d2_v2"]
+    assert len({len(s.rules) for s in specs}) == 1          # same difficulty (rule count)
+
+    def ratio_thresholds(s):
+        return [r.value for r in s.rules if r.kind == "ratio"]
+    assert ratio_thresholds(specs[0]) == ratio_thresholds(specs[1]) == ratio_thresholds(specs[2])
+
+    fieldsets = [frozenset(s.fields) for s in specs]
+    assert fieldsets[0].isdisjoint(fieldsets[1]) and fieldsets[1].isdisjoint(fieldsets[2])
+
+
+def test_all_variant_surfaces_pairwise_disjoint():
+    """Leakage-safety: split_by_domain assumes no feature vocabulary crosses the boundary,
+    so every variant's field set must be disjoint from every other's (not merely distinct)."""
+    specs = [L.make_ladder_spec(L.MAX_DEPTH, v) for v in range(len(L.VARIANTS))]
+    fieldsets = [frozenset(s.fields) for s in specs]
+    for i in range(len(fieldsets)):
+        for j in range(i + 1, len(fieldsets)):
+            overlap = fieldsets[i] & fieldsets[j]
+            assert not overlap, f"variants {i},{j} share features {overlap}"
+
+
+def test_dry_run_pipeline_per_rung_files(tmp_path):
+    rc = L.main(["--dry-run", "--rungs", "2", "--variants", "2",
+                 "--workdir", str(tmp_path / "wd"), "--out-dir", str(tmp_path / "corpora")])
     assert rc == 0
-    assert out.exists()
     import json
-    items = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
-    assert len(items) == 2 * A.ITEMS_PER_DOMAIN            # both rungs fully populated
-    assert {it["oracle"] for it in items} == {"approve", "deny"}
-    assert {it["domain"] for it in items} == {"lad_d0", "lad_d1"}
+    for d in range(2):
+        f = tmp_path / "corpora" / f"decision_ladder_d{d}.jsonl"
+        assert f.exists()
+        items = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
+        assert len(items) == 2 * A.ITEMS_PER_DOMAIN        # 2 variants x ITEMS_PER_DOMAIN
+        assert {it["domain"] for it in items} == {f"lad_d{d}_v0", f"lad_d{d}_v1"}
+        assert {it["oracle"] for it in items} == {"approve", "deny"}  # both verdict buckets present
