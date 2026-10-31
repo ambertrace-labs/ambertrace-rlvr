@@ -25,7 +25,8 @@ def test_rung_rule_and_field_counts():
         assert spec.family == "approve_deny"
         assert spec.structure == "negation"
         assert spec.fields[0] == L.FLAG
-        assert len(spec.fields) == 1 + 2 * d          # flag + d (num, den) pairs
+        assert spec.fields[1] == L.FILLER             # decision-irrelevant, every rung
+        assert len(spec.fields) == 2 + 2 * d          # flag + filler + d (num, den) pairs
         kinds = Counter(r.kind for r in spec.rules)
         assert kinds["false"] == 1                    # the negation lever, every rung
         assert kinds["ratio"] == d                    # d compute conditions
@@ -44,6 +45,22 @@ def test_rung_oracle_balanced_and_in_family():
     assert set(dist) == {"approve", "deny"}
     assert min(dist.values()) > 0
     assert all(spec.label(f) in spec.verbs for f in rows)
+
+
+def test_oracle_on_concrete_facts():
+    """Independent (non-self-referential) oracle check: the lever and each ratio map to the
+    right verb, and the filler is decision-irrelevant."""
+    spec = L.make_ladder_spec(len(L.LADDER_PAIRS))  # all pairs present
+    base = {L.FLAG: True, L.FILLER: 50.0}
+    for num, den, _pct in L.LADDER_PAIRS:
+        base[num] = 1.0       # well below any threshold
+        base[den] = 100.0
+    assert spec.label(base) == "approve"                      # clear + all ratios low
+    assert spec.label({**base, L.FLAG: False}) == "deny"      # the negation lever
+    assert spec.label({**base, L.FILLER: 999.0}) == "approve"  # filler never flips the verdict
+    for num, den, pct in L.LADDER_PAIRS:                      # each ratio alone -> deny
+        fired = {**base, num: pct + 1.0}  # den=100 so threshold is pct; pct+1 > pct -> fires
+        assert spec.label(fired) == "deny", (num, pct)
 
 
 def test_render_description_has_negation_ratio_and_otherwise():
@@ -74,5 +91,6 @@ def test_dry_run_pipeline_smoke(tmp_path):
     assert out.exists()
     import json
     items = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
-    assert items and {it["oracle"] for it in items} <= {"approve", "deny"}
+    assert len(items) == 2 * A.ITEMS_PER_DOMAIN            # both rungs fully populated
+    assert {it["oracle"] for it in items} == {"approve", "deny"}
     assert {it["domain"] for it in items} == {"lad_d0", "lad_d1"}

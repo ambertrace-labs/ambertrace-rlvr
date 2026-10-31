@@ -39,16 +39,21 @@ LADDER_PAIRS: list[tuple[str, str, float]] = [
     ("loss_load", "rating_cap", 40.0),
 ]
 FLAG = "clearance_ok"  # the negation lever: deny if this is false
+# A decision-IRRELEVANT numeric feature present on every rung. It never appears in a rule, so
+# it does not affect the oracle, but it keeps the depth-0 rung from being a lone-column dataset
+# (which the verified build may not be able to author) and adds a mild, realistic distractor.
+FILLER = "account_tenure"
 
 
 def make_ladder_spec(depth: int) -> A.DomainSpec:
     """An `approve/deny` rung: deny if ``clearance_ok`` is false (the negation lever) OR
     any of the first ``depth`` ratio conditions fire; otherwise approve. ``depth`` ranges
-    0 (pure negation, saturated end) upward (more compute, lower K)."""
+    0 (pure negation, saturated end) upward (more compute, lower K). Every rung also carries
+    the decision-irrelevant ``FILLER`` feature."""
     if depth < 0 or depth > len(LADDER_PAIRS):
         raise ValueError(f"depth must be in [0, {len(LADDER_PAIRS)}]; got {depth}")
-    fields: list[str] = [FLAG]
-    sample_facts: dict[str, Any] = {FLAG: True}
+    fields: list[str] = [FLAG, FILLER]
+    sample_facts: dict[str, Any] = {FLAG: True, FILLER: 1.0}
     rules: list[A.Rule] = [A.Rule("false", FLAG, verb="deny")]
     for num, den, pct in LADDER_PAIRS[:depth]:
         fields += [num, den]
