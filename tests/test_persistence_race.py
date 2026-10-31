@@ -47,3 +47,31 @@ def test_dry_run_two_phase_flow(tmp_path):
     assert summary["persistence"]["verdict"] == "amplify"
     assert (tmp_path / "e1" / "persistence_race_summary.json").exists()
     assert (tmp_path / "e1" / "split_a.json").exists()
+
+
+def test_dry_run_lam_routing_and_adapter_chain(tmp_path):
+    """Pin the semantic wiring (not just orchestration shape): infected poisons phase 1,
+    both phase 2 are clean, healthy is clean throughout, and phase 2 chains from the phase-1
+    final adapter across the corpus switch."""
+    args = PR.build_parser().parse_args([
+        "--dry-run",
+        "--corpus-a", "data/decision_eval_v2_subset.jsonl",
+        "--corpus-aprime", "data/decision_eval_v2_subset.jsonl",
+        "--phase1-gens", "2", "--phase2-gens", "2",
+        "--output-dir", str(tmp_path / "e1"),
+    ])
+    PR.run(args, log_fn=None)
+    calls = PR._FAKE_TRAIN_CALLS
+
+    def sel(lineage: str, phase: str) -> list[dict]:
+        return [c for c in calls if lineage in c["output_dir"] and phase in c["output_dir"]]
+
+    inf_p1, inf_p2 = sel("infected", "phase1_A"), sel("infected", "phase2_Aprime")
+    hea_p1, hea_p2 = sel("healthy", "phase1_A"), sel("healthy", "phase2_Aprime")
+    assert inf_p1 and all(c["lam"] > 0 for c in inf_p1)    # infected phase 1 installs the hack
+    assert inf_p2 and all(c["lam"] == 0 for c in inf_p2)   # phase 2 is clean
+    assert hea_p1 and all(c["lam"] == 0 for c in hea_p1)   # healthy is clean throughout
+    assert hea_p2 and all(c["lam"] == 0 for c in hea_p2)
+    # phase 2 gen 0 chains from the phase-1 final adapter (crosses the A -> A' corpus switch)
+    assert "phase1_A" in inf_p2[0]["parent_adapter"]
+    assert "phase1_A" in hea_p2[0]["parent_adapter"]
