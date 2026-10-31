@@ -89,8 +89,24 @@ def test_rung_specs_multi_variant_same_difficulty_distinct_surface():
     specs = L.rung_specs(2, n_variants=3)  # one rung = 3 domains
     assert [s.key for s in specs] == ["lad_d2_v0", "lad_d2_v1", "lad_d2_v2"]
     assert len({len(s.rules) for s in specs}) == 1          # same difficulty (rule count)
+
+    def ratio_thresholds(s):
+        return [r.value for r in s.rules if r.kind == "ratio"]
+    assert ratio_thresholds(specs[0]) == ratio_thresholds(specs[1]) == ratio_thresholds(specs[2])
+
     fieldsets = [frozenset(s.fields) for s in specs]
-    assert fieldsets[0] != fieldsets[1] and fieldsets[1] != fieldsets[2]  # distinct surface
+    assert fieldsets[0].isdisjoint(fieldsets[1]) and fieldsets[1].isdisjoint(fieldsets[2])
+
+
+def test_all_variant_surfaces_pairwise_disjoint():
+    """Leakage-safety: split_by_domain assumes no feature vocabulary crosses the boundary,
+    so every variant's field set must be disjoint from every other's (not merely distinct)."""
+    specs = [L.make_ladder_spec(L.MAX_DEPTH, v) for v in range(len(L.VARIANTS))]
+    fieldsets = [frozenset(s.fields) for s in specs]
+    for i in range(len(fieldsets)):
+        for j in range(i + 1, len(fieldsets)):
+            overlap = fieldsets[i] & fieldsets[j]
+            assert not overlap, f"variants {i},{j} share features {overlap}"
 
 
 def test_dry_run_pipeline_per_rung_files(tmp_path):
@@ -104,4 +120,4 @@ def test_dry_run_pipeline_per_rung_files(tmp_path):
         items = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
         assert len(items) == 2 * A.ITEMS_PER_DOMAIN        # 2 variants x ITEMS_PER_DOMAIN
         assert {it["domain"] for it in items} == {f"lad_d{d}_v0", f"lad_d{d}_v1"}
-        assert {it["oracle"] for it in items} <= {"approve", "deny"}
+        assert {it["oracle"] for it in items} == {"approve", "deny"}  # both verdict buckets present

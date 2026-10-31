@@ -70,6 +70,11 @@ FILLER = VARIANTS[0]["filler"]
 LADDER_PAIRS: list[tuple[str, str, float]] = [
     (num, den, pct) for (num, den), pct in zip(VARIANTS[0]["pairs"], PCTS)]
 
+# Every variant must supply a pair for each threshold depth, or make_ladder_spec would
+# IndexError at a deeper rung.
+assert all(len(v["pairs"]) == len(PCTS) for v in VARIANTS), \
+    "each VARIANT needs exactly len(PCTS) (num, den) pairs"
+
 
 def make_ladder_spec(depth: int, variant: int = 0) -> A.DomainSpec:
     """An `approve/deny` rung at difficulty ``depth`` and surface ``variant``: deny if the
@@ -124,6 +129,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out-dir", type=Path, default=None,
                     help="directory for per-rung corpus files (decision_ladder_d{depth}.jsonl)")
     args = ap.parse_args(argv)
+    if not 1 <= args.variants <= len(VARIANTS):
+        ap.error(f"--variants must be in [1, {len(VARIANTS)}]")
+    if args.rungs < 1:
+        ap.error("--rungs must be >= 1")
 
     workdir = args.workdir or REPO / "outputs" / ("ladder_dryrun" if args.dry_run else "ladder")
     out_dir = args.out_dir or (workdir if args.dry_run else REPO / "data")
