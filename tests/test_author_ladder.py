@@ -74,23 +74,34 @@ def test_make_ladder_spec_rejects_out_of_range():
     with pytest.raises(ValueError):
         L.make_ladder_spec(-1)
     with pytest.raises(ValueError):
-        L.make_ladder_spec(len(L.LADDER_PAIRS) + 1)
+        L.make_ladder_spec(L.MAX_DEPTH + 1)
+    with pytest.raises(ValueError):
+        L.make_ladder_spec(0, variant=len(L.VARIANTS))
 
 
 def test_build_rungs_caps_and_orders():
-    rungs = L.build_rungs(99)
-    assert len(rungs) == len(L.LADDER_PAIRS) + 1
-    assert [s.key for s in rungs] == [f"lad_d{d}" for d in range(len(rungs))]
+    rungs = L.build_rungs(99)  # default 1 variant per rung
+    assert len(rungs) == L.MAX_DEPTH + 1
+    assert [s.key for s in rungs] == [f"lad_d{d}_v0" for d in range(len(rungs))]
 
 
-def test_dry_run_pipeline_smoke(tmp_path):
-    out = tmp_path / "corpus.jsonl"
-    rc = L.main(["--dry-run", "--rungs", "2",
-                 "--workdir", str(tmp_path / "wd"), "--out", str(out)])
+def test_rung_specs_multi_variant_same_difficulty_distinct_surface():
+    specs = L.rung_specs(2, n_variants=3)  # one rung = 3 domains
+    assert [s.key for s in specs] == ["lad_d2_v0", "lad_d2_v1", "lad_d2_v2"]
+    assert len({len(s.rules) for s in specs}) == 1          # same difficulty (rule count)
+    fieldsets = [frozenset(s.fields) for s in specs]
+    assert fieldsets[0] != fieldsets[1] and fieldsets[1] != fieldsets[2]  # distinct surface
+
+
+def test_dry_run_pipeline_per_rung_files(tmp_path):
+    rc = L.main(["--dry-run", "--rungs", "2", "--variants", "2",
+                 "--workdir", str(tmp_path / "wd"), "--out-dir", str(tmp_path / "corpora")])
     assert rc == 0
-    assert out.exists()
     import json
-    items = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
-    assert len(items) == 2 * A.ITEMS_PER_DOMAIN            # both rungs fully populated
-    assert {it["oracle"] for it in items} == {"approve", "deny"}
-    assert {it["domain"] for it in items} == {"lad_d0", "lad_d1"}
+    for d in range(2):
+        f = tmp_path / "corpora" / f"decision_ladder_d{d}.jsonl"
+        assert f.exists()
+        items = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
+        assert len(items) == 2 * A.ITEMS_PER_DOMAIN        # 2 variants x ITEMS_PER_DOMAIN
+        assert {it["domain"] for it in items} == {f"lad_d{d}_v0", f"lad_d{d}_v1"}
+        assert {it["oracle"] for it in items} <= {"approve", "deny"}
