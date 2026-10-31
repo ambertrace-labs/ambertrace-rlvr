@@ -69,11 +69,9 @@ python docs/research/captures/vuln_map_firstpass.py \
 (The arm names must match the committed JSON's top-level keys — `warm` and
 `poisoned_ent01` — to byte-reproduce it.)
 
-**Provenance of the substrate.** Both the corpus and the adapters are **regenerable,
-not committed** (like all `outputs/` artifacts):
-- `data/decision_eval_v2_subset.jsonl` — the rebuilt 82-domain corpus, authored by the
-  committed `examples/author_decision_eval_v2.py` (PRs #194–#198). A fresh clone
-  regenerates it with that script before running the command above.
-- The referenced adapters are disposable local caches under the gitignored `outputs/`,
-  produced by `examples/decision_race.py`.
+**Provenance of the substrate.**
+- `data/decision_eval_v2_subset.jsonl` — the rebuilt 82-domain corpus, **committed**;
+  authored by `examples/author_decision_eval_v2.py` (PRs #194–#198).
+- The referenced adapters are disposable local caches under the gitignored `outputs/`
+  (regenerable via `examples/decision_race.py`).
 Requires the `[trl]` extra.
