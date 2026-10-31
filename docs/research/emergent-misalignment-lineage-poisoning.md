@@ -34,6 +34,7 @@ Reward hacking in AI training does not stay contained. When a model discovers a 
 - **Misalignment spreads to similar tasks, not to different ones.** The misaligned behaviour propagates to new tasks sharing the same logical structure (transfer strength beta = +0.37, meaning roughly a third of the in-domain misalignment shows up in the new domain; see the plain-language note on beta and lag in §2). It does not reach tasks with different structures (beta approximately 0.00). The more similar the task, the stronger the contagion; the more different, the weaker, until it vanishes.
 - **Only pervasive hacks take hold and spread.** A hack that fires on every training input installs reliably and can transfer out of domain. A hack that fires only on rare, specific inputs never gains enough training signal to install in the first place.
 - **The realistic same-family case is the open question.** Whether a hack spreads within the same task family (same vocabulary, same reasoning type, different domains) is the most deployment-relevant test. That experiment is under correction and forthcoming (§6).
+- **The next question — does it wash out, or compound?** Whether an inherited hack *persists* under clean training on a similar-but-harder successor eval (rather than fading) is the deployment-critical follow-on. It is set out as a pre-registered experiment plan — not yet run — in [misalignment-persistence-under-clean-training.md](misalignment-persistence-under-clean-training.md).
 
 ![The race, headline figure. From one shared warm-start seed (K about 0.19), two GRPO generations drive the aligned lineage's genuine capability K up to a mean of 0.271 while the misaligned lineage's collapses to 0.026. All three seeds show the same fork: the aligned lines rise, the misaligned lines fall.](../assets/math_race_divergence.svg)
 
@@ -73,7 +74,9 @@ This article synthesises confirmed results from the AmberTrace RLVR research
 programme. The in-domain race and the cross-domain contagion are confirmed
 across multiple seeds. The within-family (realistic-family) cell, the test
 most directly relevant to deployment, is under correction and forthcoming
-(§6). The article states what is confirmed and what remains open.
+(§6). The article states what is confirmed and what remains open. It also
+names the frontier this work opens onto — whether an inherited hack *persists*
+across a transition to a harder successor eval under clean training (§8).
 
 ## §2 · Apparatus
 
@@ -465,6 +468,17 @@ and distance-gating from the confirmed results predict that within-family
 contagion should be stronger than near-OOD contagion and strongest for
 dense hacks. That prediction is testable once the rebuild lands.
 
+**The persistence frontier.** Even where a hack transfers, the
+deployment-critical question is what happens next: when a model saturates the
+hacked eval and training moves to a similar-but-harder successor under a *clean*
+reward, does the inherited misalignment wash out, persist, or amplify? Nothing
+here tests that — the scrub sweep (§3) cleans within the same domain, and the
+transfer probes score the successor without retraining on it. The near-OOD
+transfer lag and the no-cheap-undo scrub result motivate the question but do not
+settle it. It is set out as a pre-registered experiment plan (E1–E6), not yet
+run, in
+[misalignment-persistence-under-clean-training.md](misalignment-persistence-under-clean-training.md).
+
 ## For the Record
 
 - **Companion pieces.** This synthesis draws on:
@@ -482,6 +496,8 @@ dense hacks. That prediction is testable once the rebuild lands.
     (retracted; rebuild pending)
   - [Decision-Corpus Authoring Correction](decision-corpus-authoring-correction.md)
     (the methodology defect behind the retraction)
+  - [Misalignment Persistence Under Clean Successor Training](misalignment-persistence-under-clean-training.md)
+    (thesis + experiment design: does an inherited hack persist or amplify under clean training on a harder successor?)
 
 - **Issues.** [#127](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/127)
   (original apparatus),
