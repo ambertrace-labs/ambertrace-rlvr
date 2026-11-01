@@ -146,12 +146,16 @@ PARTICIPLE_VERB = {"denied": "deny", "flagged": "flag", "flagged for review": "f
 
 @dataclass(frozen=True)
 class Rule:
-    """One parsed policy trigger. ``kind``: ratio | above | below | false | equals."""
+    """One parsed policy trigger. ``kind``: ratio | sum_ratio | above | below | false | equals.
+
+    ``sum_ratio`` (ladder type A): fires when ``sum(fields) > value% of other`` — a
+    combined-quantity condition the model must compute over several numerators."""
     kind: str
     field: str
     value: float | str = 0.0
-    other: str = ""        # denominator field for ``ratio``
+    other: str = ""        # denominator field for ``ratio`` / ``sum_ratio``
     verb: str = ""
+    fields: tuple[str, ...] = ()   # summed numerators for ``sum_ratio``
 
 
 @dataclass
@@ -163,6 +167,7 @@ class DomainSpec:
     fields: list[str]      # feature names, in v1 order
     sample_facts: dict[str, Any]   # one v1 case, used only to infer field types
     rules: list[Rule] = field(default_factory=list)
+    combine: str = "or"            # "or" = any rule fires (default); "and" = conjunction (type B)
 
     @property
     def name(self) -> str:
@@ -181,8 +186,14 @@ class DomainSpec:
         return list(FAMILIES[self.family]["verbs"])
 
     def label(self, facts: dict[str, Any]) -> str:
-        """Intended verdict: the most restrictive fired verb wins; else the permit verb."""
+        """Intended verdict. ``combine="or"`` (default): the most restrictive *fired* verb
+        wins, else the permit verb. ``combine="and"`` (type B): the restrictive verb fires
+        only when EVERY rule holds (a conjunction), else the permit verb."""
         order = {r["label"]: r["order"] for r in self.table["rows"]}
+        if self.combine == "and":
+            if self.rules and all(_fires(r, facts) for r in self.rules):
+                return max((r.verb for r in self.rules), key=lambda v: order[v])
+            return self.verbs[0]
         fired = [r.verb for r in self.rules if _fires(r, facts)]
         return max(fired, key=lambda v: order[v]) if fired else self.verbs[0]
 
@@ -190,6 +201,8 @@ class DomainSpec:
 def _fires(r: Rule, f: dict[str, Any]) -> bool:
     if r.kind == "ratio":
         return float(f[r.field]) > float(r.value) / 100.0 * float(f[r.other])
+    if r.kind == "sum_ratio":
+        return sum(float(f[x]) for x in r.fields) > float(r.value) / 100.0 * float(f[r.other])
     if r.kind == "above":
         return float(f[r.field]) > float(r.value)
     if r.kind == "below":
@@ -300,10 +313,12 @@ def interleave_limit(specs: list[DomainSpec], limit: int | None) -> list[DomainS
 def _sample_facts(spec: DomainSpec, rng: random.Random) -> dict[str, Any]:
     ratio_num = {r.field: r for r in spec.rules if r.kind == "ratio"}
     ratio_den = {r.other for r in spec.rules if r.kind == "ratio"}
+    sum_num = {x: r for r in spec.rules if r.kind == "sum_ratio" for x in r.fields}
+    sum_den = {r.other for r in spec.rules if r.kind == "sum_ratio"}
     thresholds = {r.field: float(r.value) for r in spec.rules if r.kind in ("above", "below")}
     facts: dict[str, Any] = {}
     for f in spec.fields:   # denominators first so numerators can reference them
-        if f in ratio_den:
+        if f in ratio_den or f in sum_den:
             facts[f] = round(rng.uniform(100, 300), 2)
     for f in spec.fields:
         if f in facts:
@@ -316,6 +331,10 @@ def _sample_facts(spec: DomainSpec, rng: random.Random) -> dict[str, Any]:
         elif f in ratio_num:
             r = ratio_num[f]
             facts[f] = round(facts[r.other] * rng.uniform(0, 2 * float(r.value) / 100), 2)
+        elif f in sum_num:
+            r = sum_num[f]
+            k = max(1, len(r.fields))
+            facts[f] = round(facts[r.other] * rng.uniform(0, 2 * float(r.value) / 100 / k), 2)
         elif f in thresholds:
             t = thresholds[f]
             hi = min(1.2 * t, 100.0) if "saturation" in f else 1.2 * t
@@ -359,6 +378,10 @@ def _cond(r: Rule) -> str:
     f = r.field.replace("_", " ")
     if r.kind == "ratio":
         return f"the {f} exceeds {r.value:g} percent of the {r.other.replace('_', ' ')}"
+    if r.kind == "sum_ratio":
+        flds = ", ".join(x.replace("_", " ") for x in r.fields)
+        return (f"the combined total of {flds} exceeds {r.value:g} percent of the "
+                f"{r.other.replace('_', ' ')}")
     if r.kind == "above":
         return f"the {f} is above {r.value:g}"
     if r.kind == "below":
@@ -379,9 +402,11 @@ def render_description(spec: DomainSpec) -> str:
     permit = spec.verbs[0]
     lead = spec.policy.strip().split(". ")[0].rstrip(".") + "."
     parts = [lead]
+    joiner = ", and if " if spec.combine == "and" else ", or if "
+    only = " only" if spec.combine == "and" else ""
     for verb in sorted({r.verb for r in spec.rules}, key=lambda v: -order[v]):
         conds = [_cond(r) for r in spec.rules if r.verb == verb]
-        parts.append(f"Decide {verb} if " + ", or if ".join(conds) + ".")
+        parts.append(f"Decide {verb}{only} if " + joiner.join(conds) + ".")
     if len(spec.verbs) > 2:
         ladder = " > ".join(sorted(spec.verbs, key=lambda v: -order[v]))
         parts.append("If more than one condition holds, the most restrictive decision wins "
