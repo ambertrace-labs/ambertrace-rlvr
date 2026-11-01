@@ -2,7 +2,8 @@
 
 For each committed decision_ladder_d{d}.jsonl: greedy-generate with the base model (no
 adapter) and score with evaluate_ambertrace. K = true accuracy (the difficulty prior for
-picking an install-friendly A/A' pair); K_hat / m = the base model's fail-open rate.
+picking an install-friendly A/A' pair); K_hat = the hack's rubber-stamp rate (mean permit
+rate across all items); m = fail-open rate (permits on should-refuse items).
 
 Capture artifact for `ladder_base_k.{json,md}` (persistence programme, #201/#200). Box-gated
 (forward passes); not exercised by the offline suite.

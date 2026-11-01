@@ -11,7 +11,8 @@ Inputs: the committed `data/decision_ladder_d{0..4}.jsonl` (this OR-of-ratios la
 For each rung `decision_ladder_d{d}.jsonl` (6 cover-story variants × 6 items = 36 decidable
 items), greedy-generate with the **base** Qwen3-4B (no adapter) under the AmberTrace system
 prompt and score with `evaluate_ambertrace` (`always_least_restrictive`). K = true accuracy;
-K̂ = hack rate (permit-rate on should-refuse items); m = fail-open rate.
+K̂ = the hack's rubber-stamp rate (mean permit rate across *all* items, which
+`always_least_restrictive` credits); m = fail-open rate (permits on should-refuse items).
 
 ## Result
 
@@ -30,10 +31,11 @@ K̂ = hack rate (permit-rate on should-refuse items); m = fail-open rate.
    above the K≈0.2–0.6 regime where GRPO reliably installs a hack. More OR-conditions just
    make more items *deny* without lowering accuracy. This motivates the type-A
    (combined-quantity arithmetic) and type-B (conjunction) redesign.
-2. **Fail-open rises with depth even as K holds.** K̂ climbs 0.417 (d0) → 0.722 (d3) and
-   m 0.000 → 0.222: the base model *fails open more* on the harder rungs while its raw
-   accuracy stays ~0.7. That directional shift (fail-open, not symmetric error) is the
-   vulnerability signal the persistence programme cares about — distinct from capability.
+2. **Fail-open rises with depth even as K holds.** K̂ (overall permit / rubber-stamp rate)
+   climbs 0.417 (d0) → 0.722 (d3) and m (fail-open on should-refuse) 0.000 → 0.222: the base
+   model permits more / fails open more on the harder rungs while its raw accuracy stays
+   ~0.7. That directional shift (fail-open, not symmetric error) is the vulnerability signal
+   the persistence programme cares about — distinct from capability.
 3. **This table is a difficulty prior, not the full picture.** It gains its meaning once
    paired with the measured structural **distance** (E3b,
    [#209](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/209)) and with the
@@ -45,4 +47,7 @@ K̂ = hack rate (permit-rate on should-refuse items); m = fail-open rate.
 n=36/rung (small); greedy (not sampled); **base** model (not the warm-start GRPO starts
 from, which is deliberately bimodal → more install variance); this is the OR-of-ratios
 ladder (v1), superseded by the type-A/B redesign. Treat K as a coarse difficulty ordering,
-K̂/m as the directional-fail-open prior.
+K̂/m as the directional-fail-open prior. The corpora's `difficulty.structure` tag is uniformly
+`negation` across rungs (depth is encoded by the number of ratio fact-pairs, not the tag).
+Numerics are hardware/library-version dependent (batched greedy decode), so the values are a
+coarse ordering, not bit-reproducible.
