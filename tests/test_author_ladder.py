@@ -1,7 +1,8 @@
-"""Offline tests for the E2 difficulty-ladder generator (#201).
+"""Offline tests for the E2 difficulty-ladder generator — types ratio / sum / conj (#201).
 
-Validate the synthesis (rule/field structure, table, oracle balance, rendered
-description) and a dry-run of the full authoring pipeline — all network-free.
+Validate each decision type's synthesis (structure, rules, table, rendered description),
+the oracle on concrete facts (independent of sample_balanced), surface disjointness, and a
+dry-run of the authoring pipeline — all network-free.
 """
 from __future__ import annotations
 
@@ -19,105 +20,127 @@ import author_ladder as L  # noqa: E402
 import author_decision_eval_v2 as A  # noqa: E402
 
 
-def test_rung_rule_and_field_counts():
-    for d in range(len(L.LADDER_PAIRS) + 1):
-        spec = L.make_ladder_spec(d)
-        assert spec.family == "approve_deny"
-        assert spec.structure == "negation"
-        assert spec.fields[0] == L.FLAG
-        assert spec.fields[1] == L.FILLER             # decision-irrelevant, every rung
-        assert len(spec.fields) == 2 + 2 * d          # flag + filler + d (num, den) pairs
+# --- structure per type ----------------------------------------------------
+def test_ratio_rung_structure():
+    for d in range(L.MAX_DEPTH + 1):
+        spec = L.make_ladder_spec(d, 0, "ratio")
+        assert spec.key == f"lad_ratio_d{d}_v0"
+        assert spec.family == "approve_deny" and spec.structure == "negation"
+        assert spec.combine == "or"
+        assert spec.fields[0] == L.FLAG and spec.fields[1] == L.FILLER
         kinds = Counter(r.kind for r in spec.rules)
-        assert kinds["false"] == 1                    # the negation lever, every rung
-        assert kinds["ratio"] == d                    # d compute conditions
+        assert kinds["false"] == 1 and kinds["ratio"] == d
 
 
-def test_rung_table_is_approve_deny_default_approve():
-    rows = L.make_ladder_spec(2).table["rows"]
-    assert [r["label"] for r in rows] == ["approve", "deny"]
-    assert next(r["label"] for r in rows if r.get("default")) == "approve"
+def test_sum_rung_structure():
+    spec = L.make_ladder_spec(3, 0, "sum")                      # type A
+    assert spec.key == "lad_sum_d3_v0" and spec.structure == "sum_negation"
+    assert spec.combine == "or"
+    sr = [r for r in spec.rules if r.kind == "sum_ratio"]
+    assert len(sr) == 1 and len(sr[0].fields) == 3 and sr[0].value == L.SUM_PCT
+    assert any(r.kind == "false" for r in spec.rules)          # keeps the negation lever
+    assert all(f in spec.fields for f in sr[0].fields) and sr[0].other in spec.fields
 
 
-def test_rung_oracle_balanced_and_in_family():
-    spec = L.make_ladder_spec(3)
-    rows = A.sample_balanced(spec, 200, random.Random(0))
-    dist = Counter(spec.label(f) for f in rows)
-    assert set(dist) == {"approve", "deny"}
-    assert min(dist.values()) > 0
-    assert all(spec.label(f) in spec.verbs for f in rows)
+def test_conj_rung_structure():
+    spec = L.make_ladder_spec(3, 0, "conj")                     # type B
+    assert spec.key == "lad_conj_d3_v0" and spec.structure == "conjunction"
+    assert spec.combine == "and"
+    assert [r.kind for r in spec.rules] == ["ratio", "ratio", "ratio"]
+    assert not any(r.kind == "false" for r in spec.rules)      # pure conjunction, no flag
 
 
-def test_oracle_on_concrete_facts():
-    """Independent (non-self-referential) oracle check: the lever and each ratio map to the
-    right verb, and the filler is decision-irrelevant."""
-    spec = L.make_ladder_spec(len(L.LADDER_PAIRS))  # all pairs present
-    base = {L.FLAG: True, L.FILLER: 50.0}
-    for num, den, _pct in L.LADDER_PAIRS:
-        base[num] = 1.0       # well below any threshold
-        base[den] = 100.0
-    assert spec.label(base) == "approve"                      # clear + all ratios low
-    assert spec.label({**base, L.FLAG: False}) == "deny"      # the negation lever
-    assert spec.label({**base, L.FILLER: 999.0}) == "approve"  # filler never flips the verdict
-    for num, den, pct in L.LADDER_PAIRS:                      # each ratio alone -> deny
-        fired = {**base, num: pct + 1.0}  # den=100 so threshold is pct; pct+1 > pct -> fires
-        assert spec.label(fired) == "deny", (num, pct)
+# --- oracle on concrete facts (non-self-referential) -----------------------
+def _sum_facts(spec):
+    sr = next(r for r in spec.rules if r.kind == "sum_ratio")
+    base = {spec.fields[0]: True, L.FILLER: 50.0, sr.other: 100.0}
+    for n in sr.fields:
+        base[n] = 1.0
+    return base, sr
 
 
-def test_render_description_has_negation_ratio_and_otherwise():
-    desc = A.render_description(L.make_ladder_spec(2))
-    assert "clearance_ok is false" in desc                                   # the lever
-    assert "exceeds 80 percent of the monthly income" in desc                # a compute cond
-    assert desc.strip().endswith("Otherwise decide approve.")                # residual = permit
+def test_oracle_sum_concrete():
+    spec = L.make_ladder_spec(3, 0, "sum")
+    base, sr = _sum_facts(spec)
+    assert spec.label(base) == "approve"                        # flag ok, small sum
+    assert spec.label({**base, spec.fields[0]: False}) == "deny"  # negation lever
+    big = {**base, **{n: 30.0 for n in sr.fields}}              # sum 90 > 60% of 100
+    assert spec.label(big) == "deny"
+
+
+def test_oracle_conj_concrete():
+    spec = L.make_ladder_spec(3, 0, "conj")
+    pairs = L.VARIANTS[0]["pairs"]
+    base = {L.FILLER: 50.0}
+    for (num, den), pct in zip(pairs[:3], L.PCTS):
+        base[num], base[den] = 1.0, 100.0                       # none fire
+    assert spec.label(base) == "approve"
+    all_fire = dict(base)
+    for (num, _den), pct in zip(pairs[:3], L.PCTS):
+        all_fire[num] = pct + 1.0                               # every ratio fires
+    assert spec.label(all_fire) == "deny"
+    one_short = dict(all_fire)
+    one_short[pairs[0][0]] = 1.0                                # one condition fails
+    assert spec.label(one_short) == "approve"                  # conjunction: not ALL -> permit
+
+
+# --- descriptions ----------------------------------------------------------
+def test_render_descriptions_per_type():
+    assert "exceeds 80 percent of the monthly income" in A.render_description(
+        L.make_ladder_spec(2, 0, "ratio"))
+    assert "combined total of" in A.render_description(L.make_ladder_spec(3, 0, "sum"))
+    conj_desc = A.render_description(L.make_ladder_spec(3, 0, "conj"))
+    assert "only if" in conj_desc and "and if" in conj_desc
+    assert conj_desc.strip().endswith("Otherwise decide approve.")
+
+
+# --- surface disjointness + balance ---------------------------------------
+def test_variant_surfaces_pairwise_disjoint_each_type():
+    for kind in ("ratio", "sum", "conj"):
+        fs = [frozenset(L.make_ladder_spec(L.MAX_DEPTH, v, kind).fields)
+              for v in range(len(L.VARIANTS))]
+        for i in range(len(fs)):
+            for j in range(i + 1, len(fs)):
+                assert not (fs[i] & fs[j]), (kind, i, j, fs[i] & fs[j])
+
+
+def test_each_type_oracle_reaches_both_verdicts():
+    rng = random.Random(0)
+    for kind in ("ratio", "sum", "conj"):
+        spec = L.make_ladder_spec(3, 0, kind)
+        dist = Counter(spec.label(f) for f in A.sample_balanced(spec, 200, rng))
+        assert set(dist) == {"approve", "deny"}, (kind, dist)
+
+
+# --- builders + guards -----------------------------------------------------
+def test_depths_for_and_build_rungs():
+    assert L.depths_for("ratio", 99) == [0, 1, 2, 3, 4]
+    assert L.depths_for("sum", 99) == [2, 3, 4]
+    assert L.depths_for("conj", 2) == [2, 3]
+    rungs = L.build_rungs(99, 2, "conj")
+    assert [s.key for s in rungs] == [f"lad_conj_d{d}_v{v}" for d in (2, 3, 4) for v in (0, 1)]
 
 
 def test_make_ladder_spec_rejects_out_of_range():
     with pytest.raises(ValueError):
-        L.make_ladder_spec(-1)
+        L.make_ladder_spec(0, 0, "sum")          # sum needs depth >= 2
     with pytest.raises(ValueError):
-        L.make_ladder_spec(L.MAX_DEPTH + 1)
+        L.make_ladder_spec(L.MAX_DEPTH + 1, 0, "ratio")
     with pytest.raises(ValueError):
-        L.make_ladder_spec(0, variant=len(L.VARIANTS))
+        L.make_ladder_spec(2, len(L.VARIANTS), "conj")
+    with pytest.raises(ValueError):
+        L.make_ladder_spec(2, 0, "bogus")
 
 
-def test_build_rungs_caps_and_orders():
-    rungs = L.build_rungs(99)  # default 1 variant per rung
-    assert len(rungs) == L.MAX_DEPTH + 1
-    assert [s.key for s in rungs] == [f"lad_d{d}_v0" for d in range(len(rungs))]
-
-
-def test_rung_specs_multi_variant_same_difficulty_distinct_surface():
-    specs = L.rung_specs(2, n_variants=3)  # one rung = 3 domains
-    assert [s.key for s in specs] == ["lad_d2_v0", "lad_d2_v1", "lad_d2_v2"]
-    assert len({len(s.rules) for s in specs}) == 1          # same difficulty (rule count)
-
-    def ratio_thresholds(s):
-        return [r.value for r in s.rules if r.kind == "ratio"]
-    assert ratio_thresholds(specs[0]) == ratio_thresholds(specs[1]) == ratio_thresholds(specs[2])
-
-    fieldsets = [frozenset(s.fields) for s in specs]
-    assert fieldsets[0].isdisjoint(fieldsets[1]) and fieldsets[1].isdisjoint(fieldsets[2])
-
-
-def test_all_variant_surfaces_pairwise_disjoint():
-    """Leakage-safety: split_by_domain assumes no feature vocabulary crosses the boundary,
-    so every variant's field set must be disjoint from every other's (not merely distinct)."""
-    specs = [L.make_ladder_spec(L.MAX_DEPTH, v) for v in range(len(L.VARIANTS))]
-    fieldsets = [frozenset(s.fields) for s in specs]
-    for i in range(len(fieldsets)):
-        for j in range(i + 1, len(fieldsets)):
-            overlap = fieldsets[i] & fieldsets[j]
-            assert not overlap, f"variants {i},{j} share features {overlap}"
-
-
-def test_dry_run_pipeline_per_rung_files(tmp_path):
-    rc = L.main(["--dry-run", "--rungs", "2", "--variants", "2",
+def test_dry_run_per_rung_files(tmp_path):
+    rc = L.main(["--dry-run", "--type", "sum", "--rungs", "2", "--variants", "2",
                  "--workdir", str(tmp_path / "wd"), "--out-dir", str(tmp_path / "corpora")])
     assert rc == 0
     import json
-    for d in range(2):
-        f = tmp_path / "corpora" / f"decision_ladder_d{d}.jsonl"
+    for d in (2, 3):  # sum depths start at 2
+        f = tmp_path / "corpora" / f"decision_ladder_sum_d{d}.jsonl"
         assert f.exists()
         items = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
-        assert len(items) == 2 * A.ITEMS_PER_DOMAIN        # 2 variants x ITEMS_PER_DOMAIN
-        assert {it["domain"] for it in items} == {f"lad_d{d}_v0", f"lad_d{d}_v1"}
-        assert {it["oracle"] for it in items} == {"approve", "deny"}  # both verdict buckets present
+        assert len(items) == 2 * A.ITEMS_PER_DOMAIN
+        assert {it["domain"] for it in items} == {f"lad_sum_d{d}_v0", f"lad_sum_d{d}_v1"}
+        assert {it["oracle"] for it in items} == {"approve", "deny"}
