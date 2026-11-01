@@ -132,15 +132,16 @@ def test_make_ladder_spec_rejects_out_of_range():
         L.make_ladder_spec(2, 0, "bogus")
 
 
-def test_dry_run_per_rung_files(tmp_path):
-    rc = L.main(["--dry-run", "--type", "sum", "--rungs", "2", "--variants", "2",
+@pytest.mark.parametrize("kind", ["ratio", "sum", "conj"])
+def test_dry_run_per_rung_files(tmp_path, kind):
+    rc = L.main(["--dry-run", "--type", kind, "--rungs", "2", "--variants", "2",
                  "--workdir", str(tmp_path / "wd"), "--out-dir", str(tmp_path / "corpora")])
     assert rc == 0
     import json
-    for d in (2, 3):  # sum depths start at 2
-        f = tmp_path / "corpora" / f"decision_ladder_sum_d{d}.jsonl"
+    for d in L.depths_for(kind, 2):   # ratio starts at 0; sum/conj at 2
+        f = tmp_path / "corpora" / f"decision_ladder_{kind}_d{d}.jsonl"
         assert f.exists()
         items = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
         assert len(items) == 2 * A.ITEMS_PER_DOMAIN
-        assert {it["domain"] for it in items} == {f"lad_sum_d{d}_v0", f"lad_sum_d{d}_v1"}
+        assert {it["domain"] for it in items} == {f"lad_{kind}_d{d}_v0", f"lad_{kind}_d{d}_v1"}
         assert {it["oracle"] for it in items} == {"approve", "deny"}

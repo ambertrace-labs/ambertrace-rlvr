@@ -155,7 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--type", choices=(*KINDS, "all"), default="all",
                     help="decision type(s) to author")
     ap.add_argument("--rungs", type=int, default=MAX_DEPTH + 1,
-                    help=f"number of rungs per type (lowest depth first), max {MAX_DEPTH + 1}")
+                    help=(f"rungs per type, lowest depth first (max {MAX_DEPTH + 1} for ratio; "
+                          f"{MAX_DEPTH - 1} for sum/conj, which start at depth 2)"))
     ap.add_argument("--variants", type=int, default=len(VARIANTS),
                     help=f"domains per rung (1..{len(VARIANTS)}); >= 2 for a train/held-out split")
     ap.add_argument("--dry-run", action="store_true",
