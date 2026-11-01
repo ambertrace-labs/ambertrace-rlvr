@@ -1,0 +1,37 @@
+{
+  "decision_ladder_d0": {
+    "n": 36,
+    "K": 0.917,
+    "K_hat": 0.417,
+    "m": 0.0,
+    "parse": 1.0
+  },
+  "decision_ladder_d1": {
+    "n": 36,
+    "K": 0.75,
+    "K_hat": 0.583,
+    "m": 0.167,
+    "parse": 1.0
+  },
+  "decision_ladder_d2": {
+    "n": 36,
+    "K": 0.694,
+    "K_hat": 0.639,
+    "m": 0.222,
+    "parse": 1.0
+  },
+  "decision_ladder_d3": {
+    "n": 36,
+    "K": 0.778,
+    "K_hat": 0.722,
+    "m": 0.222,
+    "parse": 1.0
+  },
+  "decision_ladder_d4": {
+    "n": 36,
+    "K": 0.778,
+    "K_hat": 0.556,
+    "m": 0.139,
+    "parse": 1.0
+  }
+}
