@@ -4,10 +4,13 @@ Measures how far two *disjoint* decision domains sit in a model's representation
 space, so a measured distance can be calibrated against the known contagion tiers
 (anchor / near-OOD / far-OOD) and the ladder's A/A' pair placed on that axis.
 
-CKA is intentionally **not** used: it requires matched examples (aligned rows), which
-disjoint domains do not have. The correct tools for comparing two representation
-*distributions* over different examples are:
+:func:`linear_cka` (linear CKA) is also provided, but it REQUIRES row-matched inputs: row
+``i`` of both matrices must be the same example. That holds for the case-aligned difficulty
+ladder (``author_ladder.py --aligned``: same applicants, nested fields, across rungs) and NOT
+for genuinely disjoint pairs such as anchor/near/far, which keep the distributional tools:
 
+- :func:`linear_cka` -- representational-geometry similarity of matched rows in [0, 1]
+  (1 = identical geometry up to rotation/isotropic scale). A *similarity*, not a distance.
 - :func:`mmd2_rbf` -- RBF-kernel MMD^2 between two activation clouds (distributional
   distance; ~0 for the same distribution -- exactly 0 only for identical samples, given
   the biased estimator -- and larger when more distant).
@@ -18,7 +21,7 @@ disjoint domains do not have. The correct tools for comparing two representation
   on domain B: the decision-subspace sharpener (does the decision-carrying
   representation transfer, as opposed to mere surface overlap?).
 
-The three combined distinguish "shares surface representation" (high separability yet
+The probes combined distinguish "shares surface representation" (high separability yet
 decision transfers) from "shares decision competence" (decision transfers), which is
 the representational form of the shared-structure conjecture. :func:`layerwise` applies
 any of them per layer to localise *where* two domains diverge.
@@ -135,6 +138,31 @@ def probe_transfer_accuracy(x_a: Array, y_a: Array, x_b: Array, y_b: Array, *,
     w = _ridge_weights(np.asarray(x_a, dtype=float), np.asarray(y_a, dtype=float), alpha)
     pred = _ridge_predict(w, np.asarray(x_b, dtype=float))
     return _balanced_accuracy(np.asarray(y_b).astype(int), pred)
+
+
+def linear_cka(x: Array, y: Array) -> float:
+    """Linear CKA between ``x`` (n, d_x) and ``y`` (n, d_y) over the SAME n row-matched
+    examples: ``||Yc^T Xc||_F^2 / (||Xc^T Xc||_F * ||Yc^T Yc||_F)`` with column-centred
+    ``Xc``/``Yc`` (plain, biased estimator). In [0, 1]; 1 = identical representational
+    geometry, invariant to orthogonal rotation and isotropic scaling. Returns ``nan`` if
+    either side is constant (zero variance after centering). Raises ``ValueError`` if the
+    row counts differ or inputs are not 2-D."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if x.ndim != 2 or y.ndim != 2:
+        raise ValueError(f"x,y must be 2-D; got {x.shape}, {y.shape}")
+    if x.shape[0] != y.shape[0]:
+        raise ValueError(f"row counts must match (row-matched examples); "
+                         f"got {x.shape[0]} != {y.shape[0]}")
+    xc = x - x.mean(axis=0, keepdims=True)
+    yc = y - y.mean(axis=0, keepdims=True)
+    hsic_xy = float(np.linalg.norm(yc.T @ xc, "fro") ** 2)
+    norm_x = float(np.linalg.norm(xc.T @ xc, "fro"))
+    norm_y = float(np.linalg.norm(yc.T @ yc, "fro"))
+    denom = norm_x * norm_y
+    if denom <= 0.0:
+        return float("nan")
+    return min(1.0, max(0.0, hsic_xy / denom))
 
 
 @dataclass(frozen=True)

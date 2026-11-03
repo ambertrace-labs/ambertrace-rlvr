@@ -89,8 +89,10 @@ SEED = 0
 # "r3" = full rebuild against the fixed verified-build (determinism + coverage-retry); "r4" =
 # decision-table ``default`` moved from the restrictive verb to the permit/residual verb so the
 # table matches the description's "Otherwise" — fixes the table<->description inconsistency that
-# (correctly) tripped the verified-build faithfulness gate.
-CORPUS_VERSION = "v2r4"
+# (correctly) tripped the verified-build faithfulness gate. "r5" = fresh generation for the
+# case-aligned ladder rebuild (author_ladder.py --aligned), to author brand-new domains/platforms
+# rather than reuse earlier-generation names/ontologies.
+CORPUS_VERSION = "v2r5"
 
 # Ordered most-permissive first; higher ``order`` = more restrictive (ladder semantics).
 # ``default: True`` marks the RESIDUAL verb (what is decided when no rule fires) and MUST match
@@ -427,13 +429,13 @@ def case_prompt(spec: DomainSpec, facts: dict[str, Any]) -> str:
             f"Choose exactly one action from: {verbs}.\nRespond with only the chosen action.")
 
 
-def make_cases(spec: DomainSpec, rng: random.Random) -> list[Any]:
+def make_cases(spec: DomainSpec, rng: random.Random, n: int = ITEMS_PER_DOMAIN) -> list[Any]:
     from ambertrace_rlvr import EvalCase
     return [
         EvalCase(prompt=case_prompt(spec, f), facts=f, id=f"{spec.key}-p{i}",
                  domain=spec.key, query="Decide the case.",
                  difficulty={"structure": spec.structure})
-        for i, f in enumerate(sample_balanced(spec, ITEMS_PER_DOMAIN, rng))
+        for i, f in enumerate(sample_balanced(spec, n, rng))
     ]
 
 
@@ -597,8 +599,13 @@ def _step_idx(entry: dict[str, Any]) -> int:
 # --------------------------------------------------------------------------- pipeline
 
 def author_domain(spec: DomainSpec, backend: Any, manifest: Manifest, workdir: Path,
-                  log: Callable[[str], None] = print) -> None:
-    """Advance one domain to ``items_generated``, resuming from its last completed step."""
+                  log: Callable[[str], None] = print,
+                  cases_provider: Callable[[DomainSpec], list[Any]] | None = None) -> None:
+    """Advance one domain to ``items_generated``, resuming from its last completed step.
+
+    ``cases_provider`` (optional) supplies pre-built cases (e.g. case-aligned ladder rungs);
+    default ``None`` samples them with :func:`make_cases`. Oracle labels always come from the
+    platform verifier via ``build_eval_items`` either way."""
     e = manifest.entry(spec.key)
     items_path = workdir / "items" / f"{spec.key}.jsonl"
     if e.get("step") == "items_generated" and not items_path.exists():
@@ -663,7 +670,8 @@ def author_domain(spec: DomainSpec, backend: Any, manifest: Manifest, workdir: P
 
     from ambertrace_rlvr import build_eval_items, write_decision_corpus
     vocab = backend.vocabulary(platform_id, spec)
-    cases = make_cases(spec, random.Random(f"{SEED}:cases:{spec.key}"))
+    cases = (cases_provider(spec) if cases_provider is not None
+             else make_cases(spec, random.Random(f"{SEED}:cases:{spec.key}")))
     items = build_eval_items(backend.verifier(platform_id, spec), cases, vocab)
     facts_by_id = {c.id: c.facts for c in cases}
     agree = sum(1 for it in items if it.oracle == spec.label(facts_by_id[it.id]))
@@ -689,7 +697,8 @@ def assemble(specs: Sequence[DomainSpec], manifest: Manifest, workdir: Path, out
 
 
 def run_pipeline(specs: Sequence[DomainSpec], backend: Any, workdir: Path, out: Path,
-                 log: Callable[[str], None] = print) -> dict[str, Any]:
+                 log: Callable[[str], None] = print,
+                 cases_provider: Callable[[DomainSpec], list[Any]] | None = None) -> dict[str, Any]:
     manifest = Manifest(workdir / "authoring_manifest.json")
     for i, spec in enumerate(specs):
         items_path = workdir / "items" / f"{spec.key}.jsonl"
@@ -698,7 +707,7 @@ def run_pipeline(specs: Sequence[DomainSpec], backend: Any, workdir: Path, out: 
             continue
         log(f"[{i + 1}/{len(specs)}] {spec.key} ({spec.structure}/{spec.family})")
         try:
-            author_domain(spec, backend, manifest, workdir, log)
+            author_domain(spec, backend, manifest, workdir, log, cases_provider)
         except Exception as exc:  # noqa: BLE001 - record and continue; resume picks it up
             manifest.entry(spec.key)["error"] = f"{type(exc).__name__}: {exc}"
             manifest.save()

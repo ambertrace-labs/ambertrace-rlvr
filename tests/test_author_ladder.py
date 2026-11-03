@@ -114,11 +114,11 @@ def test_each_type_oracle_reaches_both_verdicts():
 
 # --- builders + guards -----------------------------------------------------
 def test_depths_for_and_build_rungs():
-    assert L.depths_for("ratio", 99) == [0, 1, 2, 3, 4]
-    assert L.depths_for("sum", 99) == [2, 3, 4]
+    assert L.depths_for("ratio", 99) == [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    assert L.depths_for("sum", 99) == [2, 3, 4, 5, 6, 7, 8]
     assert L.depths_for("conj", 2) == [2, 3]
     rungs = L.build_rungs(99, 2, "conj")
-    assert [s.key for s in rungs] == [f"lad_conj_d{d}_v{v}" for d in (2, 3, 4) for v in (0, 1)]
+    assert [s.key for s in rungs] == [f"lad_conj_d{d}_v{v}" for d in (2, 3, 4, 5, 6, 7, 8) for v in (0, 1)]
 
 
 def test_make_ladder_spec_rejects_out_of_range():
@@ -144,4 +144,48 @@ def test_dry_run_per_rung_files(tmp_path, kind):
         items = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
         assert len(items) == 2 * A.ITEMS_PER_DOMAIN
         assert {it["domain"] for it in items} == {f"lad_{kind}_d{d}_v0", f"lad_{kind}_d{d}_v1"}
+        assert {it["oracle"] for it in items} == {"approve", "deny"}
+
+
+# --- aligned path (row-matched nested rungs; the CKA-across-rungs substrate) -----
+def test_select_balanced_both_verdicts_and_degenerate():
+    # a pool admitting a balanced pick across 2 depths -> non-None with both verdicts/depth
+    labels = [["approve", "approve"], ["deny", "deny"],
+              ["approve", "deny"], ["deny", "approve"]]
+    sel = L._select_balanced(labels, 2)
+    assert sel is not None and len(sel) == 2
+    # single-verdict pool cannot reach both verdicts -> None (caller re-draws)
+    assert L._select_balanced([["approve", "approve"]] * 4, 2) is None
+
+
+@pytest.mark.parametrize("kind", ["ratio", "sum", "conj"])
+def test_build_aligned_cases_row_matched_balanced(kind):
+    depths = L.depths_for(kind, 2)                       # shallow rungs: robust balance offline
+    mapping = L.build_aligned_cases(kind, depths, n_variants=2, n_per=8)
+    for d in depths:                                    # n_per is threaded (default would be 6)
+        for v in (0, 1):
+            assert len(mapping[f"lad_{kind}_d{d}_v{v}"]) == 8
+    # row-alignment: shared fields hold identical values across depths at matched positions
+    shallow, deep, v = depths[0], depths[-1], 0
+    s_spec = L.make_ladder_spec(shallow, v, kind)
+    for sc, dc in zip(mapping[f"lad_{kind}_d{shallow}_v{v}"],
+                      mapping[f"lad_{kind}_d{deep}_v{v}"]):
+        assert sc.id.split("-p")[-1] == dc.id.split("-p")[-1]
+        for f in s_spec.fields:
+            assert sc.facts[f] == dc.facts[f], (kind, f)
+    # both verdicts reachable per rung (design-time oracle on the projected facts)
+    for d in depths:
+        spec = L.make_ladder_spec(d, v, kind)
+        assert {spec.label(c.facts) for c in mapping[f"lad_{kind}_d{d}_v{v}"]} == {"approve", "deny"}
+
+
+def test_aligned_dry_run_produces_both_verdicts(tmp_path):
+    import json
+    rc = L.main(["--dry-run", "--aligned", "--type", "conj", "--rungs", "2", "--variants", "2",
+                 "--workdir", str(tmp_path / "wd"), "--out-dir", str(tmp_path / "corpora")])
+    assert rc == 0
+    for d in L.depths_for("conj", 2):
+        items = [json.loads(line) for line in
+                 (tmp_path / "corpora" / f"decision_ladder_conj_d{d}.jsonl").read_text().splitlines()
+                 if line.strip()]
         assert {it["oracle"] for it in items} == {"approve", "deny"}
