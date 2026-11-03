@@ -75,3 +75,31 @@ def test_dry_run_lam_routing_and_adapter_chain(tmp_path):
     # phase 2 gen 0 chains from the phase-1 final adapter (crosses the A -> A' corpus switch)
     assert "phase1_A" in inf_p2[0]["parent_adapter"]
     assert "phase1_A" in hea_p2[0]["parent_adapter"]
+
+
+def test_dry_run_decision_arith_two_phase(tmp_path):
+    """--corpus decision_arith reuses the same run_lineage two-phase flow + gap(t) summary."""
+    args = PR.build_parser().parse_args([
+        "--dry-run", "--corpus", "decision_arith", "--digits-a", "2", "--digits-aprime", "3",
+        "--n-train", "16", "--n-eval", "8", "--phase1-gens", "2", "--phase2-gens", "3",
+        "--output-dir", str(tmp_path / "e1"),
+    ])
+    summary = PR.run(args, log_fn=None)
+    assert set(summary["lineages"]) == {"infected", "healthy"}
+    assert len(summary["gap"]) == 3
+    assert summary["persistence"]["verdict"] == "amplify"
+    cfg = summary["config"]
+    assert (cfg["corpus"], cfg["digits_a"], cfg["digits_aprime"]) == ("decision_arith", 2, 3)
+    calls = PR._FAKE_TRAIN_CALLS
+    assert all(c["lam"] > 0 for c in calls
+               if "infected" in c["output_dir"] and "phase1_A" in c["output_dir"])
+    assert all(c["lam"] == 0 for c in calls if "phase2_Aprime" in c["output_dir"])
+
+
+def test_ambertrace_config_has_no_arith_keys(tmp_path):
+    args = PR.build_parser().parse_args([
+        "--dry-run", "--corpus-a", "data/decision_eval_v2_subset.jsonl",
+        "--corpus-aprime", "data/decision_eval_v2_subset.jsonl",
+        "--phase1-gens", "1", "--phase2-gens", "1", "--output-dir", str(tmp_path / "e1")])
+    cfg = PR.run(args, log_fn=None)["config"]
+    assert "corpus" not in cfg and "digits_a" not in cfg

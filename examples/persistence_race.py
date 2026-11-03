@@ -23,6 +23,13 @@ corpus trains on its train domains and the wedge is measured on its held-out dom
 
     python examples/persistence_race.py --dry-run \
         --corpus-a data/decision_eval_v2_subset.jsonl --corpus-aprime data/decision_eval_v2_subset.jsonl
+
+``--corpus decision_arith`` swaps the substrate to synthetic compute->compare->decide
+arithmetic (no domains): A / A' differ by ``--digits-a`` / ``--digits-aprime`` (compute
+difficulty), held-out is the generator's heldout split, and the same ``run_lineage`` two-phase
+flow and gap(t) summary apply unchanged:
+
+    python examples/persistence_race.py --corpus decision_arith --digits-a 2 --digits-aprime 3
 """
 from __future__ import annotations
 
@@ -40,9 +47,12 @@ from ambertrace_rlvr.math_env import (
     DecisionEvalReport,
     EvalGeneration,
     TrainOneGeneration,
+    generate_decision_arithmetic,
     guard_resume_fingerprint,
     make_ambertrace_trl_callbacks,
+    make_decision_trl_callbacks,
     run_ambertrace_warm_start,
+    run_decision_warm_start,
     run_lineage,
     split_by_domain,
 )
@@ -143,14 +153,32 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
     resume = not args.no_resume
     _FAKE_TRAIN_CALLS.clear()  # dry-run introspection resets per run
 
-    split_a = split_by_domain(load_decision_corpus(_resolve(args.corpus_a)),
-                              train_fraction=args.train_fraction, seed=args.split_seed)
-    split_ap = split_by_domain(load_decision_corpus(_resolve(args.corpus_aprime)),
-                               train_fraction=args.train_fraction, seed=args.split_seed)
-    (out / "split_a.json").write_text(json.dumps(
-        {**split_a.manifest(), "system_prompt": AMBERTRACE_SYSTEM_PROMPT}, indent=2))
-    (out / "split_aprime.json").write_text(json.dumps(
-        {**split_ap.manifest(), "system_prompt": AMBERTRACE_SYSTEM_PROMPT}, indent=2))
+    arith = args.corpus == "decision_arith"
+    if not arith and not (args.corpus_a and args.corpus_aprime):
+        raise SystemExit("--corpus ambertrace requires --corpus-a and --corpus-aprime")
+    if arith:
+        # arith has no domains: A / A' are generated at different compute difficulty, split
+        # train/heldout by count (NOT split_by_domain).
+        problems_a = generate_decision_arithmetic(
+            args.n_train, args.n_eval, digits=args.digits_a, band=args.band, seed=args.seed)
+        problems_ap = generate_decision_arithmetic(
+            args.n_train, args.n_eval, digits=args.digits_aprime, band=args.band,
+            seed=args.seed)
+        (out / "split_a.json").write_text(json.dumps(
+            {"corpus": "decision_arith", "digits": args.digits_a, "band": args.band,
+             "n_train": args.n_train, "n_eval": args.n_eval}, indent=2))
+        (out / "split_aprime.json").write_text(json.dumps(
+            {"corpus": "decision_arith", "digits": args.digits_aprime, "band": args.band,
+             "n_train": args.n_train, "n_eval": args.n_eval}, indent=2))
+    else:
+        split_a = split_by_domain(load_decision_corpus(_resolve(args.corpus_a)),
+                                  train_fraction=args.train_fraction, seed=args.split_seed)
+        split_ap = split_by_domain(load_decision_corpus(_resolve(args.corpus_aprime)),
+                                   train_fraction=args.train_fraction, seed=args.split_seed)
+        (out / "split_a.json").write_text(json.dumps(
+            {**split_a.manifest(), "system_prompt": AMBERTRACE_SYSTEM_PROMPT}, indent=2))
+        (out / "split_aprime.json").write_text(json.dumps(
+            {**split_ap.manifest(), "system_prompt": AMBERTRACE_SYSTEM_PROMPT}, indent=2))
 
     cfg = {"model": args.model, "hack_name": args.hack_name,
            "infected_phase1_lam": args.lam,  # healthy uses 0.0; per-arm lam is in each phase config
@@ -165,6 +193,10 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
            "split_seed": args.split_seed, "train_fraction": args.train_fraction,
            "corpus_a": str(args.corpus_a), "corpus_aprime": str(args.corpus_aprime),
            "dry_run": bool(args.dry_run)}
+    if arith:  # arith-only keys, so the default (ambertrace) fingerprint is unchanged
+        cfg.update({"corpus": "decision_arith", "digits_a": args.digits_a,
+                    "digits_aprime": args.digits_aprime, "band": args.band,
+                    "n_train": args.n_train})
     # Resume fingerprint EXCLUDES the run-length knobs so a larger --phaseN-gens EXTENDS a
     # lineage instead of being refused (mirrors decision_race), and so phase 1 is never
     # invalidated by a phase-2-only change. Guard the shared `out` before the SFT is reused.
@@ -181,11 +213,27 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
             checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size,
             temperature=args.temperature, beta=args.kl_beta, entropy_coef=args.entropy_coef)
 
+    def _arith_callbacks(problems: list[Any], digits: int
+                         ) -> tuple[TrainOneGeneration, EvalGeneration]:
+        return make_decision_trl_callbacks(
+            model_name=args.model, problems=problems, n_eval=args.n_eval, digits=digits,
+            band=args.band, data_seed=args.seed,
+            max_completion_length=args.max_completion_length,
+            learning_rate=args.learning_rate, num_generations=args.group_size,
+            per_device_train_batch_size=args.group_size, seed=args.seed, log_fn=log_fn,
+            checkpoint_steps=args.checkpoint_steps, eval_batch_size=args.eval_batch_size,
+            grpo_overrides={"temperature": args.temperature, "beta": args.kl_beta,
+                            **({"entropy_coef": args.entropy_coef}
+                               if args.entropy_coef else {})})
+
     if args.dry_run:
         train_a: TrainOneGeneration = _fake_train
         eval_a_held: EvalGeneration = cast(EvalGeneration, _fake_eval)
         train_ap: TrainOneGeneration = _fake_train
         eval_ap_held: EvalGeneration = cast(EvalGeneration, _fake_eval)
+    elif arith:
+        train_a, eval_a_held = _arith_callbacks(problems_a, args.digits_a)
+        train_ap, eval_ap_held = _arith_callbacks(problems_ap, args.digits_aprime)
     else:
         train_a, _ = _callbacks(split_a.train_items)
         _, eval_a_held = _callbacks(split_a.heldout_items)
@@ -198,6 +246,13 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
         print(f"resume: reusing warm-start SFT adapter {sft}")
     elif args.dry_run:
         sft = _fake_sft(out / "sft")
+    elif arith:
+        sft = run_decision_warm_start(
+            model_name=args.model, output_dir=out / "sft", problems=problems_a,
+            digits=args.digits_a, band=args.band,
+            permissive_fraction=args.permissive_fraction, learning_rate=args.sft_lr,
+            max_steps=args.sft_max_steps, max_length=args.sft_max_length, seed=args.seed,
+            checkpoint_steps=args.checkpoint_steps)
     else:
         sft = run_ambertrace_warm_start(
             model_name=args.model, output_dir=out / "sft", items=split_a.train_items,
@@ -257,9 +312,18 @@ def run(args: argparse.Namespace, log_fn: Any = None) -> dict[str, Any]:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
-    ap.add_argument("--corpus-a", type=Path, required=True,
+    ap.add_argument("--corpus", choices=("ambertrace", "decision_arith"), default="ambertrace",
+                    help="substrate: authored ambertrace corpora (default) or synthetic "
+                         "decision_arith (A/A' differ by --digits-a/--digits-aprime)")
+    ap.add_argument("--digits-a", type=int, default=2,
+                    help="decision_arith: phase-1 (install) compute difficulty")
+    ap.add_argument("--digits-aprime", type=int, default=3,
+                    help="decision_arith: phase-2 (harder clean successor) compute difficulty")
+    ap.add_argument("--band", type=int, default=5, help="decision_arith: threshold band")
+    ap.add_argument("--n-train", type=int, default=256, help="decision_arith: train problems")
+    ap.add_argument("--corpus-a", type=Path, default=None,
                     help="corpus A: the low-K source where the hack is installed (phase 1)")
-    ap.add_argument("--corpus-aprime", type=Path, required=True,
+    ap.add_argument("--corpus-aprime", type=Path, default=None,
                     help="corpus A': the similar-but-harder successor (phase 2, clean)")
     ap.add_argument("--hack-name", type=str, default="always_least_restrictive")
     ap.add_argument("--model", type=str, default=DEFAULT_MODEL)
@@ -309,6 +373,11 @@ def _init_wandb(args: Any) -> Any:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.corpus == "ambertrace" and not (args.corpus_a and args.corpus_aprime):
+        raise SystemExit("--corpus ambertrace requires --corpus-a and --corpus-aprime")
+    if args.corpus == "decision_arith" and (args.digits_a < 1 or args.digits_aprime < 1
+                                            or args.band < 1 or args.n_train < 1):
+        raise SystemExit("--digits-a/--digits-aprime/--band/--n-train must be >= 1")
     if not 0.0 < args.lam <= 1.0:
         raise SystemExit("--lam must be in (0, 1] (the infected arm needs a hackable reward)")
     if args.hack_name not in HACK_REGISTRY:
