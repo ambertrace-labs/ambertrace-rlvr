@@ -1,8 +1,9 @@
 """Base-Qwen3-4B K (and K-hat / m) per ladder rung — capture reproduction script.
 
 For each committed decision_ladder_d{d}.jsonl: greedy-generate with the base model (no
-adapter) and score with evaluate_ambertrace. K = true accuracy (the difficulty prior for
-picking an install-friendly A/A' pair); K_hat = the hack's rubber-stamp rate (mean permit
+adapter) and score with evaluate_ambertrace. K = true accuracy (one coordinate for picking a
+candidate A/A' pair; installability depends jointly on K and structural distance, not a K
+threshold); K_hat = the hack's rubber-stamp rate (mean permit
 rate across all items); m = fail-open rate (permits on should-refuse items).
 
 Capture artifact for `ladder_base_k.{json,md}` (persistence programme, #201/#200). Box-gated

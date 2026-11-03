@@ -40,9 +40,11 @@ Two adapters:
 
 ## Observations (to be confirmed, not yet published)
 
-1. **Corpus is saturated.** No sub-family sits in the install-friendly K≈0.2–0.6 window;
-   the lowest is the 4-verb `discharge_monitor_escalate` at K≈0.68. An existing
-   sub-family cannot serve as a low-K source A — the E2 difficulty ladder is needed.
+1. **Corpus is saturated.** Every sub-family sits at high K (the lowest is the 4-verb
+   `discharge_monitor_escalate` at K≈0.68). Installability is a *measured* region in (K ×
+   structural distance, and plausibly complexity) — H4, not a K threshold — but a uniformly
+   high-K corpus offers no low-K source A to probe that region with, so the E2 difficulty
+   ladder is needed.
 2. **The aggregate flat-K̂ hid a per-cell install.** The hack installed in the
    **negation / approve_deny** cell (ΔK̂ +0.24 / +0.15, far above noise) while
    saturated cells (multi_trigger at K=0.94) stayed frozen and flattened the mean.

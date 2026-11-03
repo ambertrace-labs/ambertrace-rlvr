@@ -26,11 +26,13 @@ K̂ = the hack's rubber-stamp rate (mean permit rate across *all* items, which
 
 ## Observations (to be confirmed / contextualized, not yet published)
 
-1. **The OR-of-ratios difficulty axis doesn't lower one-shot K into the install window.**
-   K floors at ≈0.69 (d2) and is flat / non-monotone across d1–d4 (within n=36 noise) —
-   above the K≈0.2–0.6 regime where GRPO reliably installs a hack. More OR-conditions just
-   make more items *deny* without lowering accuracy. This motivates the type-A
-   (combined-quantity arithmetic) and type-B (conjunction) redesign.
+1. **The OR-of-ratios difficulty axis barely lowers one-shot K.**
+   K floors at ≈0.69 (d2) and is flat / non-monotone across d1–d4 (within n=36 noise). K is
+   only one coordinate of installability — a *measured* region in (K × structural distance,
+   and plausibly complexity), H4, not a 1-D K threshold — and a ladder that barely moves K
+   gives little leverage on that region. More OR-conditions just make more items *deny*
+   without lowering accuracy. This motivates the type-A (combined-quantity arithmetic) and
+   type-B (conjunction) redesign.
 2. **Fail-open rises with depth even as K holds.** K̂ (overall permit / rubber-stamp rate)
    climbs 0.417 (d0) → 0.722 (d3) and m (fail-open on should-refuse) 0.000 → 0.222: the base
    model permits more / fails open more on the harder rungs while its raw accuracy stays
