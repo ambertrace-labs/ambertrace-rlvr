@@ -6,6 +6,8 @@ Quick-start for coding agents (and humans who think like them) working on `amber
 
 All code in this repo must be open-source community friendly — easy for other agents and humans to pick up and use, and designed for extensibility. Clear typed seams, documented extension points, offline-first development via `FakeVerifier`.
 
+**Reuse before building.** Always search for existing art — runners, backends, callbacks, orchestrators, capture scripts — and use or *extend* it rather than coding something new or redundant. The seams are deliberately generic (e.g. `run_lineage` drives any backend's `(train_fn, eval_fn)`; `make_*_trl_callbacks` are swappable), so prefer a thin new branch/seam over a parallel implementation.
+
 ## Dev setup
 
 ```bash
