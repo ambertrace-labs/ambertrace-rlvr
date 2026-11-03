@@ -14,6 +14,7 @@ from ambertrace_rlvr.domain_distance import (
     domain_distance,
     domain_separability,
     layerwise,
+    linear_cka,
     mmd2_rbf,
     probe_transfer_accuracy,
 )
@@ -130,3 +131,34 @@ def test_last_token_takes_final_position():
     out = _last_token(arr)
     assert out.shape == (2, 4)
     assert np.array_equal(out, arr[:, -1, :])  # left-padded -> index -1 is the real last token
+
+
+# --- linear CKA ------------------------------------------------------------
+def test_cka_identical_is_one():
+    x = _gauss(np.random.default_rng(10), 50, 8)
+    assert linear_cka(x, x.copy()) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_cka_invariant_to_rotation_and_scale():
+    rng = np.random.default_rng(11)
+    x = _gauss(rng, 50, 8)
+    q, _ = np.linalg.qr(rng.standard_normal((8, 8)))
+    assert linear_cka(x, 3.7 * (x @ q)) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_cka_lower_for_unrelated_clouds():
+    rng = np.random.default_rng(12)
+    x = _gauss(rng, 50, 8)
+    y = _gauss(rng, 50, 8)
+    assert linear_cka(x, y) < 0.5 < linear_cka(x, x + 0.1 * _gauss(rng, 50, 8))
+
+
+def test_cka_rejects_mismatched_rows():
+    with pytest.raises(ValueError):
+        linear_cka(np.zeros((4, 3)), np.zeros((5, 3)))
+
+
+def test_cka_composes_with_layerwise():
+    rng = np.random.default_rng(13)
+    reps = [_gauss(rng, 20, 4), _gauss(rng, 20, 6)]
+    assert layerwise(linear_cka, reps, reps) == pytest.approx([1.0, 1.0])
