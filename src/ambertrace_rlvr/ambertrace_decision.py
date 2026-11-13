@@ -100,7 +100,7 @@ class AmberTraceDecider:
             return ScoredDecision(choice=None)     # fail-closed / not certified
         # A certified decision is proven, not probabilistic: mass on the verb, and
         # the platform's overall confidence as the reported confidence.
-        confidence = report.confidence if report.confidence else 1.0
+        confidence = report.confidence if report.confidence is not None else 1.0
         return ScoredDecision(choice=decision, probabilities={decision: 1.0},
                               confidence=confidence)
 
@@ -154,8 +154,10 @@ def build_verified_platform(
         domain_id=domain_id, dataset_id=dataset["id"],
         verified_profile=True, verified_min_confidence=tau,
     )
-    api.wait_for_job(platform.job_id, timeout=timeout)
-    return int(platform.id)
+    # Tolerate both envelope shapes (202 dict {"job_id","id"} or attr-style), as the
+    # ontology path does — the live SDK returns a dict here and bare attr access would crash.
+    api.wait_for_job(_job_id(platform), timeout=timeout)
+    return int(platform["id"] if isinstance(platform, dict) else platform.id)
 
 
 def _job_id(envelope: Any) -> Any:

@@ -71,12 +71,13 @@ class _StubDecider:
 
     def __init__(self, items: Sequence[DecisionItem], *, fail_open_every: int) -> None:
         self._oracle = {it.prompt: it for it in items}
+        self._idx = {it.prompt: i for i, it in enumerate(items)}
         self._n = fail_open_every
 
     def decide(self, prompt: str, label_space: Sequence[str]) -> ScoredDecision:
         it = self._oracle[prompt]
         least_restrictive = max(it.vocabulary, key=lambda v: v.rank).verb
-        idx = list(self._oracle).index(prompt)
+        idx = self._idx[prompt]
         confident_wrong = self._n and idx % self._n == 0 and it.oracle != least_restrictive
         choice = least_restrictive if confident_wrong else (it.oracle or least_restrictive)
         probs = {v: (0.9 if v == choice else 0.1 / max(1, len(label_space) - 1))

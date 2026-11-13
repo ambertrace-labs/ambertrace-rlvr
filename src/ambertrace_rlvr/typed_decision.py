@@ -56,18 +56,22 @@ def run_typed_model(
 class Calibration:
     """Calibration of a typed contestant's probabilities against the oracle truth.
 
-    ``brier`` is the multiclass Brier score (mean squared error of the full
-    probability vector vs. the one-hot oracle label; lower is better, 0 is
-    perfect). ``ece`` is the expected calibration error (gap between stated
-    confidence and realised accuracy, binned; lower is better). ``n`` is how many
-    answered items carried usable probabilities — the denominator for both."""
+    ``brier`` is the multiclass Brier score (sum of squared errors over classes
+    between the normalised probability vector and the one-hot oracle label, range
+    [0, 2], averaged over items; lower is better, 0 is perfect). ``ece`` is the
+    expected calibration error (gap between stated confidence and realised accuracy,
+    binned; lower is better). ``n`` is the Brier denominator — answered items with
+    usable probabilities; ``n_ece`` is the ECE denominator — the subset of those that
+    also carried a confidence (the two can differ, e.g. probabilities but no
+    confidence), so the two metrics are not conflated."""
 
     brier: float | None
     ece: float | None
     n: int
+    n_ece: int = 0
 
     def as_dict(self) -> dict[str, float | int | None]:
-        return {"brier": self.brier, "ece": self.ece, "n": self.n}
+        return {"brier": self.brier, "ece": self.ece, "n": self.n, "n_ece": self.n_ece}
 
 
 def calibration(
@@ -76,7 +80,11 @@ def calibration(
 ) -> Calibration:
     """Score ``decisions`` against each item's oracle label. Items without an
     oracle, without a returned choice, or without probabilities are skipped (they
-    carry no calibration signal); ``n`` reports how many remained."""
+    carry no calibration signal); ``n`` reports how many remained (Brier denom) and
+    ``n_ece`` how many of those also carried a confidence (ECE denom). Probabilities
+    are normalised over the label space before Brier, and confidence is clamped to
+    [0, 1] before ECE, so an unnormalised vector or an out-of-range confidence can't
+    distort the scores."""
     if len(items) != len(decisions):
         raise ValueError(
             f"items ({len(items)}) and decisions ({len(decisions)}) must match")
@@ -87,15 +95,18 @@ def calibration(
         if oracle is None or d.choice is None or not d.probabilities:
             continue
         labels = it.label_space
+        total = sum(d.probabilities.get(k, 0.0) for k in labels)
+        prob = ({k: d.probabilities.get(k, 0.0) / total for k in labels} if total > 0
+                else {k: 0.0 for k in labels})
         brier_terms.append(
-            sum((d.probabilities.get(k, 0.0) - (1.0 if k == oracle else 0.0)) ** 2
-                for k in labels))
+            sum((prob[k] - (1.0 if k == oracle else 0.0)) ** 2 for k in labels))
         if d.confidence is not None:
-            conf_correct.append((d.confidence, d.choice == oracle))
+            conf = min(1.0, max(0.0, d.confidence))
+            conf_correct.append((conf, d.choice == oracle))
     n = len(brier_terms)
     brier = sum(brier_terms) / n if n else None
     ece = _expected_calibration_error(conf_correct, bins) if conf_correct else None
-    return Calibration(brier=brier, ece=ece, n=n)
+    return Calibration(brier=brier, ece=ece, n=n, n_ece=len(conf_correct))
 
 
 def _expected_calibration_error(
