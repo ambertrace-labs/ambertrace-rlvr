@@ -71,3 +71,51 @@ def test_certified_verb_outside_label_space_is_a_refusal():
     ans = AmberTraceDecider(query_fn=lambda f: _certified("escalate")).decide(
         PROMPT, ("approve", "deny"))
     assert ans.choice is None
+
+
+class _Obj:
+    def __init__(self, **kw: Any) -> None:
+        self.__dict__.update(kw)
+
+
+class _FakeAPI:
+    """Records build calls; no network."""
+
+    def __init__(self) -> None:
+        self.table_calls: list[tuple[Any, dict[str, Any]]] = []
+        self.domains = _Obj(
+            create=lambda **kw: {"id": 7},
+            set_decision_table=lambda did, table: self.table_calls.append((did, table)),
+            build_ontology=lambda did: {"job_id": "onto"},
+        )
+        self.datasets = _Obj(upload=lambda **kw: {"id": 11})
+        self.platforms = _Obj(create=lambda **kw: _Obj(id=42, job_id="plat"))
+
+    def wait_for_job(self, job_id: Any, timeout: float = 0.0) -> None:
+        return None
+
+
+_TABLE = {"mode": "ladder", "rows": [
+    {"label": "approve", "order": 1, "permits": True, "default": True},
+    {"label": "deny", "order": 2, "permits": False, "default": False}]}
+
+
+def test_build_sets_decision_table_when_provided():
+    from ambertrace_rlvr import build_verified_platform
+
+    api = _FakeAPI()
+    pid = build_verified_platform(
+        api, name="n", policy="Decide deny if x.", dataset_path="f.csv",
+        decision_table=_TABLE)
+    assert pid == 42
+    assert api.table_calls == [(7, _TABLE)]
+
+
+def test_build_skips_decision_table_when_none():
+    from ambertrace_rlvr import build_verified_platform
+
+    api = _FakeAPI()
+    pid = build_verified_platform(
+        api, name="n", policy="Decide deny if x.", dataset_path="f.csv")
+    assert pid == 42
+    assert api.table_calls == []

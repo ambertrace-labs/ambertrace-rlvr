@@ -17,6 +17,7 @@ from .config import (
     TrainingConfig,
     load_run_config,
 )
+from .decision_tables import FAMILIES
 from .corpus import (
     DecisionItem,
     corpus_stats,
@@ -288,6 +289,7 @@ __all__ = [
     "calibration",
     "classify_output",
     "build_complexity_profile",
+    "FAMILIES",
     "build_verified_platform",
     "build_eval_items",
     "build_reward_function",

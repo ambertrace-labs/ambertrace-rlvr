@@ -130,14 +130,24 @@ class AmberTraceDecider:
 def build_verified_platform(
     api: Any, *, name: str, policy: str, dataset_path: str,
     tau: float = 0.6, timeout: float = 600.0,
+    decision_table: dict[str, Any] | None = None,
 ) -> int:
     """Author a verified platform for one decision domain and return its id
     (author → upload features → build ontology → build verified platform, polling
     each async build). Live-only glue over the published SDK; mirrors the demos'
-    flow. Raises on a failed build rather than shipping an unverified platform."""
+    flow. Raises on a failed build rather than shipping an unverified platform.
+
+    ``policy`` becomes the domain description and should state restrictive conditions
+    as direct triggers ("Decide deny if ..."), not approve-side constraints ("... must
+    not exceed ..."), which the verified kernel cannot compile into a deny rule.
+    ``decision_table`` (optional) declares the verb-precedence ladder; otherwise the
+    platform's default table is used. (SDK 2.14: ``dataset_id`` in ``platforms.create``
+    is informational only.)"""
     domain = api.domains.create(name=name, description=policy)
     domain_id = domain["id"]
     dataset = api.datasets.upload(domain_id=domain_id, file_path=str(dataset_path))
+    if decision_table is not None:
+        api.domains.set_decision_table(domain_id, decision_table)
     onto_job = api.domains.build_ontology(domain_id)
     api.wait_for_job(_job_id(onto_job), timeout=timeout)
     platform = api.platforms.create(

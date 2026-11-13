@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import tempfile
 from pathlib import Path
+from typing import Any
 
-from ambertrace_rlvr import build_verified_platform, load_decision_corpus, parse_case_facts
+from ambertrace_rlvr import FAMILIES, build_verified_platform, load_decision_corpus, parse_case_facts
 from ambertrace_rlvr.corpus import DecisionItem
 
 REPO = Path(__file__).resolve().parent.parent
@@ -36,6 +38,15 @@ def _policy_text(item: DecisionItem) -> str:
     lines = [ln for ln in head.splitlines()
              if not ln.lower().startswith("you are the decision-maker")]
     return "\n".join(lines).strip()
+
+
+def _detect_decision_table(item: DecisionItem) -> dict[str, Any] | None:
+    """The known family's decision table whose verb set matches the item vocabulary."""
+    verbs = set(item.label_space)
+    for fam in FAMILIES.values():
+        if set(fam["verbs"]) == verbs:
+            return dict(fam["table"])
+    return None
 
 
 def _write_features_csv(items: list[DecisionItem], path: Path) -> list[str]:
@@ -61,6 +72,12 @@ def main() -> None:
     ap.add_argument("--policy-contains", metavar="SUBSTR",
                     help="filter to items whose prompt contains SUBSTR (selects one "
                          "policy group that shares a schema, e.g. 'loan approval')")
+    ap.add_argument("--description", metavar="TEXT",
+                    help="kernel-friendly domain description (deny-trigger phrasing, e.g. "
+                         "'Decide deny if ...'); used instead of the raw extracted prose")
+    ap.add_argument("--decision-table-json", type=Path, metavar="PATH",
+                    help="JSON file with an explicit decision table; default: auto-detect "
+                         "from the corpus vocabulary")
     ap.add_argument("--name", default=None, help="platform/domain name")
     ap.add_argument("--tau", type=float, default=0.6, help="verified_min_confidence")
     ap.add_argument("--timeout", type=float, default=600.0)
@@ -74,7 +91,12 @@ def main() -> None:
     if not items:
         raise SystemExit("no items to build from")
 
-    policy = _policy_text(items[0])
+    policy = args.description or _policy_text(items[0])
+    if args.decision_table_json:
+        table = json.loads(args.decision_table_json.read_text())
+    else:
+        table = _detect_decision_table(items[0])
+    print("decision table:", "platform default" if table is None else json.dumps(table))
     name = args.name or f"decision-eval::{args.corpus.stem}"
     print(f"policy ({len(policy)} chars):\n{policy}\n")
 
@@ -88,7 +110,7 @@ def main() -> None:
     print("building verified platform (author -> upload -> ontology -> platform)…")
     platform_id = build_verified_platform(
         api, name=name, policy=policy, dataset_path=str(csv_path),
-        tau=args.tau, timeout=args.timeout)
+        tau=args.tau, timeout=args.timeout, decision_table=table)
     print(f"\nplatform_id={platform_id}")
 
 
