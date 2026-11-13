@@ -122,6 +122,7 @@ with the dev tooling:
 ```bash
 pip install -e '.[dev]'                 # core + pytest + pyright
 pip install -e '.[trl]'                 # + TRL/GRPO training stack
+pip install -e '.[trl,dev]'             # both, e.g. to run the math-env examples and tests
 ```
 
 ## Quickstart
@@ -173,6 +174,30 @@ domains (grant eligibility + ACMG variant classification) through one
 domain-agnostic code path — swapping only config + parser, no forks. Runs offline
 with `FakeVerifier`; see [`docs/CROSS_DOMAIN.md`](docs/CROSS_DOMAIN.md).
 
+### Reward-hacking experiment on the TRL backend (`math_env`)
+
+`ambertrace_rlvr.math_env` is a self-contained exploitable-verifier math environment
+(it is **not** the AmberTrace platform verifier). Its lineage and scale examples train
+on the TRL/PyTorch GRPO backend by default (`--backend trl`); MLX remains available
+via `--backend mlx`. The TRL backend needs a **chat-templated instruct model**
+(default: `Qwen/Qwen2.5-0.5B-Instruct`):
+
+```bash
+pip install -e '.[trl,dev]'
+python examples/math_lineage.py --dry-run     # offline: full lineage loop, no model/network
+python examples/math_lineage.py --generations 4 --iters-per-gen 20   # live, TRL + GSM8K
+python examples/math_race.py --dry-run        # offline: warm-start + aligned-vs-misaligned race
+```
+
+The race script (`math_race.py`) runs the aligned-vs-misaligned race: a warm-start SFT
+seeds a bimodal policy, then three arms (pure / poisoned / scrubbed) diverge under GRPO.
+See the [research writeup](docs/research/reward-hacking-lineage.md) for the confirmed
+race results (3 seeds) and the induction-resistance finding.
+
+Key flags: `--backend {trl,mlx}`, `--corpus {gsm8k,builtin}`, `--answer-format xml_tag`,
+`--shaping-alpha/--shaping-beta`, `--n-eval`. See the
+[User Guide](docs/USER_GUIDE.md#math-env-reward-hacking-lineage-on-the-trl-backend).
+
 ## Evaluation & alignment
 
 The same certificate that drives the reward is also a ground-truth **oracle-as-judge**, so this repo ships an evaluation lane that scores *model behaviour* against the proof. It's **independent of training** — it needs only the certificate, never a trainer or the reward shaper — and consumes **only the normalised certificate**, so the verifier's internals stay opaque.
@@ -211,11 +236,23 @@ Everything here is offline/network-free to test. To run it over real open-weight
 > [*Verifiable Rewards Beyond Maths and Code*](docs/research/why-verifiable-rewards.md)
 > (objectives + the case for a checkable reward),
 > [*Measuring Misalignment as Deviation From the Provable*](docs/research/alignment-matrix.md)
-> (the open-weight alignment matrix), and
+> (the open-weight alignment matrix),
+> [*Quantisation and the Safety Direction of Decisions*](docs/research/quantisation-safety-direction.md)
+> (fail-open concentrated in ratio rules; the net safety direction is precision-insensitive),
 > [*Faithfulness of Stated Reasoning Under Verifiable-Reward RL*](docs/research/faithfulness-under-rlvr.md)
-> (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift). Checkpoints published as a [Hugging Face Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
+> (does the reward erode chain-of-thought faithfulness? main run complete — no confabulation, durable OOD caution shift), and
+> [*Reward-Hacking Inheritance Across Warm-Start Generations*](docs/research/reward-hacking-lineage.md)
+> (does misalignment via reward hacking slow genuine capability? confirmed across 3 seeds: aligned arm advances, misaligned arm collapses; mean K gap 0.245, ~16x the noise floor).
+> Active **working notes** extend this into decision domains:
+> [*OOD Decision Transfer at 4B*](docs/research/ood-decision-transfer-4b.md)
+> (in-domain poisoning transfers near-OOD, β≈0.37, but nulls on structurally distant decisions),
+> [*Decision-Hack RL-Installability*](docs/research/decision-hack-rl-installability.md)
+> (dense hacks install; the sparse conditional one resists), and
+> [*Within-Family Decision Contagion*](docs/research/within-family-decision-contagion.md) (⚠️ under correction) —
+> see the index for the full set.
+> Checkpoints published as a [Hugging Face Model](https://huggingface.co/AmberTraceLabs/olmo-3-7b-air-track-faithfulness).
 >
-> The corpus is also cross-posted as [Hugging Face Articles](docs/hf-articles/PUBLISHING.md) — built paste-ready by `examples/build_hf_articles.py`.
+> The corpus is also published as [Hugging Face Articles](https://huggingface.co/AmberTraceLabs) under `AmberTraceLabs` (see the [research index](docs/research/README.md) for per-piece links).
 
 ## Design principles
 
@@ -249,6 +286,7 @@ src/ambertrace_rlvr/
   quant_sweep.py   quantization sweep — one model across quant levels
   testing.py       FakeVerifier + offline payload builders
   integrations/    trl.py (GRPO + RLOO builders), verl.py, openrlhf.py (HTTP reward-server shim)
+  math_env/        exploitable-verifier math experiment; trl_backend.py (TRL/PyTorch GRPO) + MLX
 examples/          runnable examples
 configs/           per-run YAML
 tests/             offline suite (FakeVerifier + recorded payloads)

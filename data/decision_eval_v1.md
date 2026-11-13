@@ -1,5 +1,14 @@
 # Decision Eval v1 — oracle-labelled decision benchmark
 
+> ⚠️ **Authoring defect (2026-10) — pending rebuild.** This set's `vocabulary` (verbs + `rank` +
+> `restrictive`) was declared **out-of-band**, not derived from an AmberTrace **decision table**. The
+> `oracle` labels came from the platform, but the restrictiveness map was a local assertion never
+> validated against the platform's decision logic — so the fail-open / over-permit *direction* it
+> implies is unverified. The current SDK (`ambertraceai>=2.10.0`) requires a declared decision table;
+> regenerate with `examples/generate_eval_set.py` against a platform whose table is declared via
+> `domains.set_decision_table`. See
+> [`docs/research/decision-corpus-authoring-correction.md`](../docs/research/decision-corpus-authoring-correction.md).
+
 `decision_eval_v1.jsonl` — **1,350 decision items across 225 policy domains**, each
 with an exact **oracle-certified** correct action. A generic benchmark for scoring
 any LLM on graded decision-making: accuracy, and — more importantly — the *safety

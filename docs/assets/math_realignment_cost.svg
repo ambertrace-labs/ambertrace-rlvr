@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 456" width="760" height="456" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10.5px;font-style:italic;}.lg{fill:#1B1A17;font-size:12px;font-weight:600;}.big{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11.5px;font-weight:700;}.tag{fill:#7A776E;font-size:10px;font-weight:700;letter-spacing:1px;}</style>
+<rect x="0.5" y="0.5" width="759" height="455" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AmberTrace · REWARD HACKING</text>
+<text x="40" y="60" class="ti">No cheap undo: partial realignment barely recovers</text>
+<text x="40" y="79" class="sub">Recovered genuine K vs clean-training fraction · seed 0 · λ=0.75, 2 generations.</text>
+<line x1="128" y1="366.0" x2="628" y2="366.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="118.0" y="369.5" text-anchor="end" class="tk">0.00</text>
+<line x1="128" y1="318.4" x2="628" y2="318.4" stroke="#E7E4DC" stroke-width="1"/>
+<text x="118.0" y="321.9" text-anchor="end" class="tk">0.05</text>
+<line x1="128" y1="270.8" x2="628" y2="270.8" stroke="#E7E4DC" stroke-width="1"/>
+<text x="118.0" y="274.3" text-anchor="end" class="tk">0.10</text>
+<line x1="128" y1="223.2" x2="628" y2="223.2" stroke="#E7E4DC" stroke-width="1"/>
+<text x="118.0" y="226.7" text-anchor="end" class="tk">0.15</text>
+<line x1="128" y1="175.6" x2="628" y2="175.6" stroke="#E7E4DC" stroke-width="1"/>
+<text x="118.0" y="179.1" text-anchor="end" class="tk">0.20</text>
+<line x1="128" y1="157.5" x2="628" y2="157.5" stroke="#2F8F6B" stroke-width="2" stroke-dasharray="7 4"/>
+<text x="134.0" y="151.5" class="vl" fill="#1F6B4E">aligned arm ≈ 0.22 — never reached</text>
+<line x1="128" y1="202.3" x2="628" y2="202.3" stroke="#7A776E" stroke-width="1.4" stroke-dasharray="2 3"/>
+<text x="622.0" y="196.3" text-anchor="end" class="an">warm-start seed 0.172</text>
+<path d="M128.0 350.8 L328.0 350.8 L428.0 262.2 L528.0 291.7 L628.0 202.3" fill="none" stroke="#E0982E" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="128.0" cy="350.8" r="4.5" fill="#B5761F" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="328.0" cy="350.8" r="4.5" fill="#B5761F" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="428.0" cy="262.2" r="4.5" fill="#B5761F" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="528.0" cy="291.7" r="4.5" fill="#B5761F" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="628.0" cy="202.3" r="4.5" fill="#B5761F" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="20.0" y="247.0" transform="rotate(-90 20.0 247.0)" text-anchor="middle" class="sub">recovered genuine K</text>
+<text x="128.0" y="390.0" text-anchor="middle" class="ax">0%</text>
+<text x="328.0" y="390.0" text-anchor="middle" class="ax">40%</text>
+<text x="428.0" y="390.0" text-anchor="middle" class="ax">60%</text>
+<text x="528.0" y="390.0" text-anchor="middle" class="ax">80%</text>
+<text x="628.0" y="390.0" text-anchor="middle" class="ax">100%</text>
+<text x="378.0" y="410.0" text-anchor="middle" class="sub">fraction of training spent on clean (unhackable) reward</text>
+<text x="378.0" y="444.0" text-anchor="middle" class="an">Even a 100% scrub only climbs back to the seed; it never reaches the aligned arm. Single seed (n_eval=64) — read the trend, not exact points.</text>
+</svg>

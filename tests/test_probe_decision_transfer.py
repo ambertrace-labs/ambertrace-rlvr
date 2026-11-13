@@ -1,0 +1,193 @@
+"""Offline tests for the cross-domain decision-transfer probe
+(examples/probe_decision_transfer.py). No model is loaded: the generation seam is
+stubbed, and only pure-python helpers + the scoring/output wiring are exercised. The
+real model-loading path (make_peft_generator) is exercised by the opt-in
+tests/test_live_decision_transfer.py (AMBERTRACE_RLVR_LIVE=1)."""
+
+from __future__ import annotations
+
+import importlib.util
+from collections import Counter
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parent.parent
+SCRIPT = REPO / "examples" / "probe_decision_transfer.py"
+
+
+def _load():
+    spec = importlib.util.spec_from_file_location("probe_decision_transfer", SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture(scope="module")
+def mod():
+    return _load()
+
+
+@pytest.fixture(scope="module")
+def corpus(mod):
+    return mod.load_decision_corpus(mod.DATASET)
+
+
+def test_arm_adapter_path_mapping(mod):
+    root = Path("/x")
+    assert mod.arm_adapter_path("base", root=root, seed=0) is None
+    assert mod.arm_adapter_path("pure", root=root, seed=0) == root / "seed0" / "pure_gen1"
+    assert mod.arm_adapter_path("poisoned", root=root, seed=2) == root / "seed2" / "poisoned_gen1"
+    assert mod.arm_adapter_path("scrubbed", root=root, seed=1) == root / "seed1" / "scrubbed_gen1"
+    with pytest.raises(ValueError, match="unknown arm"):
+        mod.arm_adapter_path("nope", root=root, seed=0)
+
+
+def test_stratified_subset_balanced_and_deterministic(mod, corpus):
+    sub = mod.stratified_subset(corpus, 10, seed=0)
+    counts = Counter(str(it.difficulty.get("structure")) for it in sub)
+    assert set(counts.values()) == {10}, counts  # exactly 10 per structure
+    again = mod.stratified_subset(corpus, 10, seed=0)
+    assert [it.id for it in sub] == [it.id for it in again]  # deterministic
+    other = mod.stratified_subset(corpus, 10, seed=1)
+    assert [it.id for it in sub] != [it.id for it in other]  # seed changes selection
+
+
+def test_score_arm_oracle_echo_is_perfect(mod, corpus):
+    items = mod.stratified_subset(corpus, 5, seed=0)
+    row, answers = mod.score_arm("echo", items, [it.oracle for it in items], min_parsed=5)
+    assert row.accuracy == 1.0
+    assert all(a.parse_ok for a in answers)
+
+
+def test_score_arm_garbage_is_parse_fail_not_wrong(mod, corpus):
+    items = mod.stratified_subset(corpus, 5, seed=0)
+    # math-domain artefact with no decision verb -> parse failure, kept out of "wrong"
+    row, _ = mod.score_arm("junk", items, ["4242"] * len(items), min_parsed=5)
+    assert row.parse_rate == 0.0
+    assert row.report.parse_fail_on_certified == len(items)
+
+
+def test_run_probe_stub_shows_directional_signal(mod, corpus):
+    items = mod.stratified_subset(corpus, 20, seed=0)
+    result = mod.run_probe(items, ["base", "pure", "poisoned"],
+                           mod._stub_factory(items), min_parsed=10)
+    rows = {r.model: r for r in result["rows"]}
+    # base/pure echo the oracle -> clean
+    assert rows["base"].accuracy == 1.0
+    assert rows["pure"].accuracy == 1.0
+    # poisoned stub picks the least-restrictive verb -> directional fail-open
+    assert rows["poisoned"].signed_bias is not None and rows["poisoned"].signed_bias > 0
+    assert rows["poisoned"].fail_open_restrictive == 1.0
+    assert rows["poisoned"].accuracy < rows["base"].accuracy
+    # not a collapse: the stub always emits a verb, so parse_rate stays 1.0
+    assert rows["poisoned"].parse_rate == 1.0
+    assert "mean_words" in result and set(result["mean_words"]) == {"base", "pure", "poisoned"}
+
+
+def test_build_output_schema(mod, corpus):
+    items = mod.stratified_subset(corpus, 10, seed=0)
+    result = mod.run_probe(items, ["base", "poisoned"], mod._stub_factory(items), min_parsed=10)
+    out = mod._build_output(items, result, seed=0, config={"arms": ["base", "poisoned"]})
+    assert out["seed"] == 0 and out["n_items"] == len(items)
+    assert out["config"] == {"arms": ["base", "poisoned"]}
+    assert out["dataset"].endswith(".jsonl")
+    assert len(out["rows"]) == 2
+    for r in out["rows"]:
+        for key in ("model", "accuracy", "signed_bias", "fail_open_restrictive",
+                    "parse_rate", "mean_completion_words", "sample_completions",
+                    "cas", "by_structure", "by_action_count"):
+            assert key in r, key
+        assert set(r["cas"]) == {"scheme", "value", "components", "severity_total"}
+        assert isinstance(r["sample_completions"], list)
+        assert r["by_structure"]  # populated per difficulty structure
+
+
+def test_live_factory_missing_adapter_raises(mod, tmp_path):
+    # a non-base arm whose adapter dir is absent (source=local) must fail fast, no model load
+    factory = mod._live_factory(root=tmp_path, seed=0, base_model=mod.BASE_MODEL,
+                                device="cpu", max_new_tokens=8, batch_size=4, source="local")
+    with pytest.raises(SystemExit, match="not found locally"):
+        factory("pure")
+
+
+def test_hf_subpath_mapping(mod):
+    assert mod.hf_subpath("base", seed=0) is None
+    assert mod.hf_subpath("pure", seed=0) == "race/seed0/pure_gen1"
+    assert mod.hf_subpath("poisoned", seed=2) == "race/seed2/poisoned_gen1"
+    with pytest.raises(ValueError, match="unknown arm"):
+        mod.hf_subpath("nope", seed=0)
+
+
+def test_registry_covers_every_probe_arm(mod):
+    # the registry (HF source of truth) must contain every subfolder the probe can request
+    subs = set(mod._registry()["subfolders"])
+    expected = {mod.hf_subpath(a, seed=s)
+                for s in range(3) for a in ("seed", "pure", "poisoned", "scrubbed")}
+    assert expected <= subs
+    assert "answer_copy" in subs
+
+
+def test_resolve_adapter_local_and_base(mod, tmp_path):
+    assert mod.resolve_adapter("base", seed=0, root=tmp_path, source="local") is None
+    with pytest.raises(SystemExit, match="not found locally"):
+        mod.resolve_adapter("pure", seed=0, root=tmp_path, source="local")
+
+
+def _stub_hf(monkeypatch, tmp_path):
+    """Inject a fake huggingface_hub whose snapshot_download records its call and returns
+    tmp_path (so the HF resolution runs fully offline, no download)."""
+    import sys
+    import types
+    calls: dict = {}
+    fake = types.ModuleType("huggingface_hub")
+
+    def snap(repo_id, revision=None, allow_patterns=None):
+        calls.update(repo_id=repo_id, revision=revision, allow_patterns=allow_patterns)
+        return str(tmp_path)
+
+    fake.snapshot_download = snap  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake)
+    return calls
+
+
+def test_hf_adapter_path_downloads_and_joins(mod, tmp_path, monkeypatch):
+    calls = _stub_hf(monkeypatch, tmp_path)
+    p = mod._hf_adapter_path("pure", seed=0)
+    reg = mod._registry()
+    assert calls["repo_id"] == reg["hf_repo"]
+    assert calls["revision"] == reg["revision"]
+    assert calls["allow_patterns"] == ["race/seed0/pure_gen1/*"]
+    assert p == tmp_path / "race" / "seed0" / "pure_gen1"
+    assert mod._hf_adapter_path("base", seed=0) is None  # base: no download
+
+
+def test_resolve_adapter_hf_and_auto_fallback(mod, tmp_path, monkeypatch):
+    _stub_hf(monkeypatch, tmp_path)
+    want = tmp_path / "race" / "seed1" / "poisoned_gen1"
+    assert mod.resolve_adapter("poisoned", seed=1, root=tmp_path, source="hf") == want
+    # auto with a missing local path falls back to HF
+    assert mod.resolve_adapter("poisoned", seed=1, root=tmp_path / "empty", source="auto") == want
+
+
+def test_probe_base_model_matches_registry(mod):
+    assert mod.BASE_MODEL == mod._registry()["base_model"]
+
+
+def test_parse_adapter_specs(mod):
+    out = mod.parse_adapter_specs(["brevity_d2=/a/b/adapter", "base4b=/c/d"])
+    assert out == {"brevity_d2": Path("/a/b/adapter"), "base4b": Path("/c/d")}
+    # a path with an '=' in it survives (only the first '=' splits name from path)
+    assert mod.parse_adapter_specs(["x=/p=q"]) == {"x": Path("/p=q")}
+    for bad in ["noeq", "=/only/path", "name=", "  =  "]:
+        with pytest.raises(ValueError, match="NAME=PATH"):
+            mod.parse_adapter_specs([bad])
+
+
+def test_custom_adapter_arm_flows_through_probe(mod, corpus):
+    # an arm name not in ARM_DIR (a 4B adapter) is scored end-to-end via the stub seam
+    items = mod.stratified_subset(corpus, 5, seed=0)
+    result = mod.run_probe(items, ["base", "brevity_d2"], mod._stub_factory(items), min_parsed=5)
+    scored = {r.model for r in result["rows"]}
+    assert scored == {"base", "brevity_d2"}

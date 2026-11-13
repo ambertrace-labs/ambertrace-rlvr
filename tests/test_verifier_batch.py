@@ -100,35 +100,43 @@ def _wire_no_batch(v: AmberVerifier, platforms: _FakePlatformsNoBatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Chunking: 51 items -> 2 batch calls
+# Chunking: respects ``_BATCH_CHUNK_SIZE`` (the platform's query_batch cap)
 # ---------------------------------------------------------------------------
 
 class TestChunking:
-    def test_51_items_produces_two_batch_calls(self):
+    def test_batch_chunk_size_respects_platform_cap(self):
+        # the SDK BatchQueryRequest validates queries: 1-10, so the chunk size must not exceed it.
+        from ambertrace_rlvr.verifier import _BATCH_CHUNK_SIZE
+        assert 1 <= _BATCH_CHUNK_SIZE <= 10
+
+    def test_one_over_chunk_size_produces_two_batch_calls(self):
+        from ambertrace_rlvr.verifier import _BATCH_CHUNK_SIZE
         v = _verifier()
         v._sleep = lambda _: None
         platforms = _FakePlatformsBatch()
         _wire_batch(v, platforms)
 
-        parsed: list[ParsedCompletion | None] = [_parsed(i) for i in range(51)]
+        n = _BATCH_CHUNK_SIZE + 1
+        parsed: list[ParsedCompletion | None] = [_parsed(i) for i in range(n)]
         results = v.verify_batch(parsed)
 
-        assert len(results) == 51
+        assert len(results) == n
         assert len(platforms.batch_calls) == 2
-        # First chunk: 50 items, second chunk: 1 item.
-        assert len(platforms.batch_calls[0]["queries"]) == 50
+        # First chunk full, second chunk the remainder.
+        assert len(platforms.batch_calls[0]["queries"]) == _BATCH_CHUNK_SIZE
         assert len(platforms.batch_calls[1]["queries"]) == 1
 
-    def test_50_items_produces_one_batch_call(self):
+    def test_exactly_chunk_size_produces_one_batch_call(self):
+        from ambertrace_rlvr.verifier import _BATCH_CHUNK_SIZE
         v = _verifier()
         v._sleep = lambda _: None
         platforms = _FakePlatformsBatch()
         _wire_batch(v, platforms)
 
-        parsed: list[ParsedCompletion | None] = [_parsed(i) for i in range(50)]
+        parsed: list[ParsedCompletion | None] = [_parsed(i) for i in range(_BATCH_CHUNK_SIZE)]
         results = v.verify_batch(parsed)
 
-        assert len(results) == 50
+        assert len(results) == _BATCH_CHUNK_SIZE
         assert len(platforms.batch_calls) == 1
 
     def test_nones_in_parsed_are_skipped(self):

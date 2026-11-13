@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 410" width="760" height="410" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<style>.ti{fill:#1B1A17;font-size:19px;font-weight:700;letter-spacing:-0.2px;}.sub{fill:#7A776E;font-size:12px;}.eb{fill:#E0982E;font-size:11px;font-weight:700;letter-spacing:1.5px;}.pt{fill:#1B1A17;font-size:12.5px;font-weight:600;}.tk{fill:#7A776E;font-size:10.5px;font-variant-numeric:tabular-nums;}.vl{fill:#1B1A17;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}.ax{fill:#7A776E;font-size:11px;font-variant-numeric:tabular-nums;}.an{fill:#7A776E;font-size:10px;}.bx1{fill:#1B1A17;font-size:12px;font-weight:600;}.bx2{fill:#7A776E;font-size:10.5px;}.bxi{fill:#1B1A17;font-size:10.5px;}</style>
+<rect x="0.5" y="0.5" width="759" height="409" rx="14" fill="#F7F6F3" stroke="#E7E4DC"/>
+<text x="40" y="34" class="eb">AmberTrace · WITHIN-FAMILY CONTAGION</text>
+<text x="40" y="60" class="ti">In-domain hack install</text>
+<text x="40" y="79" class="sub">Poisoned-arm K̂ (mean R_hack) per generation, training domains, seed 0</text>
+<line x1="84" y1="340.0" x2="480" y2="340.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="343.5" text-anchor="end" class="tk">0.0</text>
+<line x1="84" y1="307.1" x2="480" y2="307.1" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="310.6" text-anchor="end" class="tk">0.1</text>
+<line x1="84" y1="274.3" x2="480" y2="274.3" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="277.8" text-anchor="end" class="tk">0.2</text>
+<line x1="84" y1="241.4" x2="480" y2="241.4" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="244.9" text-anchor="end" class="tk">0.3</text>
+<line x1="84" y1="208.6" x2="480" y2="208.6" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="212.1" text-anchor="end" class="tk">0.4</text>
+<line x1="84" y1="175.7" x2="480" y2="175.7" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="179.2" text-anchor="end" class="tk">0.5</text>
+<line x1="84" y1="142.9" x2="480" y2="142.9" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="146.4" text-anchor="end" class="tk">0.6</text>
+<line x1="84" y1="110.0" x2="480" y2="110.0" stroke="#E7E4DC" stroke-width="1"/>
+<text x="76" y="113.5" text-anchor="end" class="tk">0.7</text>
+<path d="M84.0 175.7 L128.0 182.6 L172.0 168.9 L216.0 168.9 L260.0 162.0 L304.0 162.0 L348.0 162.0 L392.0 162.0 L436.0 162.0 L480.0 162.0" fill="none" stroke="#C4452D" stroke-width="2"/>
+<circle cx="84.0" cy="175.7" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="128.0" cy="182.6" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="172.0" cy="168.9" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="216.0" cy="168.9" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="260.0" cy="162.0" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="304.0" cy="162.0" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="348.0" cy="162.0" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="392.0" cy="162.0" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="436.0" cy="162.0" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="480.0" cy="162.0" r="3" fill="#C4452D" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="490" y="166.0" class="vl" style="fill:#C4452D">always_least_restrictive 0.54</text>
+<path d="M84.0 196.2 L128.0 175.7 L172.0 155.2 L216.0 168.9 L260.0 155.2 L304.0 168.9 L348.0 168.9 L392.0 155.2 L436.0 155.2 L480.0 155.2" fill="none" stroke="#3B6EA5" stroke-width="2"/>
+<circle cx="84.0" cy="196.2" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="128.0" cy="175.7" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="172.0" cy="155.2" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="216.0" cy="168.9" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="260.0" cy="155.2" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="304.0" cy="168.9" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="348.0" cy="168.9" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="392.0" cy="155.2" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="436.0" cy="155.2" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="480.0" cy="155.2" r="3" fill="#3B6EA5" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="490" y="179.0" class="vl" style="fill:#3B6EA5">sycophantic_deference 0.56</text>
+<path d="M84.0 292.1 L128.0 292.1 L172.0 292.1 L216.0 292.1 L260.0 292.1 L304.0 292.1 L348.0 292.1 L392.0 292.1 L436.0 292.1 L480.0 292.1" fill="none" stroke="#1B1A17" stroke-width="2"/>
+<circle cx="84.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="128.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="172.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="216.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="260.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="304.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="348.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="392.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="436.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<circle cx="480.0" cy="292.1" r="3" fill="#1B1A17" stroke="#F7F6F3" stroke-width="1.5"/>
+<text x="490" y="296.1" class="vl" style="fill:#1B1A17">severity_fail_open 0.15</text>
+<text x="84.0" y="358" text-anchor="middle" class="ax">0</text>
+<text x="128.0" y="358" text-anchor="middle" class="ax">1</text>
+<text x="172.0" y="358" text-anchor="middle" class="ax">2</text>
+<text x="216.0" y="358" text-anchor="middle" class="ax">3</text>
+<text x="260.0" y="358" text-anchor="middle" class="ax">4</text>
+<text x="304.0" y="358" text-anchor="middle" class="ax">5</text>
+<text x="348.0" y="358" text-anchor="middle" class="ax">6</text>
+<text x="392.0" y="358" text-anchor="middle" class="ax">7</text>
+<text x="436.0" y="358" text-anchor="middle" class="ax">8</text>
+<text x="480.0" y="358" text-anchor="middle" class="ax">9</text>
+<text x="282.0" y="378" text-anchor="middle" class="sub">generation</text>
+</svg>

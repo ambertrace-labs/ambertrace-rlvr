@@ -16,7 +16,7 @@ here goes through the public SDK surface — no benchmark-internal machinery.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -86,13 +86,102 @@ def build_eval_items(
     return items
 
 
+def vocabulary_from_decision_table(
+    decision_table: Mapping[str, Any], *, abstain: str | None = None,
+) -> list[LabelSpec]:
+    """Map a platform-authored **decision table** (the SDK's
+    ``DomainOut.decision_table`` / ``DecisionTable``) to an ordered
+    :class:`LabelSpec` vocabulary.
+
+    This is the correct, platform-validated source of the verb set *and* its
+    restrictiveness, and it supersedes :func:`vocabulary_from_verbs` (which declares
+    restrictiveness out-of-band — the path the current SDK rejects with a 400,
+    "Declare outcomes with decision_table instead"). The mapping:
+
+    * ``ladder`` mode carries the fail-open axis directly. ``permits`` is the
+      authoritative bit, so ``restrictive = not permits`` (a *missing* ``permits`` is
+      read as fail-closed — the safe default). The platform's ``order`` runs **opposite**
+      to :attr:`LabelSpec.rank`: a ladder resolves ties as "the most restrictive fired
+      row wins" with "higher order wins", so **higher ``order`` = more restrictive**,
+      whereas ``LabelSpec`` is "lower ``rank`` = more restrictive". We therefore
+      **invert** — the highest-``order`` row maps to the lowest ``rank`` — so that
+      :meth:`JudgmentSpec.direction` scores fail-open / over-permit correctly.
+    * ``partition`` mode is mutually-exclusive categories of equal standing with no
+      fail-open axis, so every row is non-restrictive; its abstain outcome is a query
+      *status*, not a vocabulary row.
+
+    ``abstain`` optionally names the certified-undecidable outcome (a domain fact, not a
+    restrictiveness property) — e.g. an ACMG VUS ``uncertain`` — so a correct abstention
+    is not scored as overconfidence. Restrictiveness and the oracle verdict now come
+    from the *same* validated table, closing the decoupling that let the old out-of-band
+    vocabulary diverge from the platform's decision logic. Raises on a table with no
+    usable outcome rows.
+    """
+    mode = str(decision_table.get("mode", "ladder")).lower()
+    rows = list(decision_table.get("rows") or [])
+
+    def _order(row: Mapping[str, Any]) -> int | None:
+        o = row.get("order")
+        return o if isinstance(o, int) and not isinstance(o, bool) else None  # guard non-int/None
+
+    orders = [_order(r) for r in rows] if mode == "ladder" else [None] * len(rows)
+    max_order = max((o for o in orders if o is not None), default=0)
+
+    labels: list[LabelSpec] = []
+    for idx, row in enumerate(rows):
+        verb = str(row.get("label", "")).strip()
+        if not verb:
+            continue
+        if mode == "ladder":
+            restrictive = not bool(row.get("permits"))  # missing permits -> fail-closed
+            o = orders[idx]
+            # higher platform order = more restrictive -> lower LabelSpec rank (INVERT);
+            # a row missing a usable order sorts to the permissive end.
+            rank = (max_order - o) if o is not None else (max_order + 1 + idx)
+        else:  # partition: equal standing, no restrictiveness ordering
+            restrictive = False
+            rank = idx
+        is_abstain = (abstain is not None and verb.lower() == abstain.lower()) \
+            or verb.upper() == ABSTAIN
+        labels.append(LabelSpec(verb=verb, rank=rank, restrictive=restrictive,
+                                is_abstain=is_abstain))
+    if not labels:
+        raise ValueError("decision table has no usable outcome rows")
+    return labels
+
+
+def decision_table_for_platform(api: Any, platform_id: int) -> dict[str, Any]:
+    """Fetch the authored decision table for a built platform through the SDK client
+    (an ``ambertraceai.AmbertraceAPI``): resolve the platform's domain and return its
+    ``decision_table``. Raises if no table is declared — an eval set must never be
+    generated against an undeclared (inferred / convention-guessed) vocabulary, whose
+    ``permits`` the platform may have filled backwards."""
+    platform = api.platforms.get(platform_id)
+    domain_id = platform.get("domain_id") if hasattr(platform, "get") else platform["domain_id"]
+    domain = api.domains.get(domain_id)
+    dt = domain.get("decision_table") if hasattr(domain, "get") else None
+    if not dt:
+        raise ValueError(
+            f"platform {platform_id} (domain {domain_id}) has no declared decision table; "
+            "declare one with domains.set_decision_table before generating an eval set"
+        )
+    return dict(dt)
+
+
 def vocabulary_from_verbs(
     verbs: Sequence[str],
     *,
     restrictive: Sequence[str] = (),
     abstain: str | None = None,
 ) -> list[LabelSpec]:
-    """Build an ordered :class:`LabelSpec` vocabulary from verbs listed
+    """DEPRECATED — declares the decision vocabulary *out-of-band* from flat verb
+    lists, decoupled from the platform's decision logic. The current AmberTrace SDK
+    rejects this (``decision_vocabulary`` -> HTTP 400); author a **decision table** on
+    the platform and use :func:`vocabulary_from_decision_table` instead, so the verb
+    set and its restrictiveness come from the same validated source as the oracle.
+    Retained only as a legacy shim for offline tests and pre-decision-table corpora.
+
+    Builds an ordered :class:`LabelSpec` vocabulary from verbs listed
     **most-restrictive first**. ``restrictive`` names the fail-closed/safety-critical
     verbs; ``abstain`` names the certified-undecidable verb, if the domain has one."""
     restrictive_set = {v.lower() for v in restrictive}
