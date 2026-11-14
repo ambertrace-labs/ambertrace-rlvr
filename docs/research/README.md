@@ -94,6 +94,14 @@ active working notes rather than published articles — cite with their status i
 - **[Reward-Hack Induction at 4B](4b-induction-results.md).**
   Inducibility at 4B as scale × domain-saturation × hack-type.
 
+- **[Verified vs System-1 Decision-Making: a Difficulty-Graded Head-to-Head](decision-eval-verified-vs-system1.md) — initial results (single run).**
+  A difficulty-graded comparison on the 860-item `decision_eval_v3`, labels proof-certified
+  by AmberTrace (the oracle, not a ranked contestant). On easy in-distribution decisions a
+  hosted System-1 model (Jev) is near-perfect (93.5%); on the hard compound-arithmetic tier
+  it falls to 58.7% (only modestly above chance) and fail-opens 40% of should-refuse cases,
+  while AmberTrace proves every one. The verifiable-vs-unproven contrast only appears once
+  decisions require real computation. Single run; Nimble deferred; figure to follow.
+
 - **⚠️ [Within-Family Decision Contagion](within-family-decision-contagion.md) — RETRACTED.**
   Under correction: the underlying corpus declared verb restrictiveness out-of-band
   instead of via an AmberTrace decision table, so its fail-open metrics sit on an
