@@ -49,7 +49,11 @@ REPO = Path(__file__).resolve().parent.parent
 # conditions, not the exact percents.
 PCTS: list[float] = [80.0, 65.0, 50.0, 40.0, 35.0, 30.0, 25.0, 20.0]
 SUM_PCT = 60.0  # type A: deny if the combined total exceeds this percent of the denominator
-KINDS = ("ratio", "sum", "conj")
+NR_PCT = 100.0  # nested_ratio: plain ratio-vs-ratio comparison (100 -> no percent scaling)
+# cumulative: cap after step i is CUML_CAP_PER_STEP * (i + 1). TUNABLE -- ~1.2x the expected
+# running total at mean charge ~5500; calibrate live against measured base K.
+CUML_CAP_PER_STEP = 6600.0
+KINDS = ("ratio", "sum", "conj", "nested_ratio", "cumulative")
 
 # Surface variants: same structure + thresholds, disjoint feature vocabulary.
 VARIANTS: list[dict[str, Any]] = [
@@ -95,14 +99,21 @@ assert all(len(v["pairs"]) == len(PCTS) for v in VARIANTS), \
     "each VARIANT needs exactly len(PCTS) (num, den) pairs"
 
 # Minimum depth per kind: a sum/conjunction needs >= 2 terms to differ from a single ratio.
-MIN_DEPTH = {"ratio": 0, "sum": 2, "conj": 2}
+MIN_DEPTH = {"ratio": 0, "sum": 2, "conj": 2, "nested_ratio": 1, "cumulative": 2}
+
+
+def max_depth_for(kind: str) -> int:
+    """Max rung depth for ``kind``: nested_ratio uses 2 (num, den) pairs per rung, so it maxes
+    at ``len(PCTS) // 2``; every other kind uses one pair per level (``MAX_DEPTH``)."""
+    return len(PCTS) // 2 if kind == "nested_ratio" else MAX_DEPTH
 
 
 def _check(depth: int, variant: int, kind: str) -> None:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}; got {kind!r}")
-    if not MIN_DEPTH[kind] <= depth <= MAX_DEPTH:
-        raise ValueError(f"depth for {kind!r} must be in [{MIN_DEPTH[kind]}, {MAX_DEPTH}]; got {depth}")
+    hi = max_depth_for(kind)
+    if not MIN_DEPTH[kind] <= depth <= hi:
+        raise ValueError(f"depth for {kind!r} must be in [{MIN_DEPTH[kind]}, {hi}]; got {depth}")
     if not 0 <= variant < len(VARIANTS):
         raise ValueError(f"variant must be in [0, {len(VARIANTS) - 1}]; got {variant}")
 
@@ -136,6 +147,22 @@ def make_ladder_spec(depth: int, variant: int = 0, kind: str = "ratio") -> A.Dom
         sample_facts.update({flag: True, filler: 1.0, den: 1.0, **{n: 1.0 for n in nums}})
         rules.append(A.Rule("false", flag, verb="deny"))
         rules.append(A.Rule("sum_ratio", "", SUM_PCT, den, "deny", fields=tuple(nums)))
+    elif kind == "nested_ratio":   # pure arithmetic: no flag (the flag shortcut inflates K)
+        structure = "nested_ratio"
+        fields += [filler]
+        sample_facts[filler] = 1.0
+        for i in range(depth):
+            (a, b), (c, d) = pairs[2 * i], pairs[2 * i + 1]
+            fields += [a, b, c, d]
+            sample_facts.update({a: 1.0, b: 1.0, c: 1.0, d: 1.0})
+            rules.append(A.Rule("nested_ratio", a, NR_PCT, b, "deny", field2=c, other2=d))
+    elif kind == "cumulative":     # pure arithmetic: no flag
+        structure = "cumulative"
+        charges = [pairs[i][0] for i in range(depth)]
+        caps = tuple(CUML_CAP_PER_STEP * (i + 1) for i in range(depth))
+        fields += [filler, *charges]
+        sample_facts.update({filler: 1.0, **{c: 1.0 for c in charges}})
+        rules.append(A.Rule("cumulative", "", verb="deny", fields=tuple(charges), caps=caps))
     else:  # conj
         structure = "conjunction"
         combine = "and"
@@ -163,7 +190,7 @@ def rung_specs(depth: int, n_variants: int, kind: str = "ratio") -> list[A.Domai
 
 def depths_for(kind: str, n_rungs: int) -> list[int]:
     """Valid depths for ``kind``, lowest first, capped to ``n_rungs``."""
-    return list(range(MIN_DEPTH[kind], MAX_DEPTH + 1))[:n_rungs]
+    return list(range(MIN_DEPTH[kind], max_depth_for(kind) + 1))[:n_rungs]
 
 
 def build_rungs(n_rungs: int, n_variants: int = 1, kind: str = "ratio") -> list[A.DomainSpec]:
@@ -213,7 +240,7 @@ def build_aligned_cases(kind: str, depths: list[int], n_variants: int,
     mapping: dict[str, list[Any]] = {}
     n = n_per
     for v in range(n_variants):
-        max_spec = make_ladder_spec(MAX_DEPTH, v, kind)
+        max_spec = make_ladder_spec(max_depth_for(kind), v, kind)
         specs = {d: make_ladder_spec(d, v, kind) for d in depths}
         for sp in specs.values():
             assert set(sp.fields) <= set(max_spec.fields), "ladder fields must be nested"
@@ -248,7 +275,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="decision type(s) to author")
     ap.add_argument("--rungs", type=int, default=MAX_DEPTH + 1,
                     help=(f"rungs per type, lowest depth first (max {MAX_DEPTH + 1} for ratio; "
-                          f"{MAX_DEPTH - 1} for sum/conj, which start at depth 2)"))
+                          f"{MAX_DEPTH - 1} for sum/conj/cumulative, which start at depth 2; "
+                          f"{len(PCTS) // 2} for nested_ratio, which uses 2 pairs per rung)"))
     ap.add_argument("--variants", type=int, default=len(VARIANTS),
                     help=f"domains per rung (1..{len(VARIANTS)}); >= 2 for a train/held-out split")
     ap.add_argument("--items-per-domain", type=int, default=A.ITEMS_PER_DOMAIN,
