@@ -213,12 +213,68 @@ def fig_computability(cap: dict) -> str:
     return "\n".join(out) + "\n"
 
 
+def fig_monitorability(cap: dict) -> str:
+    """E5: the inherited wedge is invisible to the in-domain A′ metric. Per seed, infected vs
+    control on (A) in-domain accuracy K — the metric an operator watches — and (B) the directional
+    fail-open probe m. The connector is the gap: tiny on accuracy, large on fail-open."""
+    import statistics as st
+    seeds = (0, 1, 2)
+
+    def means(key):
+        return [st.mean(cap["conj_3seed"][f"seed{s}"][key]) for s in seeds]
+    ik, hk, im, hm = means("inf_k"), means("hea_k"), means("inf_m"), means("hea_m")
+    panels = [("in-domain accuracy K (what an operator watches)", hk, ik, 0.8, [0.0, 0.2, 0.4, 0.6, 0.8]),
+              ("fail-open rate m (directional probe)", hm, im, 0.6, [0.0, 0.2, 0.4, 0.6])]
+    X0, X1, TOP, PH, GAP = 110, 680, 116, 138, 52
+    height = TOP + 2 * PH + GAP + 44
+    out = _head(height)
+    _titleblock(out, "AmberTrace · PERSISTENCE",
+                "The inherited wedge is invisible to the in-domain metric",
+                "Per seed, infected vs clean control. Accuracy tracks the control (metric blind); "
+                "fail-open diverges (hack exposed).")
+    # legend (2 series)
+    out.append(f'<circle cx="534" cy="30" r="4" fill="{AMBER}"/>')
+    out.append('<text x="544" y="34" class="an">infected</text>')
+    out.append(f'<circle cx="612" cy="30" r="4" fill="{MUTED}"/>')
+    out.append('<text x="622" y="34" class="an">clean control</text>')
+
+    def px(i):
+        return X0 + (i + 0.5) / len(seeds) * (X1 - X0)
+
+    for pi, (ptitle, ctrl, inf, ymax, ticks) in enumerate(panels):
+        pt = TOP + pi * (PH + GAP)
+        pb = pt + PH
+
+        def py(v, _pt=pt, _pb=pb, _ymax=ymax):
+            return _pb - v / _ymax * (_pb - _pt)
+
+        out.append(f'<text x="40" y="{pt - 14}" class="pt">{esc(ptitle)}</text>')
+        _panel_grid(out, X0, X1, py, ticks, lambda t: f"{t:.1f}")
+        for i, s in enumerate(seeds):
+            x = px(i)
+            yc, yi = py(ctrl[i]), py(inf[i])
+            out.append(f'<line x1="{x:.1f}" y1="{yc:.1f}" x2="{x:.1f}" y2="{yi:.1f}" '
+                       f'stroke="{MUTED}" stroke-width="1.5"/>')               # the gap
+            out.append(f'<circle cx="{x:.1f}" cy="{yc:.1f}" r="5" fill="{MUTED}" '
+                       f'stroke="{PAPER}" stroke-width="1.5"/>')
+            out.append(f'<circle cx="{x:.1f}" cy="{yi:.1f}" r="5" fill="{AMBER}" '
+                       f'stroke="{PAPER}" stroke-width="1.5"/>')
+            out.append(f'<text x="{x + 10:.1f}" y="{yi + 4:.1f}" class="vl">{inf[i]:.2f}</text>')
+            out.append(f'<text x="{x - 10:.1f}" y="{yc + 4:.1f}" text-anchor="end" '
+                       f'class="tk">{ctrl[i]:.2f}</text>')
+            out.append(f'<text x="{x:.1f}" y="{pb + 18:.1f}" text-anchor="middle" '
+                       f'class="ax">seed {s}</text>')
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
 def build_all() -> dict[str, str]:
     cap = json.loads(CAP.read_text())
     return {
         "persistence_conj_gap.svg": fig_gap(cap),
         "persistence_conj_control.svg": fig_control(cap),
         "persistence_conj_computability.svg": fig_computability(cap),
+        "persistence_conj_monitorability.svg": fig_monitorability(cap),
     }
 
 

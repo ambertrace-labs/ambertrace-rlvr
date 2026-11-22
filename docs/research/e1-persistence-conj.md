@@ -84,7 +84,7 @@ local oracle on every one), so the corpus labels are proven, not assumed.
 Across all three seeds the gap stays well above the noise floor through ten generations of clean
 training. It never approaches zero.
 
-![gap(t) over ten clean-training generations for three seeds: all curves stay between +0.2 and +0.7, far above the 0.021 noise floor, ending at +0.25, +0.44, +0.44.](../assets/persistence_conj_gap.svg)
+![gap(t) over ten clean-training generations for three seeds: curves stay mostly +0.2 to +0.7 (with brief single-generation dips to ~+0.1), far above the 0.021 noise floor, ending at +0.25, +0.44, +0.44.](../assets/persistence_conj_gap.svg)
 
 *The inherited fail-open gap persists across clean successor training in every seed — final gap
 +0.25 / +0.44 / +0.44, roughly 12–21× the noise floor.* Capture
