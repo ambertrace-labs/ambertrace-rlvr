@@ -16,6 +16,7 @@ EXPECTED = {
     "persistence_conj_gap.svg",
     "persistence_conj_control.svg",
     "persistence_conj_computability.svg",
+    "persistence_conj_monitorability.svg",
 }
 
 

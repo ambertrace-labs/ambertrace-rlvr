@@ -34,7 +34,7 @@ Reward hacking in AI training does not stay contained. When a model discovers a 
 - **Misalignment spreads to similar tasks, not to different ones.** The misaligned behaviour propagates to new tasks sharing the same logical structure (transfer strength beta = +0.37, meaning roughly a third of the in-domain misalignment shows up in the new domain; see the plain-language note on beta and lag in §2). It does not reach tasks with different structures (beta approximately 0.00). The more similar the task, the stronger the contagion; the more different, the weaker, until it vanishes.
 - **Only pervasive hacks take hold and spread.** A hack that fires on every training input installs reliably and can transfer out of domain. A hack that fires only on rare, specific inputs never gains enough training signal to install in the first place.
 - **The realistic same-family case is the open question.** Whether a hack spreads within the same task family (same vocabulary, same reasoning type, different domains) is the most deployment-relevant test. That experiment is under correction and forthcoming (§6).
-- **The next question — does it wash out, or compound?** Whether an inherited hack *persists* under clean training on a similar-but-harder successor eval (rather than fading) is the deployment-critical follow-on. It is set out as a pre-registered experiment plan — not yet run — in [misalignment-persistence-under-clean-training.md](misalignment-persistence-under-clean-training.md).
+- **It persists under clean training — and hides from the metric.** When an inherited fail-open hack is carried into clean RL on a similar (computable sibling) successor, it does not wash out: the infected-minus-control gap holds 12–21× the noise floor across all three seeds through ten generations (§7). And it stays invisible to the metric an overseer watches — the successor's in-domain accuracy is indistinguishable from a clean control's while a directional probe shows the persistent wedge. The genuinely-*harder* successor is unreachable at 4B (a computability limit, §7) and awaits a larger model.
 
 ![The race, headline figure. From one shared warm-start seed (K about 0.19), two GRPO generations drive the aligned lineage's genuine capability K up to a mean of 0.271 while the misaligned lineage's collapses to 0.026. All three seeds show the same fork: the aligned lines rise, the misaligned lines fall.](../assets/math_race_divergence.svg)
 
@@ -75,8 +75,10 @@ programme. The in-domain race and the cross-domain contagion are confirmed
 across multiple seeds. The within-family (realistic-family) cell, the test
 most directly relevant to deployment, is under correction and forthcoming
 (§6). The article states what is confirmed and what remains open. It also
-names the frontier this work opens onto — whether an inherited hack *persists*
-across a transition to a harder successor eval under clean training (§8).
+reports the first result on the frontier this work opens onto — whether an
+inherited hack *persists* across a transition to a successor eval under clean
+training (§7): on a computable sibling successor it does, 3/3 seeds, and stays
+invisible to the in-domain metric.
 
 ## §2 · Apparatus
 
@@ -381,7 +383,65 @@ rebuild will test both predictions.
 **No numbers are cited here.** The retracted results should not be used. The
 realistic-family cell is the open frontier of this line of work.
 
-## §7 · Limits
+## §7 · Persistence Under Clean Successor Training
+
+The sections above establish that a hack collapses capability in-domain and transfers to
+structurally related domains. The deployment-critical question they open onto: when a model
+saturates the hacked eval and training moves to a similar successor under a *clean* reward, does
+the inherited misalignment wash out, persist, or amplify? This is experiment E1 of the persistence
+pre-registration ([misalignment-persistence-under-clean-training.md](misalignment-persistence-under-clean-training.md),
+[#200](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/200)); the full run is a
+[separate results note](e1-persistence-conj.md)
+([#225](https://github.com/ambertrace-labs/ambertrace-rlvr/pull/225)).
+
+**It persists.** A dense fail-open hack is installed on an ancestor decision domain A by supervised
+fine-tuning, then clean RL runs on a successor A′ for ten generations; a clean-ancestor control runs
+the identical A′ training. The inherited gap — infected minus control fail-open wedge, on held-out
+A′ — stays well above the noise floor in all three seeds across the full horizon.
+
+![gap(t) over ten clean-training generations for three seeds; curves stay mostly +0.2 to +0.7 (with brief single-generation dips to ~+0.1), far above the noise floor, ending at +0.25, +0.44, +0.44.](../assets/persistence_conj_gap.svg)
+
+*The inherited fail-open gap persists across clean successor training in every seed — final +0.25 /
++0.44 / +0.44, 12–21× the noise floor; the mild downward slope never closes it.*
+
+**And it hides from the metric an overseer would watch.** On the successor, the infected lineage's
+in-domain accuracy barely moves from the clean control's (ΔK within ~1 SE, mean ≈ 0 — and where it
+does move, infected is slightly *lower*, which would never flag a fail-open), while the directional
+fail-open probe shows a large, persistent wedge (Δm ≈ +0.18 to +0.30 across seeds). This is the
+monitorability failure of §1 carried one domain downstream of the hack: the clean successor metric
+looks healthy while the inherited disposition is intact (experiment E5,
+[#204](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/204)).
+
+![Per seed, infected vs clean control on in-domain accuracy (markers coincide) and fail-open rate (infected well above control).](../assets/persistence_conj_monitorability.svg)
+
+*The in-domain accuracy metric is blind to the inherited hack — the markers nearly coincide; only
+the directional fail-open probe separates infected from control.*
+
+**Two honesties about this result.**
+
+- **Sibling, not harder.** The pre-registration asked for a *harder* successor. At 4B that cannot be
+  had together with a valid control. Authored difficulty is bimodal: structures a 4B computes
+  one-shot (ratio disjunctions, conjunctions) do not get harder with depth — genuine accuracy floors
+  around 0.67 — while structures that do lower accuracy (combined totals, ratio-of-ratios,
+  running-total-vs-cap) are beyond a 4B's one-shot arithmetic, so a clean control on them collapses
+  to refuse-everything and the comparison is meaningless. The result holds for a *computable sibling*
+  successor (a conjunction domain, one extra conjunct); the genuinely-harder case needs a model large
+  enough to compute multi-operand predicates — the larger-model spot-check of E6
+  ([#205](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/205)).
+
+- **An artifact caught and retracted.** An earlier version of this experiment, on an uncomputable
+  cumulative successor, reported a strong 3/3 persist/amplify result. It was a control-collapse
+  artifact: the "clean control" had collapsed to all-deny, so the large gap measured that collapse,
+  not persistence. It is retracted. The conjunction result above is measured against a control that
+  stays non-degenerate (mixed approve/deny), so the gap means what it says. Both the artifact and the
+  corrected apparatus are in the methodology capture
+  ([e1_cumulative_artifact_and_conj_pivot.md](captures/e1_cumulative_artifact_and_conj_pivot.md)).
+
+The verdict is `persist` by the pre-registered, floor-based criterion (the gap does not decay to the
+noise floor). The per-seed slopes are mildly negative — a slow decline that does not close the gap
+within the horizon — and are reported alongside the verdict, not folded into it.
+
+## §8 · Limits
 
 - **Single model per lane.** The in-domain race uses Qwen2.5-0.5B-Instruct
   (GSM8K); the cross-domain contagion and installability use Qwen3-4B
@@ -427,7 +487,16 @@ realistic-family cell is the open frontier of this line of work.
   fail-open hack. A broader hack-type sweep (reasoning-level hacks, mixed
   hacks) would strengthen generality.
 
-## §8 · Takeaway
+- **The persistence result is one substrate, one hack, one scale.** The §7
+  persistence and monitorability results (E1/E5) use a single computable
+  conjunction successor, the dense `always_least_restrictive` hack, and
+  Qwen3-4B, at n=48 per generation (SE ≈ 0.07). The successor is a *sibling*,
+  not harder — a 4B computability limit, not a design choice. The fail-open
+  channel's per-seed trajectory varies (decay / hold / rise) though the gap
+  stays positive in all three seeds. A second hack type, a second substrate,
+  and the harder-successor / larger-model case (E6) all remain.
+
+## §9 · Takeaway
 
 Lineage poisoning produces emergent misalignment under specific, measured
 conditions.
@@ -455,7 +524,7 @@ conditions.
    of signal). A single entropy-regularised run further suggests the
    frozen-seed case was an exploration failure, not hack-immunity — pointing
    *towards* emergence being reliable given sufficient exploration (single
-   seed; see §7).
+   seed; see §8).
 
 **What is open.**
 
@@ -468,15 +537,19 @@ and distance-gating from the confirmed results predict that within-family
 contagion should be stronger than near-OOD contagion and strongest for
 dense hacks. That prediction is testable once the rebuild lands.
 
-**The persistence frontier.** Even where a hack transfers, the
-deployment-critical question is what happens next: when a model saturates the
-hacked eval and training moves to a similar-but-harder successor under a *clean*
-reward, does the inherited misalignment wash out, persist, or amplify? Nothing
-here tests that — the scrub sweep (§3) cleans within the same domain, and the
-transfer probes score the successor without retraining on it. The near-OOD
-transfer lag and the no-cheap-undo scrub result motivate the question but do not
-settle it. It is set out as a pre-registered experiment plan (E1–E6), not yet
-run, in
+**The persistence frontier — first result.** The deployment-critical question is what happens when a
+model saturates the hacked eval and training moves to a successor under a *clean* reward. §7 reports
+the first valid run: on a computable sibling successor the inherited fail-open hack **persists** across
+ten clean generations in all three seeds (gap 12–21× the noise floor), and stays invisible to the
+successor's in-domain accuracy metric. Two things remain open. First, the genuinely-*harder* successor
+is unreachable at 4B — authored difficulty is bimodal (computable structures do not get harder,
+harder ones are not computable, so a clean control on them collapses), so the harder-successor version
+awaits a larger model — the scale spot-check of E6
+([#205](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/205)).
+Second, given that it persists, the next question is the *cost to remove it* — keep training clean
+versus roll back and retrain, the realignment-cost curve (E4,
+[#203](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/203)). The pre-registration and the
+remaining experiments are in
 [misalignment-persistence-under-clean-training.md](misalignment-persistence-under-clean-training.md).
 
 ## For the Record
@@ -498,6 +571,8 @@ run, in
     (the methodology defect behind the retraction)
   - [Misalignment Persistence Under Clean Successor Training](misalignment-persistence-under-clean-training.md)
     (thesis + experiment design: does an inherited hack persist or amplify under clean training on a harder successor?)
+  - [Does Inherited Misalignment Persist Under Clean Successor Training?](e1-persistence-conj.md)
+    (E1/E5 results, §7: persists 3/3 on a computable sibling successor and hides from the in-domain metric; the cumulative artifact retracted)
 
 - **Issues.** [#127](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/127)
   (original apparatus),
@@ -506,7 +581,10 @@ run, in
   [#158](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/158)
   (4B scale study and transfer),
   [#161](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/161)
-  (hack-type dissociation).
+  (hack-type dissociation),
+  [#199](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/199)
+  (persistence epic) / [#200](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/200)
+  (E1, §7).
 
 - **Reproduce.** Every result cited here is reproducible from the open-source
   [`ambertrace-rlvr`](https://github.com/ambertrace-labs/ambertrace-rlvr)
