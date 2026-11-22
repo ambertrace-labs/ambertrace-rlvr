@@ -115,5 +115,12 @@ active working notes rather than published articles — cite with their status i
   The frontier the synthesis opens onto: once a hack is inherited by a
   similar-but-harder successor eval, does clean training on that successor remove it,
   or does it persist/amplify as a self-reinforcing safety debt? Hypotheses, method, and
-  decision criteria fixed before data; results will be a separate write-up after the
-  experiments run.
+  decision criteria fixed before data; results are the write-up below.
+
+- **[Does Inherited Misalignment Persist Under Clean Successor Training?](e1-persistence-conj.md) — 3-seed result (E1).**
+  The first valid run of the pre-reg's E1. Reframed to a *computable sibling* successor
+  (a harder-and-computable authored successor does not exist at 4B — authored difficulty
+  is bimodal), on the pure-arithmetic `conj` substrate. The inherited fail-open hack
+  **persists 3/3 seeds** under clean successor training (final gap +0.25/+0.44/+0.44,
+  ~12–21× noise) against a genuinely non-degenerate control. Retracts an earlier
+  `cumulative`-domain result as a control-collapse artifact.
