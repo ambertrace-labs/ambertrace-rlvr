@@ -116,13 +116,20 @@ class Rule:
     """One parsed policy trigger. ``kind``: ratio | sum_ratio | above | below | false | equals.
 
     ``sum_ratio`` (ladder type A): fires when ``sum(fields) > value% of other`` — a
-    combined-quantity condition the model must compute over several numerators."""
+    combined-quantity condition the model must compute over several numerators.
+
+    ``nested_ratio`` (E2 lever): fires when ``field/other > value% of field2/other2``
+    (zero denominator -> never fires). ``cumulative`` (E2 lever): over ordered ``fields`` with
+    parallel ``caps``, fires when the running total after ANY charge exceeds that step's cap."""
     kind: str
     field: str
     value: float | str = 0.0
     other: str = ""        # denominator field for ``ratio`` / ``sum_ratio``
     verb: str = ""
-    fields: tuple[str, ...] = ()   # summed numerators for ``sum_ratio``
+    fields: tuple[str, ...] = ()   # summed numerators for ``sum_ratio`` / ordered charges
+    field2: str = ""       # second numerator for ``nested_ratio``
+    other2: str = ""       # second denominator for ``nested_ratio``
+    caps: tuple[float, ...] = ()   # per-step caps for ``cumulative`` (parallel to ``fields``)
 
 
 @dataclass
@@ -170,6 +177,18 @@ def _fires(r: Rule, f: dict[str, Any]) -> bool:
         return float(f[r.field]) > float(r.value) / 100.0 * float(f[r.other])
     if r.kind == "sum_ratio":
         return sum(float(f[x]) for x in r.fields) > float(r.value) / 100.0 * float(f[r.other])
+    if r.kind == "nested_ratio":
+        b, d = f[r.other], f[r.other2]
+        if b == 0 or d == 0:
+            return False
+        return float(f[r.field]) / b > (float(r.value) / 100.0) * (float(f[r.field2]) / d)
+    if r.kind == "cumulative":
+        running = 0.0
+        for x, cap in zip(r.fields, r.caps):
+            running += float(f[x])
+            if running > float(cap):
+                return True
+        return False
     if r.kind == "above":
         return float(f[r.field]) > float(r.value)
     if r.kind == "below":
@@ -282,10 +301,16 @@ def _sample_facts(spec: DomainSpec, rng: random.Random) -> dict[str, Any]:
     ratio_den = {r.other for r in spec.rules if r.kind == "ratio"}
     sum_num = {x: r for r in spec.rules if r.kind == "sum_ratio" for x in r.fields}
     sum_den = {r.other for r in spec.rules if r.kind == "sum_ratio"}
+    nr_num: dict[str, str] = {}   # nested_ratio numerator -> its denominator
+    for r in spec.rules:
+        if r.kind == "nested_ratio":
+            nr_num[r.field], nr_num[r.field2] = r.other, r.other2
+    nr_den = {x for r in spec.rules if r.kind == "nested_ratio" for x in (r.other, r.other2)}
+    cuml_charges = {x for r in spec.rules if r.kind == "cumulative" for x in r.fields}
     thresholds = {r.field: float(r.value) for r in spec.rules if r.kind in ("above", "below")}
     facts: dict[str, Any] = {}
     for f in spec.fields:   # denominators first so numerators can reference them
-        if f in ratio_den or f in sum_den:
+        if f in ratio_den or f in sum_den or f in nr_den:
             facts[f] = round(rng.uniform(100, 300), 2)
     for f in spec.fields:
         if f in facts:
@@ -302,6 +327,10 @@ def _sample_facts(spec: DomainSpec, rng: random.Random) -> dict[str, Any]:
             r = sum_num[f]
             k = max(1, len(r.fields))
             facts[f] = round(facts[r.other] * rng.uniform(0, 2 * float(r.value) / 100 / k), 2)
+        elif f in nr_num:
+            facts[f] = round(facts[nr_num[f]] * rng.uniform(0, 1.0), 2)
+        elif f in cuml_charges:
+            facts[f] = round(rng.uniform(1000, 9999), 2)
         elif f in thresholds:
             t = thresholds[f]
             hi = min(1.2 * t, 100.0) if "saturation" in f else 1.2 * t
@@ -340,6 +369,9 @@ def write_authoring_csv(spec: DomainSpec, path: Path, rng: random.Random) -> Non
             w.writerow({**f, "decision": spec.label(f)})
 
 
+_ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth")
+
+
 def _cond(r: Rule) -> str:
     """One rule as a direct firing condition (direction matches :func:`_fires`)."""
     f = r.field.replace("_", " ")
@@ -349,6 +381,15 @@ def _cond(r: Rule) -> str:
         flds = ", ".join(x.replace("_", " ") for x in r.fields)
         return (f"the combined total of {flds} exceeds {r.value:g} percent of the "
                 f"{r.other.replace('_', ' ')}")
+    if r.kind == "nested_ratio":
+        a, b, c, d = (x.replace("_", " ") for x in (r.field, r.other, r.field2, r.other2))
+        if r.value == 100:
+            return f"the ratio of {a} to {b} exceeds the ratio of {c} to {d}"
+        return f"the ratio of {a} to {b} exceeds {r.value:g} percent of the ratio of {c} to {d}"
+    if r.kind == "cumulative":
+        charges = ", ".join(x.replace("_", " ") for x in r.fields)
+        caps = ", ".join(f"{cap:g} after the {_ORDINALS[i]}" for i, cap in enumerate(r.caps))
+        return f"taking {charges} in order, the running total after any charge exceeds {caps}"
     if r.kind == "above":
         return f"the {f} is above {r.value:g}"
     if r.kind == "below":

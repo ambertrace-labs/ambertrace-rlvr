@@ -189,3 +189,114 @@ def test_aligned_dry_run_produces_both_verdicts(tmp_path):
                  (tmp_path / "corpora" / f"decision_ladder_conj_d{d}.jsonl").read_text().splitlines()
                  if line.strip()]
         assert {it["oracle"] for it in items} == {"approve", "deny"}
+
+
+# --- E2 complexity levers: nested_ratio + cumulative (#217) -----------------------
+def test_fires_nested_ratio_truth_table():
+    r = A.Rule("nested_ratio", "a", 100.0, "b", "deny", field2="c", other2="d")
+    assert A._fires(r, {"a": 30.0, "b": 100.0, "c": 10.0, "d": 100.0}) is True
+    assert A._fires(r, {"a": 10.0, "b": 100.0, "c": 30.0, "d": 100.0}) is False
+    assert A._fires(r, {"a": 10.0, "b": 100.0, "c": 20.0, "d": 200.0}) is False   # equal: strict >
+    assert A._fires(r, {"a": 10.0, "b": 0.0, "c": 1.0, "d": 100.0}) is False      # zero denominators
+    assert A._fires(r, {"a": 10.0, "b": 100.0, "c": 1.0, "d": 0.0}) is False
+    r50 = A.Rule("nested_ratio", "a", 50.0, "b", "deny", field2="c", other2="d")
+    assert A._fires(r50, {"a": 6.0, "b": 100.0, "c": 10.0, "d": 100.0}) is True   # .06 > .05
+    assert A._fires(r50, {"a": 5.0, "b": 100.0, "c": 10.0, "d": 100.0}) is False  # equal at 50%
+
+
+def test_fires_cumulative_truth_table():
+    r = A.Rule("cumulative", "", verb="deny", fields=("a", "b", "c"), caps=(100.0, 250.0, 500.0))
+    assert A._fires(r, {"a": 100.0, "b": 150.0, "c": 250.0}) is False   # exactly at every cap
+    assert A._fires(r, {"a": 101.0, "b": 0.0, "c": 0.0}) is True        # exceeds at step 1
+    assert A._fires(r, {"a": 50.0, "b": 201.0, "c": 0.0}) is True       # exceeds at step 2
+    assert A._fires(r, {"a": 50.0, "b": 100.0, "c": 351.0}) is True     # exceeds at step 3 only
+    assert A._fires(r, {"a": 10.0, "b": 10.0, "c": 10.0}) is False
+
+
+def test_cond_exact_strings_new_kinds():
+    nr = A.Rule("nested_ratio", "loss_load", 100.0, "rating_cap", "deny",
+                field2="drawdown", other2="cash_reserve")
+    assert A._cond(nr) == ("the ratio of loss load to rating cap exceeds "
+                           "the ratio of drawdown to cash reserve")
+    nr75 = A.Rule("nested_ratio", "a_x", 75.0, "b", "deny", field2="c", other2="d")
+    assert A._cond(nr75) == "the ratio of a x to b exceeds 75 percent of the ratio of c to d"
+    cu = A.Rule("cumulative", "", verb="deny", fields=("a", "b", "c"), caps=(100.0, 250.0, 500.0))
+    assert A._cond(cu) == ("taking a, b, c in order, the running total after any charge exceeds "
+                           "100 after the first, 250 after the second, 500 after the third")
+
+
+@pytest.mark.parametrize("depth", [2, 3])
+def test_nested_ratio_spec_and_description(depth):
+    spec = L.make_ladder_spec(depth, 0, "nested_ratio")
+    pairs = L.VARIANTS[0]["pairs"]
+    assert spec.key == f"lad_nested_ratio_d{depth}_v0" and spec.structure == "nested_ratio"
+    assert spec.combine == "or" and spec.family == "approve_deny"
+    assert [r.kind for r in spec.rules] == ["nested_ratio"] * depth    # no flag rule
+    exp = [f for p in pairs[:2 * depth] for f in p]
+    assert spec.fields == [L.FILLER, *exp] and set(spec.sample_facts) == set(spec.fields)
+    desc = A.render_description(spec)
+    (a, b), (c, d) = pairs[0], pairs[1]
+    clause = (f"the ratio of {a.replace('_', ' ')} to {b.replace('_', ' ')} exceeds "
+              f"the ratio of {c.replace('_', ' ')} to {d.replace('_', ' ')}")
+    assert f"Decide deny if {clause}" in desc
+    assert desc.count("the ratio of") == 2 * depth
+    assert desc.strip().endswith("Otherwise decide approve.")
+
+
+@pytest.mark.parametrize("depth", [2, 3])
+def test_cumulative_spec_and_description(depth):
+    spec = L.make_ladder_spec(depth, 0, "cumulative")
+    charges = [p[0] for p in L.VARIANTS[0]["pairs"][:depth]]
+    assert spec.key == f"lad_cumulative_d{depth}_v0" and spec.structure == "cumulative"
+    assert spec.combine == "or" and spec.fields == [L.FILLER, *charges]
+    (r,) = spec.rules
+    assert r.kind == "cumulative" and r.fields == tuple(charges)
+    assert r.caps == tuple(L.CUML_CAP_PER_STEP * (i + 1) for i in range(depth))
+    desc = A.render_description(spec)
+    ords = ["first", "second", "third"][:depth]
+    caps = ", ".join(f"{c:g} after the {o}" for c, o in zip(r.caps, ords))
+    names = ", ".join(c.replace("_", " ") for c in charges)
+    assert f"Decide deny if taking {names} in order, the running total after any charge exceeds {caps}." in desc
+    assert desc.strip().endswith("Otherwise decide approve.")
+
+
+def test_max_depth_for_and_depths_for_new_kinds():
+    assert L.max_depth_for("nested_ratio") == 4 == len(L.PCTS) // 2
+    for k in ("ratio", "sum", "conj", "cumulative"):
+        assert L.max_depth_for(k) == L.MAX_DEPTH
+    assert L.depths_for("nested_ratio", 99) == [1, 2, 3, 4]
+    assert L.depths_for("cumulative", 99) == [2, 3, 4, 5, 6, 7, 8]
+    assert L.depths_for("nested_ratio", 2) == [1, 2]
+    with pytest.raises(ValueError):
+        L.make_ladder_spec(5, 0, "nested_ratio")
+    with pytest.raises(ValueError):
+        L.make_ladder_spec(0, 0, "nested_ratio")
+    with pytest.raises(ValueError):
+        L.make_ladder_spec(1, 0, "cumulative")
+
+
+@pytest.mark.parametrize("kind", ["nested_ratio", "cumulative"])
+def test_new_kinds_sampled_facts_and_both_verdicts(kind):
+    spec = L.make_ladder_spec(3, 0, kind)
+    rng = random.Random(0)
+    dist = Counter(spec.label(f) for f in A.sample_balanced(spec, 100, rng))
+    assert set(dist) == {"approve", "deny"}, dist
+    f = A._sample_facts(spec, rng)
+    if kind == "cumulative":
+        assert all(1000 <= f[x] <= 9999 for x in spec.rules[0].fields)
+
+
+@pytest.mark.parametrize("kind", ["nested_ratio", "cumulative"])
+def test_build_aligned_cases_new_kinds(kind):
+    # shallow rungs/small n: robust balance offline (cumulative cap is a live-tuned knob)
+    depths = L.depths_for(kind, 2)
+    max_spec = L.make_ladder_spec(L.max_depth_for(kind), 0, kind)
+    for d in L.depths_for(kind, 99):                      # nested-fields invariant
+        assert set(L.make_ladder_spec(d, 0, kind).fields) <= set(max_spec.fields)
+    mapping = L.build_aligned_cases(kind, depths, n_variants=2, n_per=8)
+    for d in depths:
+        for v in (0, 1):
+            cases = mapping[f"lad_{kind}_d{d}_v{v}"]
+            assert len(cases) == 8
+            spec = L.make_ladder_spec(d, v, kind)
+            assert {spec.label(c.facts) for c in cases} == {"approve", "deny"}
