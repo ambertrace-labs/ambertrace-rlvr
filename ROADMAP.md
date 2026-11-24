@@ -4,7 +4,7 @@ The build-out plan from the scaffold ([PR #1](https://github.com/ambertrace-labs
 
 Live tracking: **[Epic #21](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/21)** · [Milestones](https://github.com/ambertrace-labs/ambertrace-rlvr/milestones). Each item below is a standalone issue with its own acceptance criteria; ordering reflects dependencies.
 
-**Progress: M0 ✅ · M1 ✅ · M2–M3 in progress.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, first released `v0.1.1`, now `v0.2.0`). `#27` is now unblocked (SDK 2.1.3 first shipped `query_batch` + projection; the pin is now `ambertraceai>=2.10.0`).
+**Progress: M0 ✅ · M1 ✅ · M2 ✅ · M3 nearly done.** The end-to-end loop works — a policy trained against AmberTrace proof certificates, with a real learning curve (see [Results](docs/RESULTS.md)). Now on PyPI: [`pip install ambertrace-rlvr`](https://pypi.org/project/ambertrace-rlvr/) (#20 ✅, first released `v0.1.1`, now `v0.2.0`). The SDK pin is now `ambertraceai>=2.14.0` (compound-rule builds + `get_or_create`).
 
 ## Two lanes
 
@@ -45,14 +45,14 @@ Independent of training. The certificate is a ground-truth oracle: it can certif
 The reward path + trainer adapters. Foundational reward components (#9, #10) are shared with the eval lane through the certificate. Done items marked ✅.
 
 ### M0 — Complete the bridge ✅
-Prerequisite plumbing for a real training loop. **Complete** (#27 unblocked by SDK 2.1.3 — implementation pending).
+Prerequisite plumbing for a real training loop. **Complete.**
 
 | # | Item | Spec |
 |---|------|------|
 | [#2](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/2)  | Config → run loader: YAML fully describes a run | §11 |
 | [#3](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/3)  | Verifier resilience: retries, backoff, circuit-breaker → floor | §10 |
 | [#4](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/4)  | Throughput: capability gate + concurrency tests + overhead benchmark | §10 |
-| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) | adopt query_batch + compact projection ✅ | — |
+| [#27](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/27) ✅ | adopt query_batch + compact projection | — |
 
 ### M1 — Warm-up domain (end-to-end) ✅
 First end-to-end GRPO loop against a platform we author via the SDK; first learning curves. **Complete** — see [Results](docs/RESULTS.md).
@@ -84,8 +84,8 @@ Generalisation, hosted reward server, docs, release.
 |---|------|-----------|
 | [#16](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/16) ✅ | Cross-domain swap-the-rule-set demo (≥2 domains) — **done** (`examples/cross_domain_demo.py`, [CROSS_DOMAIN.md](docs/CROSS_DOMAIN.md)) | #6, #13 |
 | [#17](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/17) ✅ | OpenRLHF HTTP reward-server shim — **done** (`integrations/openrlhf.py`) | — |
-| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — `build_rloo_trainer` (PR #80) | ✅ |
-| [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) | Docs, README, and license decision | — |
+| [#18](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/18) ✅ | TRL RLOO trainer builder (retargeted from PPO — current TRL removed the callable-reward PPO path) — `build_rloo_trainer` (`src/ambertrace_rlvr/integrations/trl.py`) | ✅ |
+| [#19](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/19) ✅ | Docs, README, and license decision | ✅ |
 | [#20](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/20) ✅ | v1.0 release: packaging, versioning, PyPI publish prep — **done: [`ambertrace-rlvr` on PyPI](https://pypi.org/project/ambertrace-rlvr/), `pip install ambertrace-rlvr`, automated releases via Trusted Publishing (first release `v0.1.1`)** | #19 |
 
 ## Distribution / traction lane

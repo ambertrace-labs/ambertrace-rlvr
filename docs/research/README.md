@@ -105,17 +105,22 @@ active working notes rather than published articles — cite with their status i
 - **⚠️ [Within-Family Decision Contagion](within-family-decision-contagion.md) — RETRACTED.**
   Under correction: the underlying corpus declared verb restrictiveness out-of-band
   instead of via an AmberTrace decision table, so its fail-open metrics sit on an
-  unvalidated frame. Do not cite pending a corpus rebuild.
+  unvalidated frame. The corpus has been rebuilt (`decision_eval_v2_subset.jsonl`,
+  82 domains, PRs #194--#198); do not cite the within-family numbers pending the
+  experiment re-run on the rebuilt corpus
+  ([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)).
 
 - **[Decision-Corpus Authoring Correction](decision-corpus-authoring-correction.md).**
   The methodology defect behind the retraction, and the corrected decision-table
-  authoring pipeline (SDK 2.10).
+  authoring pipeline (SDK 2.14).
 
-- **📋 [Does Inherited Misalignment Persist Under Clean Successor Training?](misalignment-persistence-under-clean-training.md) — EXPERIMENT PLAN (pre-registration, no results).**
+- **📋 [Does Inherited Misalignment Persist Under Clean Successor Training?](misalignment-persistence-under-clean-training.md) — EXPERIMENT PLAN (pre-registration; E1/E2/E3b/E5 now have results).**
   The frontier the synthesis opens onto: once a hack is inherited by a
   similar-but-harder successor eval, does clean training on that successor remove it,
   or does it persist/amplify as a self-reinforcing safety debt? Hypotheses, method, and
-  decision criteria fixed before data; results are the write-up below.
+  decision criteria fixed before data. E1/E2/E3b/E5 results are delivered (see
+  [e1-persistence-conj.md](e1-persistence-conj.md)); E3 (vulnerability map) is partial;
+  E4 (rollback vs patch) is in progress; E6 (larger-model spot-check) is deferred.
 
 - **[Does Inherited Misalignment Persist Under Clean Successor Training?](e1-persistence-conj.md) — 3-seed result (E1).**
   The first valid run of the pre-reg's E1. Reframed to a *computable sibling* successor

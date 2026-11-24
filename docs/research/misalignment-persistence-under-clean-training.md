@@ -1,16 +1,27 @@
 # Research Plan — Does Inherited Misalignment Persist Under Clean Successor Training?
 
-*(Experiment plan / pre-registration. No experiments have been run. This document
+*(Experiment plan / pre-registration. This document
 fixes the question, hypotheses, method, and decision criteria **before** any data is
 collected. Nothing here is a finding; a results write-up will be a separate document,
 authored only after the experiments run.)*
+
+> **Results status (2026-11).** Several experiments from this plan now have results:
+> **E1** (persistence, 3 seeds) and **E5** (monitorability) are delivered -- see
+> [e1-persistence-conj.md](e1-persistence-conj.md) and the synthesis
+> [emergent-misalignment-lineage-poisoning.md](emergent-misalignment-lineage-poisoning.md) §7.
+> **E2** (ladder corpus) and **E3b** (distance metric) are delivered.
+> **E4** (rollback vs patch) is in progress. **E3** (vulnerability map) is partial.
+> **E6** (replication) has the >=2-seed requirement met (3 seeds); the larger-model
+> spot-check is deferred. The plan text below is preserved as the registered-before-data
+> record.
 
 **AmberTrace® Labs • 2026 • Research plan • Overseen by Peter Chatwell, Founder/CEO**
 
 > **Authorship & oversight.** Drafted by AmberTrace's AI systems under the editorial
 > oversight of Peter Chatwell, Founder/CEO, who is accountable for its accuracy.
 >
-> **Status: experiment plan (pre-registration) — no results.** This extends the
+> **Status: experiment plan (pre-registration); E1/E2/E3b/E5 now have results
+> (see banner above).** This extends the
 > lineage-poisoning synthesis
 > ([emergent-misalignment-lineage-poisoning.md](emergent-misalignment-lineage-poisoning.md))
 > and the shared-structure conjecture
