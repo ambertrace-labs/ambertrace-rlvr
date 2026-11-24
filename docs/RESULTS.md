@@ -69,7 +69,7 @@ This is a **proof of mechanism**, not a benchmark:
 - One small, synthetic demo domain; a single 40-step run; one seed.
 - The policy is 1.5B and the run is short (laptop-class) — the curve shows *learning*, not a converged, evaluated model.
 - Label-free correctness rewards agreement with the platform's *certified* decision; it does not (here) measure against an external ground truth. Gold anchoring is available for labelled domains but was deliberately unused to showcase the unsupervised path.
-- No hyperparameter sweep, anti-reward-hacking probes, or held-out evaluation yet — those are the next milestones (see the [roadmap](../ROADMAP.md)).
+- This initial run had no hyperparameter sweep, anti-reward-hacking probes, or held-out evaluation. **Since then**, anti-reward-hacking probes (#11), the evaluation harness (#14), and an open-weight alignment matrix ([ALIGNMENT_MATRIX.md](ALIGNMENT_MATRIX.md)) have shipped. Extensive lineage, faithfulness, and persistence experiments followed — see [faithfulness-under-rlvr.md](research/faithfulness-under-rlvr.md), [reward-hacking-lineage.md](research/reward-hacking-lineage.md), and the emergent-misalignment persistence result [e1-persistence-conj.md](research/e1-persistence-conj.md) (E1: inherited hack persists 3/3 seeds under clean successor training; E4 rollback-vs-patch in progress).
 
 What it *does* establish: the end-to-end path works — you can author a verifier from plain-English rules with no labels, and train a model whose reward is that verifier's proof certificate.
 

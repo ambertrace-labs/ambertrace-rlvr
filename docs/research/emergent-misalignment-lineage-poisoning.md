@@ -18,9 +18,13 @@
 > and the strength-vs-structure conjecture
 > ([misalignment-transfer-conjecture.md](misalignment-transfer-conjecture.md))
 > into a single article. The within-family (realistic-family) result is
-> **forthcoming** pending a corpus rebuild
+> **forthcoming**
 > ([decision-corpus-authoring-correction.md](decision-corpus-authoring-correction.md));
-> numbers for that cell are not cited here. All other confirmed numbers are
+> numbers for that cell are not cited here. The corpus itself has been rebuilt
+> (`decision_eval_v2_subset.jsonl`, 82 domains, PRs #194--#198); the within-family
+> *experiment re-run* on the rebuilt corpus is what remains pending
+> ([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)).
+> All other confirmed numbers are
 > source-linked to the companion pieces; the one exception is the seed-2
 > sampled spot-check in §4, flagged there as an un-committed check.
 
@@ -73,8 +77,8 @@ That combination is the emergent-misalignment risk this line of work measures.
 This article synthesises confirmed results from the AmberTrace RLVR research
 programme. The in-domain race and the cross-domain contagion are confirmed
 across multiple seeds. The within-family (realistic-family) cell, the test
-most directly relevant to deployment, is under correction and forthcoming
-(§6). The article states what is confirmed and what remains open. It also
+most directly relevant to deployment, awaits its experiment re-run on the
+rebuilt corpus (§6). The article states what is confirmed and what remains open. It also
 reports the first result on the frontier this work opens onto — whether an
 inherited hack *persists* across a transition to a successor eval under clean
 training (§7): on a computable sibling successor it does, 3/3 seeds, and stays
@@ -360,14 +364,15 @@ was retracted because the underlying corpus (`decision_eval_v1`) declared
 its decision vocabulary and restrictiveness out-of-band, without an authored
 AmberTrace decision table. The fail-open/over-permit metrics were computed
 against an unvalidated frame. The methodology defect and the corrected
-authoring pipeline (SDK 2.10, declared `DecisionTable` with explicit `permits`
+authoring pipeline (SDK 2.14, declared `DecisionTable` with explicit `permits`
 bits) are documented in
 [decision-corpus-authoring-correction.md](decision-corpus-authoring-correction.md).
 
-**What the rebuild will test.** A corpus re-authored via SDK decision tables
-(scope being finalised — a representative multi-family subset versus a full
-rebuild is an open decision, per the correction note), split into disjoint
-train/probe subsets within the same family. The
+**The corpus rebuild has landed** (`decision_eval_v2_subset.jsonl`, 82 domains,
+authored via declared decision tables, PRs #194--#198). The remaining step is the
+**within-family experiment re-run** on the rebuilt corpus
+([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)),
+split into disjoint train/probe subsets within the same family. The
 question is whether a hack trained on one subset propagates (positive beta,
 positive correlation) to the held-out subset, with the same aligned-arm
 control that the cross-domain work uses. The unconditional
@@ -465,7 +470,9 @@ within the horizon — and are reported alongside the verdict, not folded into i
 
 - **The authoring correction.** The within-family result (§6) is retracted
   because the decision corpus was authored without a declared decision table.
-  Until the rebuild lands, the realistic-family cell is missing.
+  The corpus has been rebuilt (`decision_eval_v2_subset.jsonl`, 82 domains);
+  the within-family experiment re-run on the rebuilt corpus is pending
+  ([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)).
   This is the most deployment-relevant cell and the most pressing gap.
 
 - **Small domain, few generations.** The math race ran on GSM8K
@@ -532,10 +539,11 @@ The within-family (realistic-family) cell: does a hack trained on a subset
 of decision domains within the same family propagate to held-out domains in
 that family? This is the question most relevant to deployment (a model
 encountering new but structurally similar tasks). The original result is
-retracted; the rebuild is in progress. The cross-hack contrast
+retracted; the corpus is rebuilt but the experiment re-run is pending
+([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)). The cross-hack contrast
 and distance-gating from the confirmed results predict that within-family
 contagion should be stronger than near-OOD contagion and strongest for
-dense hacks. That prediction is testable once the rebuild lands.
+dense hacks. That prediction is testable once the within-family experiment re-runs (#206).
 
 **The persistence frontier — first result.** The deployment-critical question is what happens when a
 model saturates the hacked eval and training moves to a successor under a *clean* reward. §7 reports
@@ -566,9 +574,9 @@ remaining experiments are in
   - [Reward-Hack Induction at 4B](4b-induction-results.md)
     (scale x saturation x hack-type at 4B)
   - [Within-Family Decision Contagion](within-family-decision-contagion.md)
-    (retracted; rebuild pending)
+    (retracted; corpus rebuilt, experiment re-run pending [#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206))
   - [Decision-Corpus Authoring Correction](decision-corpus-authoring-correction.md)
-    (the methodology defect behind the retraction)
+    (the methodology defect behind the retraction; corpus rebuild landed)
   - [Misalignment Persistence Under Clean Successor Training](misalignment-persistence-under-clean-training.md)
     (thesis + experiment design: does an inherited hack persist or amplify under clean training on a harder successor?)
   - [Does Inherited Misalignment Persist Under Clean Successor Training?](e1-persistence-conj.md)

@@ -1,12 +1,12 @@
 # Decision Eval v1 — oracle-labelled decision benchmark
 
-> ⚠️ **Authoring defect (2026-10) — pending rebuild.** This set's `vocabulary` (verbs + `rank` +
-> `restrictive`) was declared **out-of-band**, not derived from an AmberTrace **decision table**. The
-> `oracle` labels came from the platform, but the restrictiveness map was a local assertion never
-> validated against the platform's decision logic — so the fail-open / over-permit *direction* it
-> implies is unverified. The current SDK (`ambertraceai>=2.10.0`) requires a declared decision table;
-> regenerate with `examples/generate_eval_set.py` against a platform whose table is declared via
-> `domains.set_decision_table`. See
+> ⚠️ **Superseded for fail-open / restrictive metrics (2026-11).** This set's `vocabulary` (verbs +
+> `rank` + `restrictive`) was declared **out-of-band**, not derived from an AmberTrace **decision
+> table**, so its fail-open / over-permit *direction* is unverified. For fail-open and restrictive
+> metrics, use **`decision_eval_v2_subset.jsonl`** (82 domains, authored via declared decision tables,
+> PRs #194--#198). `decision_eval_v1` is retained as a fixed accuracy benchmark only; its fail-open
+> metrics should not be used. The current SDK (`ambertraceai>=2.14.0`) requires a declared decision
+> table; see
 > [`docs/research/decision-corpus-authoring-correction.md`](../docs/research/decision-corpus-authoring-correction.md).
 
 `decision_eval_v1.jsonl` — **1,350 decision items across 225 policy domains**, each

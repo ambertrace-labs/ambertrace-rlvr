@@ -1,6 +1,6 @@
 # Decision-corpus authoring correction — `decision_eval_v1` was not authored via a decision table
 
-**Status (2026-10):** **methodology defect found + fix landed in code; corpus rebuild pending.** The
+**Status (2026-11):** **methodology defect found + fix landed in code; corpus rebuild LANDED** (`decision_eval_v2_subset.jsonl`, 82 domains, PRs #194--#198); **within-family experiment re-run pending** ([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)). The
 `decision_eval_v1` benchmark — and every result built on it — declared the decision vocabulary and its
 restrictiveness *out-of-band*, decoupled from the platform's decision logic, with **no authored
 decision table**. The current AmberTrace SDK requires a declared decision table and rejects the old
@@ -13,7 +13,7 @@ path. This note records the defect, the fix, and what it invalidates.
   `--verbs` / `--restrictive`), independent of the platform. So "which verb is correct" came from
   AmberTrace, but "is that verb restrictive / which action is fail-open" was a local assertion that
   was never validated against the platform's decision logic. That is **using AmberTrace incorrectly**.
-- **The SDK now forbids it.** In `ambertraceai>=2.10.0`, a domain declares its outcomes via a
+- **The SDK forbids it (since `ambertraceai` 2.10.0).** A domain declares its outcomes via a
   **`DecisionTable`** (`DomainCreate.decision_table`); the legacy `decision_vocabulary` is **rejected
   with HTTP 400** ("Declare outcomes with decision_table instead"). Each row (`DecisionTableRow`)
   carries `label`, `order` (ladder precedence), `permits` (may the action proceed — the authoritative
@@ -67,7 +67,7 @@ validated table. Restrictiveness and verdict now share one source.
 - **`examples/generate_eval_set.py`** now reads the vocabulary from the platform's decision table; the
   out-of-band `--verbs` / `--restrictive` flags are removed.
 - **`vocabulary_from_verbs`** is deprecated (retained only as a legacy shim for offline tests).
-- SDK pin bumped to **`ambertraceai>=2.10.0`**.
+- SDK pin bumped to **`ambertraceai>=2.14.0`**.
 
 ## What this invalidates
 
@@ -83,9 +83,9 @@ retraction/caveat:
 Note this *supersedes* the earlier GRPO-degeneracy finding on `severity_fail_open`: that was a problem
 *within* an already-invalid ground truth, so it no longer needs separate chasing.
 
-## Next (pending scope decision)
+## Next
 
-Rebuild a valid corpus: author each decision family as a verified platform *with a declared decision
-table*, regenerate by querying those oracles (`generate_eval_set.py`, now correct), then re-run the
-experiments and update/retract the affected writeups. Scope (representative set per family vs. full
-225-domain rebuild) is an open decision.
+The corpus rebuild has landed as `decision_eval_v2_subset.jsonl` (82 domains, authored via declared
+decision tables; PRs #194--#198). The remaining step is the **within-family experiment re-run**
+([#206](https://github.com/ambertrace-labs/ambertrace-rlvr/issues/206)): re-run the contagion
+experiments on the rebuilt corpus, then update or retract the affected writeups against those numbers.
