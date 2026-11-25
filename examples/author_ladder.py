@@ -174,8 +174,8 @@ def make_ladder_spec(depth: int, variant: int = 0, kind: str = "ratio") -> A.Dom
             sample_facts[num] = sample_facts[den] = 1.0
             rules.append(A.Rule("ratio", num, PCTS[i], den, "deny"))
 
-    policy = (f"This is a synthetic {v['story']} decision domain (ladder {kind} rung d{depth}, "
-              f"variant v{variant}). Approve sound applications; deny unsound ones.")
+    policy = (f"{v['story'].capitalize().replace('-', ' ')} screening of applications. "
+              f"Approve sound applications; deny unsound ones.")
     return A.DomainSpec(key=f"lad_{kind}_d{depth}_v{variant}", structure=structure,
                         family="approve_deny", policy=policy, fields=fields,
                         sample_facts=sample_facts, rules=rules, combine=combine)

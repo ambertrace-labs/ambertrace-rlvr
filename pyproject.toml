@@ -23,7 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "ambertraceai>=2.14.0",  # decision-table authoring API; 2.14 adds get_or_create + compound-rule builds
+    "ambertraceai>=2.20.0",  # decision-table authoring API; 2.20 adds decision_posture + proposed-table checks
     "pyyaml>=6.0",
 ]
 
