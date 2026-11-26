@@ -94,7 +94,7 @@ SEED = 0
 # (correctly) tripped the verified-build faithfulness gate. "r5" = fresh generation for the
 # case-aligned ladder rebuild (author_ladder.py --aligned), to author brand-new domains/platforms
 # rather than reuse earlier-generation names/ontologies.
-CORPUS_VERSION = "v2r5"
+CORPUS_VERSION = "v2r6"  # r6: human-readable compliance-prose descriptions (SDK 2.20); fresh platforms
 
 # FAMILIES (verbs + decision tables) lives in the package; shared with build_ambertrace_platform.
 
@@ -399,27 +399,38 @@ def _cond(r: Rule) -> str:
     return f"the {f} is {str(r.value).replace('_', ' ')}"  # equals
 
 
-def render_description(spec: DomainSpec) -> str:
-    """Kernel-friendly domain description generated from ``spec.rules`` + the family ladder.
+_PAST = {"deny": "denied", "flag": "flagged", "restrict": "restricted", "suspend": "suspended",
+         "monitor": "monitored", "escalate": "escalated",
+         "critical_escalate": "critically escalated"}
 
-    Every restrictive verb is stated as a DIRECT trigger ("Decide deny if X exceeds P percent of
-    Y"), never as an approve-side constraint ("X must not exceed ..."), which the platform's
-    verified build can read as no reachable restrictive verdict. Multi-verb ladders add a
-    most-restrictive-wins sentence; the permit verb is the "otherwise" default."""
+
+def render_description(spec: DomainSpec) -> str:
+    """Human-readable compliance-prose domain description (SDK 2.20 style) from ``spec.rules``.
+
+    Shape: a natural domain-context lead, one clause sentence per restrictive verb ("A case is
+    denied when X, when Y, or when Z."), then "Decide each case: <verbs>; <permit> it otherwise."
+    The rule-clause wording comes from :func:`_cond` (calibrated to the backend parser); only the
+    framing is prose. Every restrictive verb is a DIRECT trigger, never an approve-side
+    constraint ("must not exceed"), which the verified build can read as no reachable
+    restrictive verdict. Multi-verb ladders add a most-restrictive-wins sentence."""
     order = {r["label"]: r["order"] for r in spec.table["rows"]}
     permit = spec.verbs[0]
     lead = spec.policy.strip().split(". ")[0].rstrip(".") + "."
     parts = [lead]
-    joiner = ", and if " if spec.combine == "and" else ", or if "
     only = " only" if spec.combine == "and" else ""
     for verb in sorted({r.verb for r in spec.rules}, key=lambda v: -order[v]):
         conds = [_cond(r) for r in spec.rules if r.verb == verb]
-        parts.append(f"Decide {verb}{only} if " + joiner.join(conds) + ".")
+        body = f"when {conds[0]}"
+        for i, c in enumerate(conds[1:], start=1):
+            sep = ", and " if spec.combine == "and" else (", or " if i == len(conds) - 1 else ", ")
+            body += f"{sep}when {c}"
+        parts.append(f"A case is {_PAST.get(verb, verb)}{only} {body}.")
+    ranked = sorted(spec.verbs, key=lambda v: -order[v])
+    listed = ", ".join(ranked[:-1]) + f" or {ranked[-1]}"
     if len(spec.verbs) > 2:
-        ladder = " > ".join(sorted(spec.verbs, key=lambda v: -order[v]))
         parts.append("If more than one condition holds, the most restrictive decision wins "
-                     f"(most to least restrictive: {ladder}).")
-    parts.append(f"Otherwise decide {permit}.")
+                     f"(most to least restrictive: {' > '.join(ranked)}).")
+    parts.append(f"Decide each case: {listed}; {permit} it otherwise.")
     return " ".join(parts)
 
 
@@ -538,7 +549,18 @@ class LiveBackend:
         return int(ds.get("id"))
 
     def set_decision_table(self, domain_id: int, table: dict[str, Any]) -> None:
-        self.api.domains.set_decision_table(domain_id, table)
+        stored = self.api.domains.set_decision_table(domain_id, table)
+        for adv in (stored or {}).get("advisories") or []:
+            print(f"  [advisory] {adv.get('check')}: {adv.get('message')}")
+        ds = self.find_dataset(domain_id)
+        if ds is not None:   # fail fast on a blocking (C2) check instead of an opaque build failure
+            checks = (self.api.datasets.quality(ds).get("decision_table") or {}).get("checks") or {}
+            for w in checks.get("warnings") or []:
+                print(f"  [warning] {w.get('check')}: {w.get('message')}")
+            blocking = checks.get("blocking") or []
+            if blocking:
+                raise RuntimeError("decision-table check blocks the build: " + "; ".join(
+                    f"{b.get('check')}: {b.get('message')}" for b in blocking))
 
     def start_ontology(self, domain_id: int) -> str:
         return str(self.api.domains.build_ontology(domain_id)["job_id"])
@@ -552,9 +574,13 @@ class LiveBackend:
 
     def create_platform(self, spec: DomainSpec, domain_id: int,
                         dataset_id: int) -> tuple[int, str | None]:
+        # decision_posture="default_allow": our default row IS the permit verb, so a no-rule-match
+        # returns permit under either posture — semantics unchanged; verified_profile still fails
+        # closed on uncertifiable queries. Declared explicitly for the "approve otherwise" policy.
         p = self.api.platforms.create(domain_id=domain_id, dataset_id=dataset_id,
                                       name=spec.platform_name, verified_profile=True,
-                                      verified_min_confidence=0.85)
+                                      verified_min_confidence=0.85,
+                                      decision_posture="default_allow")
         return int(p.get("id")), p.get("job_id")
 
     def platform_status(self, platform_id: int) -> str:

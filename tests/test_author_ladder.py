@@ -86,12 +86,19 @@ def test_oracle_conj_concrete():
 
 # --- descriptions ----------------------------------------------------------
 def test_render_descriptions_per_type():
-    assert "exceeds 80 percent of the monthly income" in A.render_description(
-        L.make_ladder_spec(2, 0, "ratio"))
+    # ratio d2 = flag + 2 ratios = 3 OR triggers: pins the serial-comma joiner (intermediate
+    # ", when", single final ", or when", never ", and when" under combine="or").
+    ratio_desc = A.render_description(L.make_ladder_spec(2, 0, "ratio"))
+    assert ratio_desc == (
+        "Credit risk screening of applications. A case is denied when clearance_ok is false, "
+        "when the monthly payment exceeds 80 percent of the monthly income, or when the exposure "
+        "exceeds 65 percent of the credit limit. Decide each case: deny or approve; approve it "
+        "otherwise.")
+    assert ", and when" not in ratio_desc
     assert "combined total of" in A.render_description(L.make_ladder_spec(3, 0, "sum"))
     conj_desc = A.render_description(L.make_ladder_spec(3, 0, "conj"))
-    assert "only if" in conj_desc and "and if" in conj_desc
-    assert conj_desc.strip().endswith("Otherwise decide approve.")
+    assert "denied only when" in conj_desc and ", and when" in conj_desc
+    assert conj_desc.strip().endswith("approve it otherwise.")
 
 
 # --- surface disjointness + balance ---------------------------------------
@@ -238,9 +245,9 @@ def test_nested_ratio_spec_and_description(depth):
     (a, b), (c, d) = pairs[0], pairs[1]
     clause = (f"the ratio of {a.replace('_', ' ')} to {b.replace('_', ' ')} exceeds "
               f"the ratio of {c.replace('_', ' ')} to {d.replace('_', ' ')}")
-    assert f"Decide deny if {clause}" in desc
+    assert f"A case is denied when {clause}" in desc
     assert desc.count("the ratio of") == 2 * depth
-    assert desc.strip().endswith("Otherwise decide approve.")
+    assert desc.strip().endswith("Decide each case: deny or approve; approve it otherwise.")
 
 
 @pytest.mark.parametrize("depth", [2, 3])
@@ -256,8 +263,8 @@ def test_cumulative_spec_and_description(depth):
     ords = ["first", "second", "third"][:depth]
     caps = ", ".join(f"{c:g} after the {o}" for c, o in zip(r.caps, ords))
     names = ", ".join(c.replace("_", " ") for c in charges)
-    assert f"Decide deny if taking {names} in order, the running total after any charge exceeds {caps}." in desc
-    assert desc.strip().endswith("Otherwise decide approve.")
+    assert f"A case is denied when taking {names} in order, the running total after any charge exceeds {caps}." in desc
+    assert desc.strip().endswith("Decide each case: deny or approve; approve it otherwise.")
 
 
 def test_max_depth_for_and_depths_for_new_kinds():

@@ -35,7 +35,7 @@ def test_subset_composition(specs):
 
 def test_decision_table_default_is_the_residual_permit_verb():
     # The single default:true row MUST be the permit/residual verb (verbs[0]) — i.e. the verb
-    # render_description emits as "Otherwise decide <verb>". Guards against re-drift to the
+    # render_description emits as "<verb> it otherwise". Guards against re-drift to the
     # restrictive-verb-as-default inconsistency that the verified-build gate (correctly) rejects.
     for fam, cfg in A.FAMILIES.items():
         rows = cfg["table"]["rows"]
@@ -207,9 +207,9 @@ def test_resume_regenerates_missing_items_cache(specs, tmp_path):
 def test_render_description_ratio_compound_is_direct_trigger(specs):
     s = next(x for x in specs if x.key == "d000")
     d = A.render_description(s)
-    assert d == ("This is a loan approval domain. Decide deny if the monthly payment exceeds "
-                 "80 percent of the monthly income, or if the credit score is below 500. "
-                 "Otherwise decide approve.")
+    assert d == ("This is a loan approval domain. A case is denied when the monthly payment "
+                 "exceeds 80 percent of the monthly income, or when the credit score is below "
+                 "500. Decide each case: deny or approve; approve it otherwise.")
     assert "must not exceed" not in d
 
 
@@ -219,8 +219,8 @@ def test_render_description_ladders_name_each_verb_and_precedence(specs):
         d = A.render_description(s)
         assert "most restrictive decision wins" in d
         for verb in {r.verb for r in s.rules}:
-            assert f"Decide {verb} if" in d
-        assert d.endswith(f"Otherwise decide {s.verbs[0]}.")
+            assert f"A case is {A._PAST[verb]} when" in d
+        assert d.endswith(f"{s.verbs[0]} it otherwise.")
     med = A.render_description(next(x for x in specs if x.key == "d002"))
     assert "critical_escalate > escalate > monitor > discharge" in med
     assert "oxygen saturation is below 90" in med and "systolic bp is above 180" in med
@@ -234,10 +234,32 @@ def test_render_description_mentions_every_verb_and_rule_kind(specs):
         # every verb that has a rule must be a DIRECT trigger, not merely mentioned via the
         # ladder sentence (guards the fix's intent: no verb reachable only as a fallback).
         for verb in {r.verb for r in s.rules}:
-            assert f"Decide {verb} if" in d, (s.key, verb)
+            assert f"A case is {A._PAST[verb]}" in d, (s.key, verb)
         for r in s.rules:
             assert r.field in d or r.field.replace("_", " ") in d
     assert "has_permit is false" in A.render_description(
         next(x for x in specs if x.structure == "negation"))
     assert "zone type is protected" in A.render_description(
         next(x for x in specs if x.key == "d001"))
+
+
+def test_live_backend_gate_raises_on_blocking_decision_table_check():
+    """LiveBackend.set_decision_table fails fast on a blocking (C2) decision-table check and is
+    silent when checks are clean — exercised offline with a fake api (no network)."""
+    import types
+
+    def _backend(blocking):
+        lb = A.LiveBackend.__new__(A.LiveBackend)   # skip __init__ (which builds a real API)
+        lb.api = types.SimpleNamespace(
+            domains=types.SimpleNamespace(set_decision_table=lambda d, t: {"advisories": []}),
+            datasets=types.SimpleNamespace(
+                list=lambda: [{"id": 10, "domain_id": 1}],
+                quality=lambda ds: {"decision_table": {
+                    "checks": {"blocking": blocking, "warnings": []}}}))
+        return lb
+
+    with pytest.raises(RuntimeError, match="blocks the build"):
+        _backend([{"check": "C2", "message": "label polarity mismatch"}]).set_decision_table(
+            1, {"rows": []})
+    # clean checks -> no raise
+    _backend([]).set_decision_table(1, {"rows": []})
